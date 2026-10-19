@@ -1,15 +1,4 @@
-; Amstrad CPC hardware constants and low-level helpers.
-
-GA_PORT		equ #7F		; gate array (high byte of port)
-GA_RMR_MODE0	equ #8C		; RMR: mode 0, upper & lower ROM off
-GA_PEN_BORDER	equ #10
-
-CRTC_SEL	equ #BC		; CRTC register select (high byte)
-CRTC_DATA	equ #BD		; CRTC register data (high byte)
-
-PPI_B		equ #F5		; PPI port B: bit 0 = VSYNC
-
-SCREEN		equ #C000
+; Amstrad CPC low-level helpers (constants and macros: engine/defs.asm).
 
 ; Wait for the start of VSYNC.
 ; Destroys: A, B

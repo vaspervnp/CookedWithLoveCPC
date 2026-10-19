@@ -24,10 +24,10 @@ for g in $TYPES; do
 		echo -n "static [$1,$2]"; check $1 $2; echo
 	done
 	make -s en EXTRA="-DTEST_PATH=3 -DTEST_X=0 -DTEST_Y=40" >/dev/null 2>&1
-	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, 300 1 360)" $g
+	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, 420 1 480)" $g
 	echo -n "bounce V"; check 0 -1; echo
 	make -s en EXTRA="-DTEST_PATH=3 -DTEST_X=12 -DTEST_Y=0" >/dev/null 2>&1
-	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, 300 1 330)" $g
+	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, 420 1 450)" $g
 	echo -n "bounce H"; check -1 0; echo
 done
 make -s en >/dev/null 2>&1

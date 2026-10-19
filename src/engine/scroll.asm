@@ -1,30 +1,25 @@
-; Scrolling playfield: tile map -> 1024-word screen ring at &C000.
+; Scrolling playfield: tile map -> two 1024-word screen rings (double buffer).
 ;
 ; Map char (X,Y) (X = 4-pixel column, Y = 8-line row) lives at ring word
-; (Y*40 + X) & 1023 in every 2K block, so the view (40 x 22 chars) is always
-; contiguous from word base = cy*40 + cx and scrolling only redraws the
-; incoming column or row.
+; (Y*40 + X) & 1023 in every 2K block of a screen page, so the view (40 x 22
+; chars) is always contiguous from word base = cy*40 + cx. Each buffer
+; remembers which view its ring holds (buf_cx/buf_cy) and buffer_sync only
+; draws the columns/rows that changed since that buffer was last drawn.
 ;
-; Scroll position: sx in 2-pixel steps (0..MAX_SX), sy in lines (0..MAX_SY).
+; Scroll position (camera): sx in 2-pixel steps (0..MAX_SX), sy in lines.
 ;   cx = (sx+1) >> 1, phase = sx & 1 (R3 = R3_ALT moves the picture 2 pixels
 ;   right, so odd positions show the next char column shifted right)
 ;   cy = sy >> 3, fy = sy & 7
 ;
 ; Fine vertical scroll (see crtc.asm): the top 8-fy lines of the playfield
-; are the R5 lines at the end of frame H, which show the 40 words right
-; after the HUD. Rasters fy..7 of ring row cy are copied there (copy_top).
-; Frame A shows ring rows cy+1..cy+20 and, as its R5 lines, rasters
-; 0..fy-1 of row cy+21. The ring itself is never modified for scrolling.
+; are the R5 lines at the end of frame H, which show the 40 words right after
+; the HUD. Rasters fy..7 of ring row cy are copied there (copy_top). Frame A
+; shows ring rows cy+1..cy+20 and, as its R5 lines, rasters 0..fy-1 of row
+; cy+21.
 ;
-; Screen memory that is visible must only change when the beam is not on it,
-; so a frame update is done in this order (scroll_update):
-;   1. moves: incoming rows are drawn at once (outside the visible view),
-;      an incoming column is only noted (it overwrites a visible column)
-;   2. build nxt_state
-;   3. after the top buffer has been displayed (I2): copy_top
-;   4. once the beam is low enough in A (I4): draw the column top to bottom,
-;      always behind the beam
-;   5. flag nxt_state; I0/I1 commit it before H is displayed again
+; Drawing a frame (see main.asm): restore sprites, buffer_sync, draw sprites,
+; copy_top, scroll_build_state. Tiles and map are in bank 5 (RAM_C5 while
+; drawing), the HUD sets in the base &4000 page (RAM_C0 for copy_top).
 
 MAP_W		equ 80		; tiles (8x8)
 MAP_H		equ 84
@@ -34,15 +29,13 @@ VIEW_ROWS	equ PF_ROWS+1	; rows kept valid in the ring (cy..cy+21)
 MAX_SX		equ (MAP_CW-VIEW_CW)*2
 MAX_SY		equ (MAP_H-PF_ROWS)*8
 
-; HUD sets in the &8000 page (word offsets): HUD (160 words) followed by the
-; top buffer (40 words). Set 1 is used for R3 phase 1, its HUD is drawn
-; shifted by one byte so that it stays still on screen.
-HUD_SET0	equ 0
-HUD_SET1	equ 512
+; HUD sets in the base &4000 page, one per (R3 phase, buffer): set s at word
+; s*256 holds the HUD (160 words) followed by the top buffer (40 words). The
+; HUD of phase 1 sets is drawn shifted by one byte so it stays still.
 HUD_WORDS	equ HUD_ROWS*40
 
 ; ---------------------------------------------------------------------------
-; Set an absolute scroll position and redraw the whole view.
+; Set an absolute camera position; both buffers will be redrawn.
 ; In: A = sx, HL = sy
 scroll_set:
 	ld (scr_sx),a
@@ -61,32 +54,21 @@ scroll_set:
 	rr l
 	ld a,l
 	ld (scr_cy),a
-	ld a,255
-	ld (pending_col),a
-	ld a,(scr_cy)
-	ld b,VIEW_ROWS
-.row:	push af
-	push bc
-	call draw_row
-	pop bc
-	pop af
-	inc a
-	djnz .row
+	xor a
+	ld (buf_state+BS_OK),a
+	ld (buf_state+4+BS_OK),a
 	ret
 
+; Camera steps (no drawing; buffer_sync catches up).
 scroll_right:
 	ld a,(scr_sx)
 	cp MAX_SX
 	ret nc
 	inc a
 	ld (scr_sx),a
-	bit 0,a
-	ret z
 	inc a
 	srl a
 	ld (scr_cx),a
-	add a,VIEW_CW-1
-	ld (pending_col),a
 	ret
 
 scroll_left:
@@ -95,11 +77,9 @@ scroll_left:
 	ret z
 	dec a
 	ld (scr_sx),a
-	bit 0,a
-	ret nz
+	inc a
 	srl a
 	ld (scr_cx),a
-	ld (pending_col),a
 	ret
 
 scroll_down:
@@ -110,16 +90,7 @@ scroll_down:
 	ret nc
 	ld hl,(scr_sy)
 	inc hl
-	ld (scr_sy),hl
-	ld a,l
-	and 7
-	ld (scr_fy),a
-	ret nz
-	ld a,(scr_cy)
-	inc a
-	ld (scr_cy),a
-	add a,VIEW_ROWS-1
-	jp draw_row
+	jr scroll_sety
 
 scroll_up:
 	ld hl,(scr_sy)
@@ -127,45 +98,125 @@ scroll_up:
 	or l
 	ret z
 	dec hl
+scroll_sety:
 	ld (scr_sy),hl
 	ld a,l
 	and 7
 	ld (scr_fy),a
-	cp 7
-	ret nz
-	ld a,(scr_cy)
-	dec a
+	srl h
+	rr l
+	srl h
+	rr l
+	srl h
+	rr l
+	ld a,l
 	ld (scr_cy),a
-	jp draw_row
-
-; ---------------------------------------------------------------------------
-; Finish a frame update after the moves (steps 2-5 above).
-scroll_update:
-	call scroll_build_state
-	xor a
-	ld (sync_a),a
-.a:	ld a,(sync_a)
-	or a
-	jr z,.a
-	call copy_top
-	ld a,(pending_col)
-	inc a
-	jr z,.ready
-	xor a
-	ld (sync_c),a
-.c:	ld a,(sync_c)
-	or a
-	jr z,.c
-	ld a,(pending_col)
-	call draw_col
-	call copy_top_col
-	ld a,255
-	ld (pending_col),a
-.ready:	ld a,1
-	ld (nxt_ready),a
 	ret
 
-; Build nxt_state from the current scroll position (not flagged yet).
+; ---------------------------------------------------------------------------
+; Select the buffer to draw (A = 0/1).
+scroll_select:
+	ld (back),a
+	or a
+	ld a,#80
+	jr z,.p
+	ld a,#C0
+.p:	ld (scr_page),a
+	ret
+
+; Bring the back buffer's ring up to the camera view. Needs RAM_C5.
+BS_CX		equ 0
+BS_CY		equ 1
+BS_OK		equ 2
+
+buffer_sync:
+	ld a,(back)
+	add a,a
+	add a,a
+	ld e,a
+	ld d,0
+	ld ix,buf_state
+	add ix,de
+	ld a,(ix+BS_OK)
+	or a
+	jp z,.full
+
+	; columns, for the rows the ring holds now (bcy..bcy+21)
+	ld a,(ix+BS_CY)
+	ld (dc_y0),a
+	ld a,(scr_cx)
+	sub (ix+BS_CX)			; d = cx - bcx
+	jr z,.rows
+	jr c,.left
+	cp VIEW_CW
+	jp nc,.full
+	ld b,a				; X = bcx+40 .. cx+39
+	ld a,(ix+BS_CX)
+	add a,VIEW_CW
+	jr .cols
+.left:	neg
+	cp VIEW_CW
+	jp nc,.full
+	ld b,a				; X = cx .. bcx-1
+	ld a,(scr_cx)
+.cols:	push af
+	push bc
+	push ix
+	call draw_col
+	pop ix
+	pop bc
+	pop af
+	inc a
+	djnz .cols
+	ld a,(scr_cx)
+	ld (ix+BS_CX),a
+
+.rows:	ld a,(scr_cy)
+	sub (ix+BS_CY)			; e = cy - bcy
+	jr z,.done
+	jr c,.up
+	cp VIEW_ROWS
+	jr nc,.full
+	ld b,a				; Y = bcy+22 .. cy+21
+	ld a,(ix+BS_CY)
+	add a,VIEW_ROWS
+	jr .rws
+.up:	neg
+	cp VIEW_ROWS
+	jr nc,.full
+	ld b,a				; Y = cy .. bcy-1
+	ld a,(scr_cy)
+.rws:	push af
+	push bc
+	push ix
+	call draw_row
+	pop ix
+	pop bc
+	pop af
+	inc a
+	djnz .rws
+.done:	ld a,(scr_cy)
+	ld (ix+BS_CY),a
+	ret
+
+.full:	ld a,(scr_cx)
+	ld (ix+BS_CX),a
+	ld a,(scr_cy)
+	ld (ix+BS_CY),a
+	ld (ix+BS_OK),1
+	ld b,VIEW_ROWS
+.frow:	push af
+	push bc
+	push ix
+	call draw_row
+	pop ix
+	pop bc
+	pop af
+	inc a
+	djnz .frow
+	ret
+
+; Build nxt_state for displaying the back buffer (not flagged yet).
 scroll_build_state:
 	; base = (cy*40 + cx) & 1023
 	ld a,(scr_cy)
@@ -190,7 +241,15 @@ scroll_build_state:
 	ld ix,nxt_state
 	ld de,40			; A starts at row cy+1
 	add hl,de
-	call ma_ring
+	ld a,h				; R12: page bits from the buffer
+	and 3
+	ld h,a
+	ld a,(scr_page)
+	rrca
+	rrca
+	and #30
+	or h
+	ld h,a
 	ld (ix+ST_AMA),l
 	ld (ix+ST_AMA+1),h
 
@@ -201,32 +260,32 @@ scroll_build_state:
 	sub b
 	ld (ix+ST_HR5),a
 
-	; horizontal phase: R3 and HUD set
+	; HUD set s = phase*2 + back, R3 of the phase
 	ld a,(scr_sx)
 	and 1
-	ld hl,#2000+HUD_SET0
-	ld de,(HUD_SET0+HUD_WORDS)*2
-	ld a,R3_STD
+	ld c,R3_STD
 	jr z,.ph
-	ld hl,#2000+HUD_SET1
-	ld de,(HUD_SET1+HUD_WORDS)*2
-	ld a,R3_ALT
-.ph:	ld (ix+ST_R3),a
-	ld (ix+ST_HMA),l
-	ld (ix+ST_HMA+1),h
-	ld (top_dst),de
-	ret
-
-; HL = ring word (any) -> R12/R13 value for the &C000 page.
-ma_ring:
-	ld a,h
-	and 3
-	or #30
+	ld c,R3_ALT
+.ph:	ld (ix+ST_R3),c
+	add a,a
+	ld b,a
+	ld a,(back)
+	or b				; s
+	ld (ix+ST_HMA),0		; MA = &1000 + s*256
+	ld b,a
+	or #10
+	ld (ix+ST_HMA+1),a
+	ld a,b				; top buffer byte offset = s*512 + 320
+	add a,a
 	ld h,a
+	ld l,0
+	ld de,HUD_WORDS*2
+	add hl,de
+	ld (top_dst),hl
 	ret
 
-; Copy rasters fy..7 of ring row scr_base into the top buffer (top_dst in
-; the &8000 page), buffer line = raster - fy. Handles the 2K block wrap.
+; Copy rasters fy..7 of the back ring's row cy (scr_base, set by
+; scroll_build_state) into its top buffer. Needs RAM_C0.
 copy_top:
 	ld hl,(scr_base)
 	add hl,hl
@@ -251,7 +310,9 @@ copy_top:
 	add a,a
 	add a,a
 	add a,a
-	add a,#C0
+	ld h,a
+	ld a,(scr_page)
+	add a,h
 	ld h,a
 	ld l,0
 	ld de,(top_off)
@@ -260,7 +321,7 @@ copy_top:
 	add a,a
 	add a,a
 	add a,a
-	add a,#80
+	add a,#40
 	ld d,a
 	ld e,0
 	push hl
@@ -291,69 +352,8 @@ copy_top:
 	jr nz,.line
 	ret
 
-; Copy the column pending_col of ring row cy into the top buffer (after
-; copy_top, which ran before the column was drawn).
-copy_top_col:
-	ld a,(scr_cx)
-	ld b,a
-	ld a,(pending_col)
-	sub b				; column 0..39 in the view
-	add a,a
-	ld e,a
-	ld d,0
-	ld hl,(top_dst)
-	add hl,de
-	ld (tc_dst),hl
-	ld hl,(scr_base)		; src word = base + column
-	srl d
-	ld a,e
-	rra
-	ld e,a
-	add hl,de
-	ld a,h
-	and 3
-	ld h,a
-	add hl,hl
-	ld (tc_src),hl
-	ld a,(scr_fy)
-	ld b,a				; source raster
-	ld c,0				; buffer line
-.line:	ld a,b
-	add a,a
-	add a,a
-	add a,a
-	add a,#C0
-	ld h,a
-	ld l,0
-	ld de,(tc_src)
-	add hl,de
-	ld a,c
-	add a,a
-	add a,a
-	add a,a
-	add a,#80
-	ld d,a
-	ld e,0
-	push hl
-	ld hl,(tc_dst)
-	add hl,de
-	ex de,hl
-	pop hl
-	ld a,(hl)
-	ld (de),a
-	inc hl
-	inc de
-	ld a,(hl)
-	ld (de),a
-	inc c
-	inc b
-	ld a,b
-	cp 8
-	jr nz,.line
-	ret
-
 ; ---------------------------------------------------------------------------
-; Draw map char row Y (A) for X = cx..cx+39.
+; Draw map char row Y (A) for X = cx..cx+39. Needs RAM_C5.
 draw_row:
 	cp MAP_H
 	ret nc
@@ -378,18 +378,23 @@ draw_row:
 	inc d
 	ld a,d
 	and 7
-	or #C0
+	ld d,a
+	ld a,(scr_page)
+	or d
 	ld d,a
 .nw:	djnz .lp
 	ret
 
-; Draw map char column X (A) for Y = cy..cy+21 (stops at the map bottom).
+; Draw map char column X (A) for VIEW_ROWS rows from dc_y0 (stops at the map
+; bottom). Needs RAM_C5.
 draw_col:
 	ld (ca_x),a
-	ld a,(scr_cy)
+	ld a,(dc_y0)
 	ld b,a
 	ld a,MAP_H
 	sub b				; rows left in the map
+	ret c
+	ret z
 	cp VIEW_ROWS
 	jr c,.n
 	ld a,VIEW_ROWS
@@ -405,7 +410,9 @@ draw_col:
 	inc d
 	ld a,d
 	and 7
-	or #C0
+	ld d,a
+	ld a,(scr_page)
+	or d
 	ld d,a
 .nc:	push bc
 	ld bc,MAP_W
@@ -437,7 +444,9 @@ char_addr:
 	add hl,hl
 	ld a,h
 	and 7
-	or #C0
+	ld h,a
+	ld a,(scr_page)
+	or h
 	ld h,a
 	ex de,hl			; DE = screen
 	pop hl
@@ -501,11 +510,12 @@ scr_cx:		db 0
 scr_cy:		db 0
 scr_fy:		db 0
 scr_base:	dw 0
+scr_page:	db #80		; high byte of the back buffer (&80 / &C0)
+back:		db 0		; back buffer 0/1
+buf_state:	ds 8,0		; per buffer: BS_CX, BS_CY, BS_OK, pad
 ca_x:		db 0
+dc_y0:		db 0
 dc_rows:	db 0
-pending_col:	db 255		; incoming column, drawn late in A
-top_dst:	dw 0		; byte offset of the top buffer in the &8000 page
+top_dst:	dw 0		; byte offset of the top buffer in the &4000 page
 top_off:	dw 0
 top_n1:		db 0
-tc_src:		dw 0
-tc_dst:		dw 0

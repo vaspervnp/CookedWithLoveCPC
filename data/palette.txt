@@ -15,7 +15,7 @@
 11  11  sky_blue
 12  13  white
 13  26  bright_white
-14  5   mauve
+14  0   black_opaque   # outlines in sprites (pen 0 is transparent)
 15  12  yellow
 #
 # border uses firmware colour:

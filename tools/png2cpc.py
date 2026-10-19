@@ -19,14 +19,17 @@ from PIL import Image
 from cpc import fw_to_rgb, load_palette, mode0_byte
 
 
-def to_pens(img, halve):
+def to_pens(img, halve, sprite=False):
     img = img.convert("RGBA")
     if halve:
         if img.width % 2:
             sys.exit("--halve needs an even width")
         img = img.resize((img.width // 2, img.height), Image.NEAREST)
     pens, _ = load_palette()
-    lookup = {fw_to_rgb(fw): i for i, (fw, _) in reversed(list(enumerate(pens)))}
+    # Several pens may share a colour (pen 0 and pen 14 are both black). For
+    # sprites, pen 0 means transparent, so opaque pixels take the highest pen.
+    order = list(enumerate(pens)) if sprite else list(reversed(list(enumerate(pens))))
+    lookup = {fw_to_rgb(fw): i for i, (fw, _) in order}
     w, h = img.size
     px = img.load()
     out = []

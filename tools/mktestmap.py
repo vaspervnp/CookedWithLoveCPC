@@ -17,7 +17,7 @@ from cpc import mode0_byte
 
 MAP_W, MAP_H = 80, 84
 SCR_W, SCR_H = 20, 21          # tiles per playfield screen
-SCREEN_PENS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 3, 9]
+SCREEN_PENS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 6, 15, 3, 9]
 WHITE = 13
 
 DIGITS = {  # 3x5 font
@@ -63,13 +63,33 @@ def main():
         tiles.append(tile_pixels(SCREEN_PENS[s], diag=True))
     for s in range(16):                      # 32..47 screen number (1..16 -> last digit)
         tiles.append(tile_pixels(SCREEN_PENS[s], digit=(s + 1) % 10))
+    # 48: brick wall, 49: stone pillar (solid: tile >= SOLID_FIRST)
+    wall = [[12] * 8 for _ in range(8)]
+    for y in range(8):
+        for x in range(8):
+            if y in (3, 7):
+                wall[y][x] = 12                  # mortar
+            elif x == (0 if y < 3 else 4):
+                wall[y][x] = 12
+            else:
+                wall[y][x] = 4 if (y in (0, 4)) else 3
+    tiles.append(wall)
+    pillar = [[13 if x < 2 else (12 if x < 6 else 14) for x in range(8)] for y in range(8)]
+    for x in range(8):
+        pillar[0][x] = 13
+        pillar[7][x] = 14
+    tiles.append(pillar)
 
     m = bytearray()
     for ty in range(MAP_H):
         for tx in range(MAP_W):
             s = (tx // SCR_W) + 4 * (ty // SCR_H)
             lx, ly = tx % SCR_W, ty % SCR_H
-            if (lx, ly) == (1, 1):
+            if tx in (0, MAP_W - 1) or ty in (0, MAP_H - 1):
+                t = 48
+            elif tx % 10 in (5, 6) and ty % 10 in (5, 6) and (tx, ty) != (5, 5):
+                t = 49
+            elif (lx, ly) == (1, 1):
                 t = 32 + s
             elif (tx + 2 * ty) % 9 == 0:
                 t = 16 + s

@@ -8,10 +8,14 @@
 ;   frame  lines          rows       content
 ;   B      0..111         14         row 0 shows black memory, then R6=1 turns
 ;                                     the display off; VSYNC at row 7
-;   H      112..151-fy    4 + R5     HUD (4 rows) + R5 = 8-fy lines: top
-;                                     playfield rasters fy..7 (copy buffer)
-;   A      152-fy..311    20 + R5    playfield rows cy+1..cy+20 + R5 = fy
-;                                     lines: rasters 0..fy-1 of row cy+21
+;   H      112..151-fy    4 + R5     HUD (4 rows, base &4000 page) + R5 = 8-fy
+;                                     lines: top playfield rasters fy..7 (copy)
+;   A      152-fy..311    20 + R5    playfield rows cy+1..cy+20 (screen buffer
+;                                     &8000 or &C000) + R5 = fy lines: rasters
+;                                     0..fy-1 of row cy+21
+;
+; The playfield is double buffered: the main loop draws the back buffer and
+; its HUD set, and the commit at I1 flips to it.
 ;
 ; No register write is cycle-critical: every write has at least one row of
 ; slack. Interrupts (300 Hz, fixed positions relative to VSYNC at line 56):
@@ -19,12 +23,12 @@
 ;   I0 (58, VSYNC)    latch "commit pending", R3 + R12/R13 of H of that state,
 ;                     R6 = 127 (display on for H and A)
 ;   I1 (110, end B)   commit; then (in H) R4/R5 of H, R12/R13 of A
-;   I2 (162, A row 1) R4/R5/R7 of A; flags the main loop (top buffer free)
+;   I2 (162, A row 1) R4/R5/R7 of A
 ;   I3 (214, A)       R6 = 1 (ends the display at B row 1)
-;   I4 (266, A)       R12/R13 of B (black); flags the main loop (column)
+;   I4 (266, A)       R12/R13 of B (black)
 ; R6 is never 0: on CRTC 1 that blanks the screen immediately.
 
-; --- state block (built by the scroll code, committed at I1) ---
+; --- state block (built by scroll_build_state, committed at I1) ---
 ST_HMA		equ 0		; R12/R13 of H (HUD set)
 ST_AMA		equ 2		; R12/R13 of A
 ST_HR5		equ 4		; R5 of H = 8-fy
@@ -33,7 +37,7 @@ ST_R3		equ 6
 ST_SIZE		equ 7
 
 B_ROWS		equ 14
-B_MA		equ #2000+200	; 40 words that stay black (&8000 page)
+B_MA		equ #1000+200	; 40 words that stay black (base &4000 page)
 B_VSYNC_ROW	equ 7
 HUD_ROWS	equ 4
 PF_ROWS		equ 21		; playfield height in char rows (168 lines)
@@ -111,7 +115,10 @@ irq:
 	jr nc,.disp
 	xor a				; VSYNC -> this is I0
 	ld (irq_n),a
-.disp:	ld hl,irq_n
+.disp:	ld hl,(irq_ticks)		; 300 Hz time base
+	inc hl
+	ld (irq_ticks),hl
+	ld hl,irq_n
 	ld a,(hl)
 	inc (hl)
 	and 7
@@ -201,8 +208,6 @@ irq_i2:
 	ld a,127			; no VSYNC inside A
 	ld c,7
 	call crtc_write
-	ld a,1
-	ld (sync_a),a
 	jp irq_ret
 
 ; I3: A row ~8. Display off from B row 1 on.
@@ -216,8 +221,6 @@ irq_i3:
 irq_i4:
 	ld hl,B_MA
 	call crtc_set_ma
-	ld a,1
-	ld (sync_c),a
 	jp irq_ret
 
 ; I5: B row 0. Constants of B.
@@ -238,10 +241,9 @@ irq_table:
 	dw irq_i0, irq_i1, irq_i2, irq_i3, irq_i4, irq_i5, irq_ret, irq_ret
 
 irq_n:		db 0
+irq_ticks:	dw 0		; +1 per interrupt (300 Hz)
 frame_count:	db 0
 nxt_ready:	db 0
 commit_pending:	db 0
-sync_a:		db 0		; set by I2: H's top buffer has been displayed
-sync_c:		db 0		; set by I4: beam far enough down in A
 cur_state:	ds ST_SIZE,0
 nxt_state:	ds ST_SIZE,0

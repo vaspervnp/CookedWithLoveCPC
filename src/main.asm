@@ -1,12 +1,17 @@
 ; Cooked with Love - Amstrad CPC 6128
 ; Build: rasm src/main.asm -Isrc -Ibuild -DLANG_EN=1 (or -DLANG_GR=1)
 ;
-; M1 scroll prototype: cursor keys / joystick scroll the 4x4-screen test map.
-; Test builds: -DTEST_X=<sx> -DTEST_Y=<sy> start at that position.
-; -DTEST_PATH=1 starts at 0,0 and scrolls there step by step,
-; -DTEST_PATH=2 starts at the bottom-right corner and scrolls back there.
-; -DTEST_PATH=3 bounces forever between 0,0 and TEST_X,TEST_Y (timing tests
-; on other emulators / real hardware).
+; M2: Bill walks around the 4x4-screen test map (cursor keys / joystick),
+; the camera follows him.
+;
+; Scroll test builds (no actors, camera only):
+;   -DTEST_X=<sx> -DTEST_Y=<sy>  start at that position
+;   -DTEST_PATH=1                start at 0,0 and scroll there step by step
+;   -DTEST_PATH=2                start at the bottom-right corner, scroll back
+;   -DTEST_PATH=3                bounce forever between 0,0 and TEST_X,TEST_Y
+; -DDEMO=1: Bill walks a scripted path (collision/camera tests).
+; -DDBGPOS=1 (implied by DEMO): HUD line 0 shows camera, sprite position and
+; frame as bits, read by tools/gamecheck.py.
 
 	ifndef LANG_EN
 LANG_EN	equ 0
@@ -15,6 +20,16 @@ LANG_EN	equ 0
 LANG_GR	equ 0
 	endif
 	assert LANG_EN+LANG_GR==1,"define exactly one of LANG_EN / LANG_GR"
+TESTMODE = 0
+	ifdef TEST_X
+TESTMODE = 1
+	endif
+	ifdef TEST_Y
+TESTMODE = 1
+	endif
+	ifdef TEST_PATH
+TESTMODE = 1
+	endif
 	ifndef TEST_X
 TEST_X	equ 0
 	endif
@@ -27,6 +42,15 @@ TEST_PATH equ 0
 	ifndef DEBUG
 DEBUG	equ 0
 	endif
+	ifndef DEMO
+DEMO	equ 0
+	endif
+	ifndef DBGPOS
+DBGPOS	equ DEMO
+	endif
+	ifndef CLONES			; stress test: extra copies of Bill
+CLONES	equ 0
+	endif
 	ifndef FINE_X			; 0 = fallback: 4-pixel horizontal steps
 FINE_X	equ 1
 	endif
@@ -34,7 +58,10 @@ FINE_X	equ 1
 FINE_Y	equ 1
 	endif
 
+	include "engine/defs.asm"
+
 STACK_TOP	equ #0100
+MAX_TICKS	equ 4		; game ticks run per drawn frame at most
 
 	org #0100
 	buildcpc
@@ -47,23 +74,25 @@ start:
 	ld bc,GA_PORT*256+GA_RMR_MODE0
 	out (c),c			; mode 0, ROMs off (firmware no longer used)
 
+	call mem_relocate		; data into banks 4/5, clear &4000-&FFFF
 	call wait_vsync
 	ld hl,palette_hw
 	call set_palette
 
-	ld hl,#8000			; clear HUD page and screen
-	ld de,#8001
-	ld bc,#7FFF
-	ld (hl),0
-	ldir
-
-	ld de,HUD_SET0*2		; HUD for R3 phase 0 / 1
+	ld de,0				; HUD sets: (phase 0, buffer 0/1), (phase 1, ...)
 	ld a,1
 	call hud_fill
-	ld de,HUD_SET1*2
+	ld de,512
+	ld a,1
+	call hud_fill
+	ld de,1024
+	ld a,1+HUD_SHIFT1
+	call hud_fill
+	ld de,1536
 	ld a,1+HUD_SHIFT1
 	call hud_fill
 
+	if TESTMODE
 	if TEST_PATH==1 || TEST_PATH==3
 	xor a
 	ld hl,0
@@ -75,20 +104,32 @@ start:
 	ld hl,TEST_Y
 	endif
 	call scroll_set
-	call scroll_build_state
-	call copy_top
+	else
+	call actor_init
+	xor a
+	ld hl,0
+	call scroll_set
+	RAM RAM_C5
+	xor a
+	call actor_tick			; place the camera
+	RAM RAM_C0
+	endif
+
+	xor a				; first frame into buffer 0, shown at once
+	call render
 	ld hl,nxt_state
 	ld de,cur_state
 	ld bc,ST_SIZE
 	ldir
 	xor a
 	ld (nxt_ready),a
-
 	call crtc_init
+	ld a,(frame_count)
+	ld (last_frame),a
 	ei
 
 main_loop:
-.wait:	ld a,(nxt_ready)
+.wait:	ld a,(nxt_ready)		; previous frame committed?
 	or a
 	jr nz,.wait
 	if DEBUG
@@ -98,12 +139,88 @@ main_loop:
 	out (c),a
 	endif
 
-	if TEST_PATH
+	; ticks since the last update (1..MAX_TICKS)
+	ld a,(last_frame)
+	ld b,a
+	ld a,(frame_count)
+	ld (last_frame),a
+	sub b
+	jr nz,.t1
+	inc a
+.t1:	cp MAX_TICKS+1
+	jr c,.t2
+	ld a,MAX_TICKS
+.t2:	ld (ticks),a
+
+	if TESTMODE
 	call test_path_input
+	ld (input),a
+	call camera_steps
+	else
+	if DEMO
+	call demo_input
 	else
 	call read_input
 	endif
 	ld (input),a
+	RAM RAM_C5
+.tick:	ld a,(input)
+	call actor_tick
+	ld hl,ticks
+	dec (hl)
+	jr nz,.tick
+	RAM RAM_C0
+	endif
+
+	ld a,(back)			; draw the other buffer
+	xor 1
+	call render
+
+	if DEBUG
+	ld bc,GA_PORT*256+GA_PEN_BORDER
+	out (c),c
+	ld a,#54
+	out (c),a
+	endif
+	jr main_loop
+
+; Draw a complete frame into buffer A and flag it for display.
+render:
+	call scroll_select
+	if DBGPOS
+	call prof_start
+	endif
+	call sprites_restore
+	if DBGPOS
+	call prof_mark
+	endif
+	RAM RAM_C5
+	call buffer_sync
+	if DBGPOS
+	call prof_mark
+	endif
+	call sprites_clear
+	if TESTMODE==0
+	call actor_sprites
+	endif
+	call sprites_draw
+	if DBGPOS
+	call prof_mark
+	endif
+	RAM RAM_C0			; HUD sets (copy_top) are in the base &4000 page
+	call scroll_build_state
+	call copy_top
+	if DBGPOS
+	call prof_mark
+	call dbg_band
+	endif
+	ld a,1
+	ld (nxt_ready),a
+	ret
+
+	if TESTMODE
+; Test camera: one step per frame per axis (2/8 steps in fallback modes).
+camera_steps:
 	ld a,(scroll_step_x)
 	ld b,a
 .right:	push bc
@@ -126,17 +243,8 @@ main_loop:
 	call nz,scroll_up
 	pop bc
 	djnz .down
-	call scroll_update
+	ret
 
-	if DEBUG
-	ld bc,GA_PORT*256+GA_PEN_BORDER
-	out (c),c
-	ld a,#54
-	out (c),a
-	endif
-	jr main_loop
-
-	if TEST_PATH
 ; Fake input: move towards (TEST_X, TEST_Y), or bounce (TEST_PATH=3).
 test_path_input:
 	if TEST_PATH==3
@@ -183,7 +291,7 @@ test_path_input:
 	ret
 bounce_dx:	db 0
 bounce_dy:	db 0
-	endif
+	elseif TEST_PATH
 	ld e,0
 	ld a,(scr_sx)
 	cp TEST_X
@@ -203,11 +311,133 @@ bounce_dy:	db 0
 .u:	set KEY_UP,e
 .done:	ld a,e
 	ret
+	else
+	xor a
+	ret
+	endif
+	endif
+
+	if DEMO
+; Scripted input: pairs (keys, frames), looped. Advances by the frames drawn.
+demo_input:
+	ld a,(demo_left)
+	or a
+	jr nz,.cur
+	ld hl,(demo_ptr)
+	ld a,(hl)
+	cp #FF
+	jr nz,.n
+	ld hl,demo_script
+.n:	ld a,(hl)
+	ld (demo_keys),a
+	inc hl
+	ld a,(hl)
+	inc hl
+	ld (demo_ptr),hl
+.cur:	dec a
+	ld (demo_left),a
+	ld a,(demo_keys)
+	ret
+R	equ 1<<KEY_RIGHT
+L	equ 1<<KEY_LEFT
+D	equ 1<<KEY_DOWN
+U	equ 1<<KEY_UP
+demo_script:
+	db R,90, D,70, 0,10, L,120, U,40, R|D,60, L|U,50, D,140, R,200, U,120, L,40, L|D,80, 0,15, U,200, #FF
+demo_ptr:	dw demo_script
+demo_left:	db 0
+demo_keys:	db 0
+	endif
+
+	if DBGPOS
+; Debug band on HUD line 0 of the set being drawn: 64 bits, MSB first, one
+; byte each (#FF = 1, 0 = 0): sx(8), sy(16), sprite 0 left(16), top(16),
+; frame number(8). Needs RAM_C0.
+dbg_band:
+	ld hl,(nxt_state+ST_HMA)	; set s -> byte s*512 of the &4000 page
+	ld a,h
+	and 3
+	add a,a
+	add a,#40
+	ld d,a
+	ld e,0
+	ld a,(scr_sx)
+	call .byte
+	ld hl,(scr_sy)
+	call .word
+	ld hl,(spr_list+SE_X)
+	call .word
+	ld hl,(spr_list+SE_Y)
+	call .word
+	ld a,(dbg_frame)
+	call .byte
+	ld hl,prof_t			; 4 stage times (1/300 s), 4 bits each
+	ld a,(hl)
+	rlca
+	rlca
+	rlca
+	rlca
+	inc hl
+	or (hl)
+	push hl
+	call .byte
+	pop hl
+	inc hl
+	ld a,(hl)
+	rlca
+	rlca
+	rlca
+	rlca
+	inc hl
+	or (hl)
+.byte:	ld b,8
+.bit:	rlca
+	ld c,0
+	jr nc,.z
+	dec c
+.z:	ex de,hl
+	ld (hl),c
+	ex de,hl
+	inc de
+	djnz .bit
+	ret
+.word:	ld a,h
+	push hl
+	call .byte
+	pop hl
+	ld a,l
+	jr .byte
+
+; Stage timing for the debug band.
+prof_start:
+	ld hl,(irq_ticks)
+	ld (prof_last),hl
+	ld hl,prof_t
+	ld (prof_ptr),hl
+	ret
+prof_mark:
+	ld hl,(irq_ticks)
+	ld de,(prof_last)
+	ld (prof_last),hl
+	or a
+	sbc hl,de
+	ld a,l
+	cp 16
+	jr c,.ok
+	ld a,15
+.ok:	ld hl,(prof_ptr)
+	ld (hl),a
+	inc hl
+	ld (prof_ptr),hl
+	ret
+prof_last:	dw 0
+prof_ptr:	dw prof_t
+prof_t:		ds 4,0
 	endif
 
 HUD_SHIFT1	equ 1		; HUD pattern shift (bytes) for R3 phase 1
 
-; Fill the 4 HUD rows at byte offset DE of the &8000 page from the test
+; Fill the 4 HUD rows at byte offset DE of the base &4000 page from the test
 ; pattern starting at hud_pattern + A. Line 0 of every row is black.
 hud_fill:
 	ld (hf_src),a
@@ -219,7 +449,7 @@ hud_fill:
 	add a,a
 	add a,a
 	add a,a
-	add a,#80
+	add a,#40
 	ld h,a
 	ld a,c				; + row*80
 	add a,a
@@ -231,13 +461,10 @@ hud_fill:
 	add a,a
 	add a,l
 	ld l,a
-	push hl
-	pop ix				; dst (without DE)
 	pop de
 	push de
-	add ix,de
-	push ix
-	pop de
+	add hl,de
+	ex de,hl			; DE = dst
 	ld a,b
 	or a
 	jr nz,.pat
@@ -268,26 +495,25 @@ hud_fill:
 	ret
 
 input:		db 0
-; Scroll steps per frame: 1 = fine (2 px / 1 line), 2 / 8 = CRTC fallback.
-; Set at boot; CRTC type detection will choose these later.
+ticks:		db 0
+last_frame:	db 0
+hf_src:		db 0
+; Scroll steps per frame in test builds: 1 = fine (2 px / 1 line), 2 / 8 =
+; CRTC fallback.
 scroll_step_x:	db 2-FINE_X
 scroll_step_y:	db 8-7*FINE_Y
-hf_src:		db 0
 
 	include "engine/hw.asm"
+	include "engine/mem.asm"
 	include "engine/input.asm"
 	include "engine/crtc.asm"
 	include "engine/scroll.asm"
+	include "engine/sprite.asm"
+	include "game/actor.asm"
 	include "palette.asm"
 
 hud_pattern:
 	incbin "testhud.bin"
-
-	align 256
-tile_data:
-	incbin "testtiles.bin"
-map_data:
-	incbin "testmap.bin"
 
 	if LANG_EN
 	; language-specific data will go here (text, font)
@@ -296,5 +522,25 @@ map_data:
 	endif
 
 code_end:
-	assert code_end<=#8000,"code overlaps the HUD page"
+	assert code_end<=SAVE_AREA0,"code overlaps the sprite save areas"
 	print "code end: ",{hex}code_end
+
+; --- bank 4: sprite graphics (staged at its runtime address &4000) ---
+	org #4000
+bank4_start:
+	include "bill_spr.asm"
+bank4_end:
+	assert bank4_end<=#8000,"bank 4 full"
+	print "bank 4 used: ",{hex}bank4_end-#4000
+
+; --- bank 5: map and tiles (runtime &4000, staged at &8000) ---
+	org #4000,#8000
+bank5_start:
+tile_data:
+	incbin "testtiles.bin"
+map_data:
+	incbin "testmap.bin"
+bank5_end:
+	assert bank5_end<=#8000,"bank 5 full"
+	assert bank5_end-bank5_start<=#2600,"bank 5 staging would overlap AMSDOS"
+	print "bank 5 used: ",{hex}bank5_end-#4000

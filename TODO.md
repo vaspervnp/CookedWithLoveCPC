@@ -83,19 +83,24 @@ Top-down διαχείριση εστιατορίου. Κάθε πίστα είν
 - [x] Συγχρονισμός ενημερώσεων με τη δέσμη (πάνω γραμμή μετά το row 0, νέα στήλη στη διάρκεια του B): χωρίς glitches κατά την κίνηση
 
 ### M2 — Sprites & κίνηση
-- [ ] Masked sprite routine 32×48 με mask table, flip table
-- [ ] Restore background από tiles (dirty rectangles), ταξινόμηση κατά Y
-- [ ] Placeholder Bill που περπατά στον χάρτη, collision με tile attributes
-- [ ] Κάμερα που ακολουθεί με dead-zone
-- [ ] Banking για sprite data (`&7FC4`–`&7FC7`)
-- [ ] Στόχος: 4–6 κινούμενα sprites στα 12.5 fps
-- [ ] Sprites στην πάνω γραμμή του playfield: σχεδίαση και στο buffer της πάνω γραμμής
-- [ ] Βελτιστοποίηση scroll: unrolled `draw_char`, γρηγορότερη στήλη (περιθώριο πριν το I0)
+- [x] Double buffering (rings `&8000`/`&C000`), HUD στη βασική `&4000`, banks C4/C5 με relocation στο boot
+- [x] Masked sprite routine 32×48: spans (masked/αδιαφανή/masked), clipping, ring wrap, ταξινόμηση κατά Y
+- [x] Save-under ανά buffer (αντί για restore από tiles), restore με αντίστροφη σειρά
+- [x] Bill που περπατά στον χάρτη (4 κατευθύνσεις × idle + 4 walk), collision με τα πόδια σε tiles εμποδίων
+- [x] Κάμερα που ακολουθεί με dead-zone
+- [x] Banking για sprite data (bank 4) και χάρτη/tiles (bank 5)
+- [x] **Bill από Blender + render2sprite + Aseprite** (assets/blender/bill_build.py, tools/render2sprite.py, assets/aseprite/bill.aseprite)
+- [x] Αυτόματος έλεγχος: DEMO + debug band + tools/gamecheck.py (σύγκριση pixel-pixel, collision)
+- [x] Bill + scroll ~25 fps
+- [ ] Στόχος 4–6 κινούμενα sprites στα 12.5 fps (τώρα ~10 fps με 4): compiled sprites ή πιο σφιχτός βρόχος γραμμής, βελτιστοποίηση `draw_char`/`copy_top`
+- [ ] Επιβεβαίωση στο Retro Virtual Machine (χρήστης)
+- [ ] Sprites στην πάνω μερική γραμμή: λειτουργεί (το copy_top γίνεται μετά τα sprites), να ελεγχθεί με ειδικό τεστ
 
 ### M3 — Assets: χαρακτήρες (Blender + Aseprite)
 - [ ] Στυλ: reference sheet, τελική palette, κλίση κάμερας top-down
-- [ ] Blender: βασικό rig/μοντέλο ανθρώπου, setup ortho κάμερας 32×48 με pixel aspect 2:1
-- [ ] **Bill / Βασίλης**: idle, walk ×3 κατευθύνσεις, με δίσκο, παραγγελία σε μπλοκάκι
+- [x] Blender: βασικό μοντέλο ανθρώπου, ortho κάμερα 32×48 με pixel aspect 2:1 (Bill)
+- [x] **Bill / Βασίλης**: idle, walk ×3 κατευθύνσεις
+- [ ] Bill: με δίσκο, με πιάτα, παραγγελία σε μπλοκάκι
 - [ ] **Liberty / Ελευθερία**: idle, walk, κόψιμο, ανακάτεμα, φούρνος
 - [ ] **Blossom / Ανθή**: idle, walk, κουβαλάει κουτί, ράφι
 - [ ] Πελάτες: 4–6 βασικοί τύποι + παραλλαγές, όρθιοι/καθιστοί, χαρούμενοι/θυμωμένοι

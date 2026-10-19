@@ -104,28 +104,36 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 - Χάρτης πίστας: 40×42 metatiles = 1680 bytes (πριν τη συμπίεση).
 - Κάθε tile έχει attributes: εμπόδιο, περιοχή (εστιατόριο/κουζίνα/αποθήκη), αντικείμενο αλληλεπίδρασης (τραπέζι, καρέκλα, φούρνος, ράφι...), κλειδωμένη περιοχή επέκτασης.
 
-### 3.5 Sprites
-- Χαρακτήρες: **32×48 pixels** = 16 bytes × 48 γραμμές = **768 bytes ανά frame**.
-- Masked με lookup table 256 bytes (το χρώμα 0 είναι διάφανο) — δεν αποθηκεύεται ξεχωριστή μάσκα.
-- Θέσεις X σε βήματα 2 px (byte-aligned) → δεν χρειάζονται pre-shifted εκδοχές.
-- Κατευθύνσεις: πάνω, κάτω, πλάγια. Το αντίθετο πλάγιο προκύπτει με runtime flip (table αντιστροφής pixels μέσα στο byte + αντίστροφη σειρά bytes).
-- Ενδεικτικά frames ανά χαρακτήρα: 3 κατευθύνσεις × (idle + 4 walk) + ειδικά (δίσκος, μαγείρεμα, κουτί) ≈ 20 frames ≈ 15K πριν τη συμπίεση. Αποθήκευση σε extra banks.
-- Πελάτες: ίδιο μέγεθος, λιγότερα frames, παραλλαγές με palette swap/αλλαγή κεφαλιού. Όταν κάθονται, "σφραγίζονται" στο background και δεν ξανασχεδιάζονται κάθε frame.
-- Κόστος: ~8–9 ms masked draw + ~4 ms restore ανά κινούμενο sprite. Στόχος **12.5 fps (κάθε 4 VBL)** για 4–6 κινούμενα sprites ταυτόχρονα, με dirty rectangles και restore από τον tile χάρτη.
-- Σχεδίαση με beam racing (single buffer), ταξινόμηση sprites κατά Y για σωστό βάθος.
+### 3.5 Sprites — υλοποιημένο στο M2 ([src/engine/sprite.asm](src/engine/sprite.asm))
+- Χαρακτήρες **32×48 pixels** (16 bytes × 48 γραμμές), pen 0 διάφανο, mask με lookup table 256 bytes.
+- **Μορφή frame** (`tools/sprite2asm.py`), ανά γραμμή: `start, nl, no, nr` και μετά τα bytes. Είναι masked αριστερά (nl), αδιαφανή στη μέση (no, αντιγράφονται χωρίς mask με LDIR) και masked δεξιά (nr). Αποθηκεύονται μόνο τα bytes που καλύπτει η γραμμή (Bill: ~420 bytes/frame).
+- Κατευθύνσεις: κάτω, πάνω, δεξιά. Η αριστερή είναι καθρέφτης που φτιάχνεται στο build (`--mirror-from`).
+- Τα sprites ζουν σε **συντεταγμένες χάρτη** μέσα στο ring. Η διεύθυνση κατά μήκος μιας γραμμής είναι γραμμική mod 2048, οπότε:
+  - **γρήγορη διαδρομή:** διεύθυνση ανά row και +&800 ανά γραμμή,
+  - **αργή διαδρομή (byte-byte):** μόνο σε rows στις άκρες του παραθύρου ή εκεί όπου τυλίγει το 2K block.
+- **Double buffering + save-under ανά buffer** στη βασική RAM (`&2000`/`&3000`). Κάθε γραμμή σώζει ό,τι καλύπτει και μετά ζωγραφίζεται. Η επαναφορά γίνεται με αντίστροφη σειρά, και η ζωγραφική ταξινομημένη κατά Y (σωστό βάθος).
+- **Απόδοση (CPCEC):**
+  - Bill + scroll: **~23–25 fps** (εικόνα ανά ~2 VBL), με το στάδιο των sprites ~5/300 s.
+  - 4 ορατά sprites: **~10 fps**.
+  - Στόχος για τους πελάτες: 12.5 fps με 4–6 sprites. Θέλει compiled sprites ή γρηγορότερο βρόχο γραμμής (TODO M2).
+- Οι πελάτες όταν κάθονται θα «σφραγίζονται» στο background, ώστε να μην ξαναζωγραφίζονται κάθε frame.
 
-## 4. Χάρτης μνήμης (αρχικός)
+## 4. Χάρτης μνήμης
 
 | Διεύθυνση | Περιεχόμενο |
 |---|---|
 | `&0000–&003F` | RST / interrupt vector (`&0038`) |
 | `&0040–&00FF` | Stack |
-| `&0100–&3FFF` | Κύριος κώδικας engine (load/exec `&0100`), tables (mask, flip) |
-| `&4000–&7FFF` | Παράθυρο banking (`&7FC4`–`&7FC7`): sprites, κείμενα, συνταγές, χάρτες |
-| `&8000–&BFFF` | Σελίδα HUD: σε κάθε 2K block τα words 0–199 (HUD + buffer, σετ 0), 200–239 (μαύρα, για το B) και 512–711 (σετ 1 για R3 phase 1). Τα υπόλοιπα ~1K ανά block είναι ελεύθερα για δεδομένα |
-| `&C000–&FFFF` | Οθόνη playfield (scroll) |
+| `&0100–&1FFF` | Κώδικας engine/παιχνιδιού (load/exec `&0100`), tables |
+| `&2000–&3FFF` | Save-under των sprites (4K ανά buffer) |
+| `&4000–&7FFF` | Βασική RAM: σελίδα HUD (4 σετ HUD+buffer, ένα ανά R3 phase × buffer, στα words s·256). Επίσης παράθυρο των banks |
+| `&8000–&BFFF` | Οθόνη playfield, buffer 0 (ring 1024 words) |
+| `&C000–&FFFF` | Οθόνη playfield, buffer 1 |
+| bank 4 (`&C4`) | Γραφικά sprites (Bill) |
+| bank 5 (`&C5`) | Χάρτης πίστας και tiles |
+| bank 6, 7 | Ελεύθερες |
 
-Ο χάρτης θα αναθεωρηθεί μετά το M1 και θα κρατηθεί ενημερωμένος εδώ.
+**Φόρτωση:** το binary φορτώνεται στο `&0100`–`&A0xx`. Τα δεδομένα της bank 4 είναι «σταθμευμένα» στο `&4000` και της bank 5 στο `&8000` (RASM `org #4000,#8000`). Στο boot το `mem_relocate` τα μεταφέρει στις banks και καθαρίζει το `&4000`–`&FFFF`.
 
 ## 5. Κείμενα και γλώσσες
 
@@ -136,19 +144,31 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 
 ## 6. Pipeline assets
 
+### Χαρακτήρες (υλοποιημένο για τον Bill)
+
 ```
-Blender (MCP)            Aseprite (MCP)                 tools/                    RASM
-3D μοντέλο ──render──▶  καθάρισμα pixel-art  ──PNG──▶  png2cpc.py  ──.bin──▶  INCBIN / crunch
-ortho, 32×48,           indexed, CPC palette,          maps2asm.py
-pixel aspect 2:1,       animation tags                 text2asm.py
-flat/toon shading
+assets/blender/bill_build.py        tools/render2sprite.py          tools/sprite2asm.py     RASM
+ Blender (MCP): μοντέλο, πόζες,  ─▶  renders → pixel art palette  ─▶  spans Mode 0       ─▶  bank 4
+ renders id/shade 4x + features      (assets/sprites/bill.png)        (build/bill_spr.asm)
+                                      └▶ assets/aseprite/bill.aseprite (Aseprite MCP)
 ```
 
-1. **Blender**: orthographic κάμερα από πάνω (με ελαφριά κλίση ώστε να φαίνονται πρόσωπα/μπροστινή πλευρά επίπλων), resolution στο τελικό μέγεθος, `pixel_aspect_x = 2`, χωρίς anti-aliasing, flat/toon shading. Αρχεία στο `assets/blender/`.
-2. **Aseprite**: indexed mode με την palette του παιχνιδιού, pixel ratio 2:1, καθάρισμα, animation με tags (`walk_down`, `idle_side`, …), tilesets ως tilemap layers. Αρχεία `.aseprite` στο `assets/aseprite/`, exports σε `assets/export/`.
-3. **tools/png2cpc.py**: indexed PNG → Mode 0 bytes (sprites, tiles, γραμματοσειρές), έλεγχος ότι χρησιμοποιούνται μόνο χρώματα της palette.
-4. **tools/maps2asm.py**: χάρτες (Aseprite tilemap ή Tiled) → metatile maps + attributes.
-5. Η συμπίεση γίνεται από τον RASM (ZX0) κατά το build.
+1. **Blender** (`exec(open(".../assets/blender/bill_build.py").read())` μέσω Blender MCP):
+   - χτίζει τον χαρακτήρα σε δική του σκηνή `CWL_Bill` (αντικείμενα `BILL_*`, τίποτα άλλο δεν πειράζεται)
+   - ορθογραφική κάμερα με κλίση 22°, 128×192 με `pixel_aspect_x = 2` (4× το sprite)
+   - για 3 κατευθύνσεις × 5 πόζες (idle, walk 1–4) αποδίδει ένα **id pass** (flat emission ανά υλικό) και ένα **shade pass** (λευκό diffuse με ήλιο)
+   - γράφει το `features.json` με τις θέσεις και την ορατότητα (ray cast) ματιών, φρυδιών, μύτης και στόματος
+2. **tools/render2sprite.py**:
+   - ανά pixel του sprite διαλέγει το υλικό που κυριαρχεί στα 16 δείγματα (μικρά υλικά όπως κουμπιά/papillon έχουν προτεραιότητα)
+   - το χρώμα βγαίνει από τη ράμπα του υλικού στην palette, ανάλογα με τη σειρά φωτεινότητας του pixel μέσα στο υλικό
+   - σχεδιάζει το πρόσωπο σε καθαρά pixels από το `features.json` και προσθέτει μαύρο περίγραμμα (pen 14)
+3. **Aseprite** (MCP, Lua): το `assets/aseprite/bill.aseprite` έχει frames, tags `down/up/right`, pixel ratio 2:1 και την palette `assets/palette/cwl.gpl`. Αν διορθωθεί με το χέρι, γίνεται export ξανά στο `assets/sprites/bill.png`.
+4. **tools/sprite2asm.py** (στο `make`): PNG → frames με spans για τον engine.
+
+### Tiles, χάρτες, κείμενα
+- **tools/png2cpc.py**: PNG → Mode 0 bytes (sprites, tiles, γραμματοσειρές), με έλεγχο palette. Για sprites το αδιαφανές μαύρο γίνεται pen 14.
+- **tools/maps2asm.py** (μελλοντικό): χάρτες → metatile maps + attributes.
+- Η συμπίεση θα γίνεται από τον RASM (ZX0) κατά το build.
 
 ## 7. Δομή φακέλων
 
@@ -214,3 +234,4 @@ python3 tools/png2cpc.py tiles.png tiles.bin --layout tiles    # 8x8 tiles, 32 b
 - `-DTEST_PATH=3` κάνει συνεχές bounce μεταξύ (0,0) και (TEST_X, TEST_Y), για δοκιμές σε άλλους emulators ή σε πραγματικό CPC.
 - Το R3 trick πρέπει να δοκιμαστεί σε πραγματικό CPC/monitor. Για περιπτώσεις που δεν δουλεύει υπάρχουν τα fallbacks `FINE_X=0` / `FINE_Y=0`.
 - Debug build (`make DEBUG=1`): το border γίνεται λευκό όσο δουλεύει ο main loop, για μέτρηση του χρόνου CPU.
+- **Sprites/παιχνίδι:** το `-DDEMO=1` κάνει τον Bill να περπατά μόνος του με σενάριο. Η debug γραμμή (HUD line 0) δείχνει κάμερα, θέση και frame του sprite και χρόνους σταδίων. Το `tools/gamecheck.py` αποδίδει την αναμενόμενη εικόνα (χάρτης + sprite), τη συγκρίνει pixel-pixel και ελέγχει ότι τα πόδια δεν είναι μέσα σε εμπόδιο. Το `-DCLONES=n` προσθέτει αντίγραφα του Bill για stress test.

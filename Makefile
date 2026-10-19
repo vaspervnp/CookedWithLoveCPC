@@ -7,7 +7,7 @@ PYTHON ?= python3
 
 BUILD  := build
 SRC    := $(shell find src -name '*.asm')
-GEN    := $(BUILD)/palette.asm $(BUILD)/testtiles.bin
+GEN    := $(BUILD)/palette.asm $(BUILD)/testtiles.bin $(BUILD)/bill_spr.asm
 
 LOAD   := 0100
 EXEC   := 0100
@@ -36,6 +36,10 @@ $(BUILD)/palette.asm: data/palette.txt tools/palette.py tools/cpc.py | $(BUILD)
 
 $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 	$(PYTHON) tools/mktestmap.py $@ $(BUILD)/testmap.bin $(BUILD)/testhud.bin
+
+# Bill: rows down / up / right, 5 frames each (idle, walk 1-4); left = mirror
+$(BUILD)/bill_spr.asm: assets/sprites/bill.png tools/sprite2asm.py tools/png2cpc.py tools/cpc.py data/palette.txt | $(BUILD)
+	$(PYTHON) tools/sprite2asm.py $< $@ --prefix bill --mirror-from 10
 
 $(BUILD)/cwl_en.bin: $(SRC) $(GEN) FORCE
 	$(RASM) src/main.asm -Isrc -I$(BUILD) -DLANG_EN=1 $(RASMFLAGS) -ob $@ -os $(BUILD)/cwl_en.sym -s

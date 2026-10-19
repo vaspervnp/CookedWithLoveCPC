@@ -16,5 +16,5 @@ Columns: 8
   0 128 255	pen11_sky_blue
 128 128 128	pen12_white
 255 255 255	pen13_bright_white
-128   0 255	pen14_mauve
+  0   0   0	pen14_black_opaque
 128 128   0	pen15_yellow
