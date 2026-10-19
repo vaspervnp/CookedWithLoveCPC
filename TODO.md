@@ -65,16 +65,21 @@ Top-down διαχείριση εστιατορίου. Κάθε πίστα είν
 - [x] `tools/png2cpc.py` (Mode 0, sprites/tiles, έλεγχος palette)
 
 ### M1 — Prototype scrolling & οθόνης (κρίσιμο, πρώτο)
-- [ ] Interrupt handler 300 Hz, συγχρονισμός με VSYNC
-- [ ] CRTC rupture: playfield (`&C000`) + σταθερό HUD (`&8000`), σύνολο 312 γραμμές
-- [ ] Οριζόντιο scroll 4 px με R12/R13
-- [ ] Οριζόντιο scroll **2 px** με R3 στα ενδιάμεσα βήματα
-- [ ] Κάθετο scroll 8 γραμμών με R12/R13
-- [ ] Κάθετο scroll **1 γραμμής** (R9/R5 στο rupture με αντιστάθμιση)
-- [ ] Σχεδίαση εισερχόμενης στήλης/γραμμής tiles σε κάθε βήμα
-- [ ] Test χάρτης 4×4 οθονών με placeholder tiles, scroll με πλήκτρα σε όλες τις κατευθύνσεις
-- [ ] Ανίχνευση τύπου CRTC + fallbacks (4 px / 8 γραμμές)
-- [ ] Μέτρηση χρόνου CPU με border colours· ενημέρωση README (χάρτης μνήμης, budget)
+- [x] Interrupt handler 300 Hz, συγχρονισμός με VSYNC
+- [x] CRTC rupture: playfield (`&C000`) + σταθερό HUD (`&8000`), σύνολο 312 γραμμές
+- [x] Οριζόντιο scroll 4 px με R12/R13
+- [x] Οριζόντιο scroll **2 px** με R3 (&86/&85), HUD με διπλό αντίγραφο
+- [x] Κάθετο scroll 8 γραμμών με R12/R13
+- [x] Κάθετο scroll **1 γραμμής** (R9 μέσα στο frame + προ-μετατοπισμένη πάνω γραμμή)
+- [x] Σχεδίαση εισερχόμενης στήλης/γραμμής tiles σε κάθε βήμα
+- [x] Test χάρτης 4×4 οθονών (`tools/mktestmap.py`), scroll με πλήκτρα/joystick
+- [x] Fallbacks 4 px / 8 γραμμές (`FINE_X` / `FINE_Y`, runtime steps)
+- [x] Μέτρηση χρόνου CPU με border colours· ενημέρωση README
+- [x] Αυτόματες δοκιμές: `tools/cpcshot.sh` + `tools/scrollcheck.py` (σύγκριση pixel-pixel), βαθμονόμηση `PAD_I1`/`C4`
+- [ ] Ανίχνευση τύπου CRTC στην εκκίνηση → επιλογή fallback
+- [ ] Δοκιμή σε πραγματικό CPC (R3 trick, χρονισμός R9) και άλλους τύπους CRTC
+- [ ] (αργότερα) Απόκρυψη του 2-px τρεμοπαίγματος στις πλευρικές άκρες
+- [ ] (αργότερα) Ζωγράφισμα εισερχόμενης στήλης χωρίς το glitch 1 frame στην αριστερή άκρη
 
 ### M2 — Sprites & κίνηση
 - [ ] Masked sprite routine 32×48 με mask table, flip table
@@ -83,6 +88,8 @@ Top-down διαχείριση εστιατορίου. Κάθε πίστα είν
 - [ ] Κάμερα που ακολουθεί με dead-zone
 - [ ] Banking για sprite data (`&7FC4`–`&7FC7`)
 - [ ] Στόχος: 4–6 κινούμενα sprites στα 12.5 fps
+- [ ] Sprites στην πάνω (μετατοπισμένη) γραμμή του playfield: σχεδίαση με την ίδια μετατόπιση
+- [ ] Βελτιστοποίηση scroll: unrolled `draw_char`, όχι διπλό ζωγράφισμα της πάνω γραμμής, μικρότερο κόστος ανά κάθετο βήμα
 
 ### M3 — Assets: χαρακτήρες (Blender + Aseprite)
 - [ ] Στυλ: reference sheet, τελική palette, κλίση κάμερας top-down
