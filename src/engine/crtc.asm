@@ -1,53 +1,46 @@
-; Display engine: CRTC vertical rupture for a scrolling playfield + fixed HUD.
+; Display engine: CRTC vertical ruptures for a scrolling playfield + fixed HUD.
 ;
-; One VBL (312 lines) = 2 CRTC frames. Line numbers are relative to the start
-; of frame B. fy = fine vertical scroll (0..7), g = fy ? fy : 8.
+; One VBL (312 lines) = 3 CRTC frames. R9 = 7 everywhere; the fine vertical
+; scroll uses the vertical total adjust (R5) at the end of a frame, whose lines
+; show rasters 0.. of the row that follows the last one. Line numbers are
+; relative to the start of frame B. fy = fine vertical scroll (0..7).
 ;
-;   frame  lines     rows   content
-;   B      0..143    18     HUD (4 rows, &8000 page), border, VSYNC at row 11
-;   A      144..311  22/21  playfield (&C000 ring)
+;   frame  lines          rows       content
+;   B      0..111         14         row 0 shows black memory, then R6=1 turns
+;                                     the display off; VSYNC at row 7
+;   H      112..151-fy    4 + R5     HUD (4 rows) + R5 = 8-fy lines: top
+;                                     playfield rasters fy..7 (copy buffer)
+;   A      152-fy..311    20 + R5    playfield rows cy+1..cy+20 + R5 = fy
+;                                     lines: rasters 0..fy-1 of row cy+21
 ;
-; Fine vertical scroll changes R9 inside frame A:
-;   row 0          R9 = 7-fy  (the top row is stored pre-shifted, see scroll.asm)
-;   rows 1..20     R9 = 7
-;   row 21         R9 = fy-1  (only when fy > 0)
-; Each R9 value must be written during the first scanline of its row, so
-; those four writes are timed from the 300 Hz interrupts with NOP slides:
-;   I0 (VSYNC, ~line 89)  commit next state, R3, R12/R13 of A
-;   I1 (~line 141)        R9 at A row 0 and row 1, then R4/R6/R7 of A
-;   I4 (~line 297)        R12/R13 of B, R9 at A last row and B row 0, R4/R6/R7 of B
-; I2, I3, I5 are free. All other register writes have several rows of slack.
+; No register write is cycle-critical: every write has at least one row of
+; slack. Interrupts (300 Hz, fixed positions relative to VSYNC at line 56):
+;   I5 (line 6, B)    constants of B
+;   I0 (58, VSYNC)    latch "commit pending", R3 + R12/R13 of H of that state,
+;                     R6 = 127 (display on for H and A)
+;   I1 (110, end B)   commit; then (in H) R4/R5 of H, R12/R13 of A
+;   I2 (162, A row 1) R4/R5/R7 of A; flags the main loop (top buffer free)
+;   I3 (214, A)       R6 = 1 (ends the display at B row 1)
+;   I4 (266, A)       R12/R13 of B (black); flags the main loop (column)
+; R6 is never 0: on CRTC 1 that blanks the screen immediately.
 
-; --- state block (built by the scroll code, committed at VSYNC) ---
-ST_AMA		equ 0		; R12/R13 of A (word: high = R12)
-ST_HUDMA	equ 2		; R12/R13 of B
-ST_AR4		equ 4		; R4 of A
-ST_R9TOP	equ 5		; R9 of A row 0
-ST_R9BOT	equ 6		; R9 of A last row
-ST_R3		equ 7
-ST_W1		equ 8		; NOP slide entry: A row 0 -> row 1
-ST_W4A		equ 10		; NOP slide entry: I4 -> A last row
-ST_W4B		equ 12		; NOP slide entry: A last row -> B
-ST_SIZE		equ 14
+; --- state block (built by the scroll code, committed at I1) ---
+ST_HMA		equ 0		; R12/R13 of H (HUD set)
+ST_AMA		equ 2		; R12/R13 of A
+ST_HR5		equ 4		; R5 of H = 8-fy
+ST_AR5		equ 5		; R5 of A = fy
+ST_R3		equ 6
+ST_SIZE		equ 7
 
-B_ROWS		equ 18
-B_VSYNC_ROW	equ 11
+B_ROWS		equ 14
+B_MA		equ #2000+200	; 40 words that stay black (&8000 page)
+B_VSYNC_ROW	equ 7
 HUD_ROWS	equ 4
 PF_ROWS		equ 21		; playfield height in char rows (168 lines)
+A_ROWS		equ PF_ROWS-1	; full rows in frame A
 
 R3_STD		equ #86		; VSYNC 8 lines, HSYNC 6 chars
 R3_ALT		equ #85		; HSYNC 5 chars: picture 1 byte (2 pixels) right
-
-; Cost of the code between two timed R9 writes, not counting the slide.
-SLIDE_OVH1	equ 14		; irq_i1: out, call, jp (iy), ret
-SLIDE_OVH4	equ 20		; irq_i4: out, ld iy, call, jp (iy), ret
-
-	ifndef PAD_I1
-PAD_I1		equ 72		; NOPs from I1 preload to the first R9 write
-	endif
-	ifndef C4
-C4		equ 796		; slide base for I4 -> A last row (minus 64*g)
-	endif
 
 ; Write CRTC register (constant value).
 macro CRTC_SET reg,val
@@ -70,17 +63,19 @@ crtc_init:
 	CRTC_SET 1,40
 	CRTC_SET 2,46
 	CRTC_SET 3,R3_STD
-	CRTC_SET 5,0
 	CRTC_SET 9,7
 
 	; Sync: at VSYNC of the standard frame we are at row 30. Our layout has
-	; VSYNC at B row 11 and A starts 7 rows later, so end this frame at row 36.
+	; VSYNC at B row 7 and H starts 7 rows later, so end this frame at row 36.
 	call wait_vsync
 	CRTC_SET 4,36
-	ld hl,(cur_state+ST_AMA)
+	CRTC_SET 5,0
+	CRTC_SET 6,127
+	ld hl,(cur_state+ST_HMA)
 	call crtc_set_ma
 	xor a
 	ld (irq_n),a
+	ld (commit_pending),a
 	ret
 
 ; HL = R12/R13 value. Destroys BC.
@@ -110,7 +105,6 @@ irq:
 	push bc
 	push de
 	push hl
-	push iy
 	ld b,PPI_B
 	in a,(c)
 	rra
@@ -132,7 +126,6 @@ irq:
 	jp (hl)
 
 irq_ret:
-	pop iy
 	pop hl
 	pop de
 	pop bc
@@ -140,9 +133,38 @@ irq_ret:
 	ei
 	ret
 
-; I0: VSYNC. Commit the prepared state.
+; I0: VSYNC. Decide whether the prepared state is committed this VBL; set its
+; R3 now (HSYNC width changes are best done during VSYNC) and the R12/R13 of
+; H, which the CRTC latches at the start of H (line 112).
 irq_i0:
 	ld a,(nxt_ready)
+	ld (commit_pending),a
+	ld hl,cur_state
+	or a
+	jr z,.set
+	ld hl,nxt_state
+.set:	push hl
+	ld de,ST_R3
+	add hl,de
+	ld a,(hl)
+	ld c,3
+	call crtc_write
+	pop hl
+	ld a,(hl)			; ST_HMA (R12/R13 hold A's value since I1)
+	inc hl
+	ld h,(hl)
+	ld l,a
+	call crtc_set_ma
+	ld a,127			; B is past row 1: display stays off until H
+	ld c,6
+	call crtc_write
+	ld hl,frame_count
+	inc (hl)
+	jp irq_ret
+
+; I1: last lines of B. Commit, then program H and A.
+irq_i1:
+	ld a,(commit_pending)
 	or a
 	jr z,.keep
 	ld hl,nxt_state
@@ -151,85 +173,75 @@ irq_i0:
 	ldir
 	xor a
 	ld (nxt_ready),a
-.keep:	ld hl,(cur_state+ST_AMA)
-	call crtc_set_ma
-	ld a,(cur_state+ST_R3)
-	ld c,3
-	call crtc_write
-	ld hl,frame_count
-	inc (hl)
-	jp irq_ret
-
-; I1: R9 at the start of A row 0 and row 1.
-irq_i1:
-	ld a,(cur_state+ST_R9TOP)
-	ld d,a
-	ld e,7
-	ld bc,#BC09
-	out (c),c			; select R9 in advance
-	inc b
-	ld iy,(cur_state+ST_W1)
-	ds PAD_I1,0
-	out (c),d			; A row 0: R9 = 7-fy
-	call jp_iy
-	out (c),e			; A row 1: R9 = 7
-	ld a,(cur_state+ST_AR4)
+	ld (commit_pending),a
+.keep:	; wait until H has started (B's last row must still end with R4 = 13)
+	ld b,2*64/4
+.w1:	djnz .w1			; ~2 lines
+	ld a,HUD_ROWS-1
 	ld c,4
 	call crtc_write
-	ld a,127			; no display end, no VSYNC inside A
-	ld c,6
+	ld a,(cur_state+ST_HR5)
+	ld c,5
 	call crtc_write
-	ld c,7
-	call crtc_write
-	ld a,1				; A row 0 has been displayed
-	ld (sync_row0),a
+	; R12/R13 of A: after H row 0 (CRTC 1 reloads R12/R13 during row 0)
+	ld b,8*64/4
+.w2:	djnz .w2			; ~8 lines
+	ld hl,(cur_state+ST_AMA)
+	call crtc_set_ma
 	jp irq_ret
 
-; I4: R12/R13 of B, then R9 at the start of A's last row and of B.
+; I2: A row 1. Program A, B's display off.
+irq_i2:
+	ld a,A_ROWS-1
+	ld c,4
+	call crtc_write
+	ld a,(cur_state+ST_AR5)
+	ld c,5
+	call crtc_write
+	ld a,127			; no VSYNC inside A
+	ld c,7
+	call crtc_write
+	ld a,1
+	ld (sync_a),a
+	jp irq_ret
+
+; I3: A row ~8. Display off from B row 1 on.
+irq_i3:
+	ld a,1
+	ld c,6
+	call crtc_write
+	jp irq_ret
+
+; I4: late in A. B's row 0 shows black memory.
 irq_i4:
-	ld hl,(cur_state+ST_HUDMA)
+	ld hl,B_MA
 	call crtc_set_ma
-	ld a,(cur_state+ST_R9BOT)
-	ld d,a
-	ld e,7
-	ld bc,#BC09
-	out (c),c
-	inc b
-	ld iy,(cur_state+ST_W4A)
-	call jp_iy
-	out (c),d			; A last row: R9 = fy-1
-	ld iy,(cur_state+ST_W4B)
-	call jp_iy
-	out (c),e			; B row 0: R9 = 7
+	ld a,1
+	ld (sync_c),a
+	jp irq_ret
+
+; I5: B row 0. Constants of B.
+irq_i5:
 	ld a,B_ROWS-1
 	ld c,4
 	call crtc_write
-	ld a,HUD_ROWS
-	ld c,6
+	xor a
+	ld c,5
 	call crtc_write
 	ld a,B_VSYNC_ROW
 	ld c,7
 	call crtc_write
-	ld a,1				; playfield done, B (HUD/border) running
-	ld (sync_bstart),a
 	jp irq_ret
-
-jp_iy:	jp (iy)
-
-; NOP slide: entering at slide_end-n waits n NOPs (plus the RET).
-SLIDE_MAX	equ 1024
-slide:	ds SLIDE_MAX,0
-slide_end:
-	ret
 
 	align 16
 irq_table:
-	dw irq_i0, irq_i1, irq_ret, irq_ret, irq_i4, irq_ret, irq_ret, irq_ret
+	dw irq_i0, irq_i1, irq_i2, irq_i3, irq_i4, irq_i5, irq_ret, irq_ret
 
 irq_n:		db 0
 frame_count:	db 0
 nxt_ready:	db 0
-sync_row0:	db 0		; set by I1 after A row 0
-sync_bstart:	db 0		; set by I4 at the start of B
+commit_pending:	db 0
+sync_a:		db 0		; set by I2: H's top buffer has been displayed
+sync_c:		db 0		; set by I4: beam far enough down in A
 cur_state:	ds ST_SIZE,0
 nxt_state:	ds ST_SIZE,0

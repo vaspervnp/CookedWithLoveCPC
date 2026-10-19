@@ -57,10 +57,10 @@ start:
 	ld (hl),0
 	ldir
 
-	ld de,0				; HUD for R3 phase 0 / 1
+	ld de,HUD_SET0*2		; HUD for R3 phase 0 / 1
 	ld a,1
 	call hud_fill
-	ld de,(HUD_MA1-#2000)*2
+	ld de,HUD_SET1*2
 	ld a,1+HUD_SHIFT1
 	call hud_fill
 
@@ -75,8 +75,8 @@ start:
 	ld hl,TEST_Y
 	endif
 	call scroll_set
-	call fix_top
 	call scroll_build_state
+	call copy_top
 	ld hl,nxt_state
 	ld de,cur_state
 	ld bc,ST_SIZE

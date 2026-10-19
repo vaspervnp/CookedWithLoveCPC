@@ -17,9 +17,10 @@ from PIL import Image
 from cpc import ROOT, fw_to_rgb, load_palette
 
 BUILD = os.path.join(ROOT, "build")
-TOP = 25            # first playfield line in the screenshot (CPC lines)
+TOP = 25            # first displayed line (HUD) in the screenshot (CPC lines)
 LEFT = 64           # screenshot x of the display start
 PF_LINES = 168
+HUD_LINES = 32
 MAP_W = 80
 
 
@@ -36,7 +37,7 @@ def decode(b):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("shot")
-    ap.add_argument("sx", type=int)
+    ap.add_argument("sx", type=int, help="-1 = find it (needs a known sy)")
     ap.add_argument("sy", type=int, help="-1 = find it (for shots taken while scrolling)")
     ap.add_argument("--shift", type=int, default=2)
     ap.add_argument("--hudshift", type=int, default=1)
@@ -62,6 +63,20 @@ def main():
     if im.height % 2:
         sys.exit("odd screenshot height")
     px = im.load()
+    if args.sx < 0:
+        for sx in range(0, 241):
+            cx, phase = (sx + 1) // 2, sx % 2
+            d = args.shift if phase else 0
+            ok = all(px[LEFT + (c + d) * 4 + 1, (TOP + HUD_LINES + line) * 2]
+                     == rgb[map_pen(4 * cx + c, args.sy + line)]
+                     for line in range(4, 160, 13) for c in range(4, 156, 7))
+            if ok:
+                args.sx = sx
+                break
+        if args.sx < 0:
+            print("BAD no matching sx")
+            sys.exit(1)
+        print(f"sx={args.sx}", end=" ")
     cx, phase = (args.sx + 1) // 2, args.sx % 2
     d = args.shift if phase else 0
     if args.sy < 0:
@@ -71,7 +86,7 @@ def main():
             bad = 0
             for line in range(16, 152, 5):
                 for c in range(4, 156, 9):
-                    if px[LEFT + (c + d) * 4 + 1, (TOP + line) * 2] != rgb[map_pen(4 * cx + c, sy + line)]:
+                    if px[LEFT + (c + d) * 4 + 1, (TOP + HUD_LINES + line) * 2] != rgb[map_pen(4 * cx + c, sy + line)]:
                         bad += 1
                         break
                 if bad:
@@ -92,11 +107,11 @@ def main():
             if not 0 <= sc < 160:
                 continue
             exp = rgb[map_pen(4 * cx + c, y)]  # window column c
-            got = px[LEFT + sc * 4 + 1, (TOP + line) * 2]
+            got = px[LEFT + sc * 4 + 1, (TOP + HUD_LINES + line) * 2]
             if got != exp:
                 bad += 1
-    # HUD: 4 rows right below the playfield, line 0 of each row black,
-    # then black border down to the bottom of the screenshot.
+    # HUD: 4 rows above the playfield, line 0 of each row black; black
+    # border above the HUD and below the playfield.
     hud = open(os.path.join(BUILD, "testhud.bin"), "rb").read()
     hshift = (1 + (args.hudshift if phase else 0))
     hbad = 0
@@ -109,9 +124,9 @@ def main():
                 exp = (0, 0, 0)
             else:
                 exp = rgb[decode(hud[hshift + c // 2])[c % 2]]
-            if px[LEFT + sc * 4 + 1, (TOP + PF_LINES + line) * 2] != exp:
+            if px[LEFT + sc * 4 + 1, (TOP + line) * 2] != exp:
                 hbad += 1
-    for y in range((TOP + PF_LINES + 32) * 2, im.height, 2):
+    for y in range((TOP + HUD_LINES + PF_LINES) * 2, im.height, 2):
         for x in range(0, im.width, 4):
             if px[x, y] != (0, 0, 0):
                 hbad += 1
