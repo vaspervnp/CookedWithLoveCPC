@@ -5,6 +5,8 @@
 ; Test builds: -DTEST_X=<sx> -DTEST_Y=<sy> start at that position.
 ; -DTEST_PATH=1 starts at 0,0 and scrolls there step by step,
 ; -DTEST_PATH=2 starts at the bottom-right corner and scrolls back there.
+; -DTEST_PATH=3 bounces forever between 0,0 and TEST_X,TEST_Y (timing tests
+; on other emulators / real hardware).
 
 	ifndef LANG_EN
 LANG_EN	equ 0
@@ -62,7 +64,7 @@ start:
 	ld a,1+HUD_SHIFT1
 	call hud_fill
 
-	if TEST_PATH==1
+	if TEST_PATH==1 || TEST_PATH==3
 	xor a
 	ld hl,0
 	elseif TEST_PATH==2
@@ -135,8 +137,53 @@ main_loop:
 	jr main_loop
 
 	if TEST_PATH
-; Fake input: move towards (TEST_X, TEST_Y).
+; Fake input: move towards (TEST_X, TEST_Y), or bounce (TEST_PATH=3).
 test_path_input:
+	if TEST_PATH==3
+	ld e,0
+	ld a,(bounce_dx)
+	or a
+	ld a,(scr_sx)
+	jr nz,.xl
+	cp TEST_X
+	jr c,.xr
+	ld a,1
+	ld (bounce_dx),a
+	jr .by
+.xr:	set KEY_RIGHT,e
+	jr .by
+.xl:	or a
+	jr nz,.xl2
+	ld (bounce_dx),a
+	jr .by
+.xl2:	set KEY_LEFT,e
+.by:	ld hl,(scr_sy)
+	ld a,(bounce_dy)
+	or a
+	jr nz,.yu
+	ld bc,TEST_Y
+	or a
+	sbc hl,bc
+	jr c,.yd
+	ld a,1
+	ld (bounce_dy),a
+	ld a,e
+	ret
+.yd:	set KEY_DOWN,e
+	ld a,e
+	ret
+.yu:	ld a,h
+	or l
+	jr nz,.yu2
+	ld (bounce_dy),a
+	ld a,e
+	ret
+.yu2:	set KEY_UP,e
+	ld a,e
+	ret
+bounce_dx:	db 0
+bounce_dy:	db 0
+	endif
 	ld e,0
 	ld a,(scr_sx)
 	cp TEST_X
