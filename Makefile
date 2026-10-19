@@ -7,7 +7,7 @@ PYTHON ?= python3
 
 BUILD  := build
 SRC    := $(shell find src -name '*.asm')
-GEN    := $(BUILD)/palette.asm $(BUILD)/testtiles.bin $(BUILD)/bill.asm
+GEN    := $(BUILD)/palette.asm $(BUILD)/testtiles.bin $(BUILD)/spr.asm
 
 LOAD   := 0100
 EXEC   := 0100
@@ -20,7 +20,7 @@ RASMFLAGS += $(EXTRA)
 
 FORCE:
 
-.PHONY: FORCE all en gr run-en run-gr shot-en shot-gr palette clean
+.PHONY: FORCE parts all en gr run-en run-gr shot-en shot-gr palette clean
 
 all: en gr
 en: $(BUILD)/cwl_en.dsk
@@ -37,10 +37,22 @@ $(BUILD)/palette.asm: data/palette.txt tools/palette.py tools/cpc.py | $(BUILD)
 $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 	$(PYTHON) tools/mktestmap.py $@ $(BUILD)/testmap.bin $(BUILD)/testhud.bin
 
-# Bill: rows down / up / right, 5 frames each (idle, walk 1-4); left = mirror.
-# Compiled into banks 4/7 (code) and 6 (span data): build/bill_<bank>.dat
-$(BUILD)/bill.asm: assets/sprites/bill.png tools/spritec.py tools/sprite2asm.py tools/png2cpc.py tools/cpc.py data/palette.txt | $(BUILD)
-	$(PYTHON) tools/spritec.py $< $(BUILD)/bill --prefix bill --mirror-from 10 --banks 4,7 --data-bank 6
+# Sprite sheets, compiled together (shared banks, identical lines and frames
+# stored once): code in banks 4, 6, 7 -> build/spr_<bank>.dat
+# and the frame descriptors build/spr.asm. Sheet: PREFIX:PNG:HEIGHT:GROUP:MIRROR
+#   bill        rows down / up / right, 5 frames each (idle, walk 1-4); left = mirror
+#   cust_*      customer parts (head 20, body 14, legs 14 lines), one variant per
+#               row with the same 15 frames; any head + body + legs combine
+SHEETS := bill:assets/sprites/bill.png:48:15:10 \
+	cust_head:assets/sprites/cust_head.png:20:9:6 \
+	cust_body:assets/sprites/cust_body.png:14:9:6 \
+	cust_legs:assets/sprites/cust_legs.png:14:9:6
+$(BUILD)/spr.asm: $(foreach s,$(SHEETS),$(word 2,$(subst :, ,$(s)))) tools/spritec.py tools/png2cpc.py tools/cpc.py data/palette.txt | $(BUILD)
+	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6,7
+
+# Customer part sheets from the character renders (placeholder recolours)
+parts:
+	$(PYTHON) tools/mkparts.py $(BUILD)/render/bill assets/sprites
 
 $(BUILD)/cwl_en.bin: $(SRC) $(GEN) FORCE
 	$(RASM) src/main.asm -Isrc -I$(BUILD) -DLANG_EN=1 $(RASMFLAGS) -ob $@ -os $(BUILD)/cwl_en.sym -s
@@ -55,7 +67,7 @@ $(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin
 	$(IDSK) $@ -n
 	$(IDSK) $@ -i $(BUILD)/CWL.BIN -t 1 -c $(LOAD) -e $(EXEC)
 	rm -f $(BUILD)/CWL.BIN
-	cd $(BUILD) && for f in bill_?.dat; do b=$${f#bill_}; b=$${b%.dat}; cp $$f SPR$$b.DAT; $(IDSK) $(notdir $@) -i SPR$$b.DAT -t 1 -c 4000 -s >/dev/null; rm -f SPR$$b.DAT; done
+	cd $(BUILD) && for f in spr_?.dat; do b=$${f#spr_}; b=$${b%.dat}; cp $$f SPR$$b.DAT; $(IDSK) $(notdir $@) -i SPR$$b.DAT -t 1 -c 4000 -s >/dev/null; rm -f SPR$$b.DAT; done
 
 run-en: en
 	$(CPC) -a 'run"cwl' $(BUILD)/cwl_en.dsk

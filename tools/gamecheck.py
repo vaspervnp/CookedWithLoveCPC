@@ -32,6 +32,7 @@ def main():
     ap.add_argument("--emu", choices=("caprice", "cpcec"), default="cpcec")
     ap.add_argument("--sheet", default=os.path.join(ROOT, "assets", "sprites", "bill.png"))
     ap.add_argument("--mirror-from", type=int, default=10)
+    ap.add_argument("--clones", type=int, default=0, help="CLONES build: copies at +26 x / +9 y")
     args = ap.parse_args()
     top, mid = (22, 180) if args.emu == "cpcec" else (25, 127)
 
@@ -63,6 +64,10 @@ def main():
 
         sx, sy, sxl, sty, fr = field(0, 8), field(8, 16), field(24, 16), field(40, 16), field(56, 8)
         prof = [field(64 + 4 * k, 4) for k in range(4)]
+        if sxl >= 32768:              # signed: can stick out at the map edges
+            sxl -= 65536
+        if sty >= 32768:
+            sty -= 65536
         if sx % 2 == shift:   # odd sx read at +1 byte, else even at 0
             break
     if sx > 240 or sy > 504 or fr >= len(frames):
@@ -87,9 +92,10 @@ def main():
                 continue
             x = 4 * cx + c
             pen = map_pen(x, y)
-            fx, fy = x - sxl, y - sty
-            if 0 <= fx < 32 and 0 <= fy < 48 and frame[fy][fx]:
-                pen = frame[fy][fx]
+            for k in range(args.clones + 1):     # lower copies drawn on top
+                fx, fy = x - sxl - 26 * k, y - sty - 9 * k
+                if 0 <= fx < 32 and 0 <= fy < 48 and frame[fy][fx]:
+                    pen = frame[fy][fx]
             if px[LEFT + sc * 4 + 1, (top + 32 + line) * 2] != rgb[pen]:
                 bad += 1
                 if len(where) < 3:

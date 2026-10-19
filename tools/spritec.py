@@ -26,14 +26,16 @@ While it runs: IX = screen address of the line's byte 0, DE = save pointer,
 BC and A are free (LDI). A span table (start, count per line) goes with each
 frame for the restore. The compiled code is only used when the whole sprite
 width is visible and no row crosses the end of a 2K screen block; otherwise
-the engine draws from the span data (format of tools/sprite2asm.py) in
-another bank.
+the engine runs the same line routines on a copy of each line (in base RAM)
+and writes back the visible bytes.
 
 Outputs:
   <out>_<bank>.dat   bank images (loaded at &4000 with that RAM config)
   <out>.asm          frame descriptors for the engine:
-      <prefix>_frames: dw desc0, desc1, ...
-      desc: db bank ; dw program, span_table ; db data_bank ; dw data
+      <prefix>_frames: dw desc0, desc1, ...   (per sheet)
+      desc: db bank ; dw program, span_table ; db height, dy
+Empty lines are trimmed (dy = lines trimmed at the top); frames identical
+after trimming, also between sheets, are stored once.
 """
 
 import argparse
@@ -44,7 +46,6 @@ from PIL import Image
 
 from cpc import mode0_byte
 from png2cpc import to_pens
-from sprite2asm import frame_lines
 
 BANK_BASE = 0x4000
 BANK_SIZE = 0x4000
@@ -137,46 +138,59 @@ class Bank:
         return prog, span_addr
 
 
-def data_frame(rows):
-    out = bytearray()
-    for st, nl, no, nr, bs in frame_lines(rows):
-        out += bytes([st, nl, no, nr] + bs)
-    return out
-
-
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("sheet")
-    ap.add_argument("out", help="output prefix (path without extension)")
-    ap.add_argument("--prefix", required=True)
-    ap.add_argument("--size", default="32x48")
-    ap.add_argument("--mirror-from", type=int, default=-1)
-    ap.add_argument("--banks", default="4,7", help="banks for compiled code")
-    ap.add_argument("--data-bank", type=int, default=6)
-    args = ap.parse_args()
-
-    fw, fh = (int(v) for v in args.size.split("x"))
-    img = Image.open(args.sheet).convert("RGBA")
+def load_sheet(path, fw, fh, group, mirror_from):
+    """Frames of a sheet in reading order. Every `group` frames form one
+    variant (a figure or a part style); within each, the frames from
+    `mirror_from` on are appended again mirrored (left = mirrored right)."""
+    img = Image.open(path).convert("RGBA")
     pens = to_pens(img, False, sprite=True)
     frames = []
     for fy in range(img.height // fh):
         for fx in range(img.width // fw):
             frames.append([pens[fy * fh + y][fx * fw:(fx + 1) * fw] for y in range(fh)])
-    if args.mirror_from >= 0:
-        frames += [[list(reversed(r)) for r in f] for f in frames[args.mirror_from:]]
+    group = group or len(frames)
+    out = []
+    for g in range(0, len(frames), group):
+        v = frames[g:g + group]
+        out += v
+        if mirror_from >= 0:
+            out += [[list(reversed(r)) for r in f] for f in v[mirror_from:]]
+    return out
 
-    # unique frames
-    uniq, index = [], []
-    for f in frames:
-        key = tuple(tuple(r) for r in f)
-        if key in uniq:
-            index.append(uniq.index(key))
-        else:
-            index.append(len(uniq))
-            uniq.append(key)
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("out", help="output prefix (path without extension)")
+    ap.add_argument("--sheet", action="append", required=True,
+                    help="PREFIX:PNG:HEIGHT[:GROUP[:MIRROR_FROM]] (width 32); all sheets share the banks")
+    ap.add_argument("--banks", default="4,6,7", help="banks for compiled code")
+    args = ap.parse_args()
+
+    sheets = []
+    for spec in args.sheet:
+        f = spec.split(":")
+        prefix, path, h = f[0], f[1], int(f[2])
+        group = int(f[3]) if len(f) > 3 else 0
+        mirror = int(f[4]) if len(f) > 4 else -1
+        sheets.append((prefix, path, h, load_sheet(path, 32, h, group, mirror)))
+
+    # unique frames over all sheets, with empty lines trimmed at the top and
+    # bottom (the descriptor keeps the offset), so frames that only move up
+    # or down (a head bobbing while walking) are stored once
+    uniq, uidx = [], {}
+    index = {}
+    for prefix, path, h, frames in sheets:
+        index[prefix] = []
+        for f in frames:
+            rows = [i for i, r in enumerate(f) if any(r)] or [0]
+            dy = rows[0]
+            key = tuple(tuple(r) for r in f[dy:rows[-1] + 1])
+            if key not in uidx:
+                uidx[key] = len(uniq)
+                uniq.append(key)
+            index[prefix].append((uidx[key], dy))
 
     banks = [Bank(int(b)) for b in args.banks.split(",")]
-    data_img = bytearray()
     placed = []
     bi = 0
     for f in uniq:
@@ -186,11 +200,7 @@ def main():
             if bi == len(banks):
                 sys.exit("compiled sprites do not fit in the banks")
         prog, span = banks[bi].add(f)
-        data_addr = BANK_BASE + len(data_img)
-        data_img += data_frame(f)
-        placed.append((banks[bi].num, prog, span, data_addr))
-    if len(data_img) > BANK_SIZE:
-        sys.exit("span data does not fit in its bank")
+        placed.append((banks[bi].num, prog, span, len(f)))
 
     for bk in banks:
         if os.path.exists(f"{args.out}_{bk.num}.dat"):
@@ -198,26 +208,23 @@ def main():
         if len(bk.img) > len(STEP_CODE):   # unused bank: no file
             with open(f"{args.out}_{bk.num}.dat", "wb") as f:
                 f.write(bk.img)
-    with open(f"{args.out}_{args.data_bank}.dat", "wb") as f:
-        f.write(data_img)
-    images = {bk.num: bk.img for bk in banks}
-    banks = [bk.num for bk in banks]
+    used = [bk for bk in banks if len(bk.img) > len(STEP_CODE)]
+    bits = sum(1 << bk.num for bk in used)
+    summary = (f"{len(uniq)} unique frames; "
+               + ", ".join(f"bank {bk.num}: {len(bk.img)}" for bk in used))
 
-    p = args.prefix
     with open(f"{args.out}.asm", "w", encoding="utf-8") as f:
-        f.write(f"; generated by tools/spritec.py from {args.sheet}\n")
-        f.write(f"; {len(frames)} frames, {len(uniq)} unique; banks: "
-                + ", ".join(f"{b}={len(images[b])}" for b in banks)
-                + f", data {args.data_bank}={len(data_img)}\n")
-        f.write(f"{p}_frames:\n")
-        for i in range(len(frames)):
-            f.write(f"\tdw {p}_d{index[i]}\n")
-        for u, (bank, ent, span, data) in enumerate(placed):
-            f.write(f"{p}_d{u}:\tdb #{0xC0 + bank:02X} : dw #{ent:04X},#{span:04X} : "
-                    f"db #{0xC0 + args.data_bank:02X} : dw #{data:04X}\n")
-    print(f"{len(frames)} frames, {len(uniq)} unique; "
-          + ", ".join(f"bank {b}: {len(images[b])}" for b in banks)
-          + f"; data bank {args.data_bank}: {len(data_img)}", file=sys.stderr)
+        f.write("; generated by tools/spritec.py\n; " + summary + "\n")
+        f.write("SPR_BANKS\tequ " + str(bits) + "\t; bit n = bank n has a file\n")
+        descs = sorted({d for v in index.values() for d in v})
+        for prefix, path, h, frames in sheets:
+            f.write(f"; {prefix}: {path}, {len(frames)} frames of 32x{h}\n{prefix}_frames:\n")
+            for u, dy in index[prefix]:
+                f.write(f"\tdw spr_d{u}_{dy}\n")
+        for u, dy in descs:
+            bank, ent, span, h = placed[u]
+            f.write(f"spr_d{u}_{dy}:\tdb #{0xC0 + bank:02X} : dw #{ent:04X},#{span:04X} : db {h},{dy}\n")
+    print(summary, file=sys.stderr)
 
 
 if __name__ == "__main__":

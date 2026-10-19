@@ -105,17 +105,26 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 - Κάθε tile έχει attributes: εμπόδιο, περιοχή (εστιατόριο/κουζίνα/αποθήκη), αντικείμενο αλληλεπίδρασης (τραπέζι, καρέκλα, φούρνος, ράφι...), κλειδωμένη περιοχή επέκτασης.
 
 ### 3.5 Sprites — υλοποιημένο στο M2 ([src/engine/sprite.asm](src/engine/sprite.asm), [tools/spritec.py](tools/spritec.py))
-- Χαρακτήρες **32×48 pixels** (16 bytes × 48 γραμμές), pen 0 διάφανο.
-- **Precompiled sprites** (`tools/spritec.py`):
-  - Κάθε διαφορετική γραμμή sprite γίνεται μια μικρή ρουτίνα που γράφει τα bytes με immediate τιμές: `ld (hl),n` για αδιαφανή, `ld a,(hl) : and m : or n : ld (hl),a` για μισά διάφανα, τίποτα για διάφανα, `inc hl` ανάμεσα.
-  - **Οι ίδιες γραμμές αποθηκεύονται μία φορά ανά bank**, οπότε κεφάλι, σώμα, παπούτσια και κενές γραμμές που δεν αλλάζουν ανάμεσα σε πόζες και κατευθύνσεις μοιράζονται (Bill: 17,9K → 12,3K, χωράει σε μία bank).
-  - Ένα frame είναι πρόγραμμα με ένα βήμα των 6 bytes ανά γραμμή: `call &0103` (το `nl_save`: διεύθυνση γραμμής, save-under, έξοδος μετά την τελευταία ορατή γραμμή) και `call ρουτίνα_γραμμής`. Αν το sprite κόβεται από πάνω, η είσοδος είναι `πρόγραμμα + 6·γραμμές`.
-  - Όσο τρέχει το πρόγραμμα, DE = save pointer και IX = πίνακας spans (start, count ανά γραμμή, για save/restore). Οι ρουτίνες γραμμής χρησιμοποιούν μόνο A και HL.
-- Τα sprites ζουν σε **συντεταγμένες χάρτη** μέσα στο ring. Η διεύθυνση κατά μήκος μιας γραμμής είναι γραμμική mod 2048. Μια γραμμή που περνά το τέλος του 2K block ζωγραφίζεται από το `nl_save` σε αντίγραφο 16 bytes και γράφεται πίσω με το τύλιγμα (σπάνια περίπτωση, χωρίς κόστος στις άλλες γραμμές).
-- **Sprites κομμένα αριστερά ή δεξιά** ζωγραφίζονται από τα spans (μορφή `tools/sprite2asm.py`: `start, nl, no, nr` + bytes, bank 6) με clipping ανά γραμμή.
-- Κατευθύνσεις: κάτω, πάνω, δεξιά. Η αριστερή είναι καθρέφτης που φτιάχνεται στο build (`--mirror-from`).
-- **Double buffering + save-under ανά buffer** στη βασική RAM (`&2000`/`&3000`). Ο save/restore γίνεται με αλυσίδα `LDI`. Η επαναφορά γίνεται με αντίστροφη σειρά, και η ζωγραφική ταξινομημένη κατά Y (σωστό βάθος).
-- **Απόδοση (CPCEC, μονάδα 1/300 s):** compiled sprite ~3 (save + ζωγραφική), restore ~1,5, sprite κομμένο στην άκρη ~6.
+- Χαρακτήρες **32×48 pixels** (16 bytes × 48 γραμμές), pen 0 διάφανο. Όλα τα sprites είναι **precompiled**.
+- **Compiler** (`tools/spritec.py`, όλα τα sheets μαζί, ώστε να μοιράζονται banks, γραμμές και frames):
+  - Κάθε διαφορετική γραμμή γίνεται ρουτίνα: `call SAVE_s_n`, μετά τα bytes με immediate τιμές (`ld (hl),n` για αδιαφανή, `ld a,(hl) : and m : or n : ld (hl),a` για μισά διάφανα, `inc hl` ανάμεσα), και στο τέλος `jp STEP`.
+  - `SAVE_s_n` (ένα ανά ζεύγος start/count): `HL = IX + start`, σώζει τα bytes με `LDI` στο DE. `STEP` (στην αρχή κάθε bank): `IXH += 8`, και σε νέο char row το `next_row` (vector στο `&0103`).
+  - **Οι ίδιες γραμμές αποθηκεύονται μία φορά ανά bank**, οπότε τα κομμάτια που δεν αλλάζουν ανάμεσα σε πόζες και κατευθύνσεις μοιράζονται.
+  - Οι κενές γραμμές πάνω και κάτω κόβονται (το descriptor κρατά ύψος και `dy`), οπότε ένα κεφάλι που απλώς ανεβοκατεβαίνει στο περπάτημα είναι ένα frame.
+  - Ένα frame είναι λίστα από `call`, μία ανά γραμμή, με `ret` στο τέλος. Ο engine μπαίνει στην πρώτη ορατή γραμμή (`πρόγραμμα + 3·skip`) και σταματά με ένα προσωρινό `ret` μετά την τελευταία ορατή.
+- **Κομμάτια που συνδυάζονται** (πελάτες, [src/game/customer.asm](src/game/customer.asm)):
+  - Μια φιγούρα είναι 3 sprites: κεφάλι (20 γραμμές), κορμός (14) και πόδια (14), το ένα κάτω από το άλλο με το ίδιο κλειδί βάθους (`sprites_add_z`). Οποιοδήποτε κεφάλι ταιριάζει με οποιονδήποτε κορμό και πόδια.
+  - Τα sheets (`cust_head/body/legs.png`) έχουν μία γραμμή ανά στυλ, με 9 frames: κάτω, πάνω, δεξιά × idle και 2 βήματα. Τα αριστερά είναι καθρέφτες.
+  - Τα τωρινά είναι προσωρινές παραλλαγές χρωμάτων του Bill (`tools/mkparts.py`, `make parts`), μέχρι να γίνουν μοντέλα πελατών στο Blender.
+- Τα sprites ζουν σε **συντεταγμένες χάρτη** μέσα στο ring (η διεύθυνση κατά μήκος μιας γραμμής είναι γραμμική mod 2048). Οι θέσεις είναι signed, ώστε ένα sprite να μπορεί να βγαίνει λίγο έξω από τον χάρτη στις άκρες.
+- **Γρήγορος δρόμος:** όλο το πλάτος ορατό και καμία γραμμή δεν περνά το τέλος του 2K block. Το πρόγραμμα τρέχει όπως είναι.
+- **Κομμένα στις άκρες ή με τύλιγμα** (`sprite_clipped`):
+  - οι συνεχόμενες γραμμές που είναι ολόκληρες και μέσα στο block τρέχουν ως κομμάτι του προγράμματος;
+  - κάθε άλλη γραμμή αντιγράφεται σε buffer 16 bytes, ζωγραφίζεται εκεί από την ίδια ρουτίνα, και γράφονται πίσω μόνο τα ορατά bytes.
+
+  Δεν χρειάζονται πια ξεχωριστά δεδομένα για το clipping.
+- **Double buffering + save-under ανά buffer** στη βασική RAM (`&2000`/`&3000`): chunks (compiled run ή segment `[count][address][bytes]`) με 0 στο τέλος. Η επαναφορά γίνεται με αντίστροφη σειρά (IX/IY, αλυσίδα `LDI`), και η ζωγραφική ταξινομημένη κατά βάθος.
+- **Απόδοση (CPCEC, μονάδα 1/300 s):** ολόκληρο sprite ~2 (save + ζωγραφική), restore ~1,3, κομμένο στην άκρη ~4. Bill + 4 πελάτες (13 κομμάτια): περίπου 12 fps.
 - Οι πελάτες όταν κάθονται θα «σφραγίζονται» στο background, ώστε να μην ξαναζωγραφίζονται κάθε frame.
 
 ## 4. Χάρτης μνήμης
@@ -124,15 +133,18 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 |---|---|
 | `&0000–&003F` | RST / interrupt vector (`&0038`) |
 | `&0040–&00FF` | Stack |
-| `&0100–&1FFF` | Κώδικας engine/παιχνιδιού (load/exec `&0100`, στο `&0103` το vector `jp nl_save` των compiled sprites), tables |
+| `&0100–&1FEF` | Κώδικας engine/παιχνιδιού (load/exec `&0100`, στο `&0103` το vector `jp next_row` των compiled sprites), tables |
+| `&1FF0–&1FFF` | Buffer γραμμής για τα κομμένα sprites |
 | `&2000–&3FFF` | Save-under των sprites (4K ανά buffer) |
 | `&4000–&7FFF` | Βασική RAM: σελίδα HUD (4 σετ HUD+buffer, ένα ανά R3 phase × buffer, στα words s·256). Επίσης παράθυρο των banks |
 | `&8000–&BFFF` | Οθόνη playfield, buffer 0 (ring 1024 words) |
 | `&C000–&FFFF` | Οθόνη playfield, buffer 1 |
-| bank 4 (`&C4`) | Compiled sprites (κώδικας γραμμών, προγράμματα frames, spans) |
+| bank 4 (`&C4`) | Compiled sprites (STEP, stubs SAVE, ρουτίνες γραμμών, προγράμματα frames, spans) |
 | bank 5 (`&C5`) | Χάρτης πίστας και tiles |
-| bank 6 (`&C6`) | Span data των sprites (για τα κομμένα στις άκρες) |
-| bank 7 (`&C7`) | Ελεύθερη (συνέχεια των compiled sprites όταν γεμίσει η 4) |
+| bank 6 (`&C6`) | Compiled sprites (συνέχεια) |
+| bank 7 (`&C7`) | Compiled sprites (συνέχεια) |
+
+**Προϋπολογισμός sprites (banks 4, 6, 7 = 48K):** Bill 11,9K, πελάτες (4 στυλ × 3 κομμάτια) ~35,6K, σύνολο 47,5K. Για την Ελευθερία και την Ανθή χρειάζεται χώρος: λιγότερα στυλ ή πόζες πελατών, ή φόρτωση ανά επίπεδο.
 
 **Φόρτωση:**
 - Το `CWL.BIN` φορτώνεται στο `&0100`. Τα δεδομένα της bank 5 είναι «σταθμευμένα» στο `&4000` και στο boot το `mem_relocate` τα μεταφέρει στη bank και καθαρίζει το `&4000`–`&FFFF`.
@@ -151,8 +163,8 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 
 ```
 assets/blender/bill_build.py        tools/render2sprite.py          tools/spritec.py           δίσκος
- Blender (MCP): μοντέλο, πόζες,  ─▶  renders → pixel art palette  ─▶  compiled + spans    ─▶  SPR4/SPR6.DAT
- renders id/shade 4x + features      (assets/sprites/bill.png)        (build/bill_N.dat, bill.asm)
+ Blender (MCP): μοντέλο, πόζες,  ─▶  renders → pixel art palette  ─▶  compiled κώδικας   ─▶  SPR4/6/7.DAT
+ renders id/shade 4x + features      (assets/sprites/bill.png)        (build/spr_N.dat, spr.asm)
                                       └▶ assets/aseprite/bill.aseprite (Aseprite MCP)
 ```
 
@@ -166,7 +178,8 @@ assets/blender/bill_build.py        tools/render2sprite.py          tools/sprite
    - το χρώμα βγαίνει από τη ράμπα του υλικού στην palette, ανάλογα με τη σειρά φωτεινότητας του pixel μέσα στο υλικό
    - σχεδιάζει το πρόσωπο σε καθαρά pixels από το `features.json` και προσθέτει μαύρο περίγραμμα (pen 14)
 3. **Aseprite** (MCP, Lua): το `assets/aseprite/bill.aseprite` έχει frames, tags `down/up/right`, pixel ratio 2:1 και την palette `assets/palette/cwl.gpl`. Αν διορθωθεί με το χέρι, γίνεται export ξανά στο `assets/sprites/bill.png`.
-4. **tools/spritec.py** (στο `make`): PNG → compiled κώδικας με κοινές γραμμές (`bill_4.dat`), spans (`bill_6.dat`) και descriptors των frames (`bill.asm`, στη βασική RAM).
+4. **tools/spritec.py** (στο `make`, λίστα `SHEETS` στο Makefile): όλα τα sheets → compiled κώδικας με κοινές γραμμές (`build/spr_N.dat` → `SPRN.DAT`) και descriptors των frames (`build/spr.asm`, στη βασική RAM).
+5. **tools/mkparts.py** (`make parts`): κομμάτια πελατών από τα renders (κεφάλι/κορμός/πόδια, μία γραμμή ανά στυλ).
 
 ### Tiles, χάρτες, κείμενα
 - **tools/png2cpc.py**: PNG → Mode 0 bytes (sprites, tiles, γραμματοσειρές), με έλεγχο palette. Για sprites το αδιαφανές μαύρο γίνεται pen 14.
@@ -237,4 +250,4 @@ python3 tools/png2cpc.py tiles.png tiles.bin --layout tiles    # 8x8 tiles, 32 b
 - `-DTEST_PATH=3` κάνει συνεχές bounce μεταξύ (0,0) και (TEST_X, TEST_Y), για δοκιμές σε άλλους emulators ή σε πραγματικό CPC.
 - Το R3 trick πρέπει να δοκιμαστεί σε πραγματικό CPC/monitor. Για περιπτώσεις που δεν δουλεύει υπάρχουν τα fallbacks `FINE_X=0` / `FINE_Y=0`.
 - Debug build (`make DEBUG=1`): το border γίνεται λευκό όσο δουλεύει ο main loop, για μέτρηση του χρόνου CPU.
-- **Sprites/παιχνίδι:** το `-DDEMO=1` κάνει τον Bill να περπατά μόνος του με σενάριο. Η debug γραμμή (HUD line 0) δείχνει κάμερα, θέση και frame του sprite και χρόνους σταδίων. Το `tools/gamecheck.py` αποδίδει την αναμενόμενη εικόνα (χάρτης + sprite), τη συγκρίνει pixel-pixel και ελέγχει ότι τα πόδια δεν είναι μέσα σε εμπόδιο. Το `-DCLONES=n` προσθέτει αντίγραφα του Bill για stress test. Τα `-DBILL_X0=x -DBILL_Y0=y -DDBGPOS=1` ξεκινούν τον Bill σε δοσμένη θέση (π.χ. `BILL_X0=100 BILL_Y0=232` για γραμμές που τυλίγουν στο 2K block).
+- **Sprites/παιχνίδι:** το `-DDEMO=1` κάνει τον Bill να περπατά μόνος του με σενάριο. Η debug γραμμή (HUD line 0) δείχνει κάμερα, θέση και frame του sprite και χρόνους σταδίων. Το `tools/gamecheck.py` αποδίδει την αναμενόμενη εικόνα (χάρτης + sprite), τη συγκρίνει pixel-pixel και ελέγχει ότι τα πόδια δεν είναι μέσα σε εμπόδιο. Το `-DCLONES=n` προσθέτει αντίγραφα του Bill για stress test. Το `-DCUSTOMERS=0` βγάζει τους δοκιμαστικούς πελάτες (το `gamecheck` ξέρει μόνο τον Bill). Τα `-DBILL_X0=x -DBILL_Y0=y -DDBGPOS=1` ξεκινούν τον Bill σε δοσμένη θέση (π.χ. `BILL_X0=100 BILL_Y0=232` για γραμμές που τυλίγουν στο 2K block).

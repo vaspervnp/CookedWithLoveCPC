@@ -54,6 +54,9 @@ BILL_X0	equ 96
 	ifndef BILL_Y0
 BILL_Y0	equ 110
 	endif
+	ifndef CUSTOMERS		; test customers (combined parts)
+CUSTOMERS	equ 1
+	endif
 	ifndef CLONES			; stress test: extra copies of Bill
 CLONES	equ 0
 	endif
@@ -79,9 +82,18 @@ MAX_TICKS	equ 4		; game ticks run per drawn frame at most
 
 ; Bank files loaded with the firmware before it is switched off: name,
 ; RAM config (the file is loaded at &4000 in that bank).
+	include "spr.asm"		; frame descriptors (code in banks 4, 6, 7)
+
 bank_files:
+	if SPR_BANKS&#10
 	db "SPR4.DAT",RAM_C4
+	endif
+	if SPR_BANKS&#40
 	db "SPR6.DAT",RAM_C6
+	endif
+	if SPR_BANKS&#80
+	db "SPR7.DAT",RAM_C7
+	endif
 	db 0
 CAS_IN_OPEN	equ #BC77
 CAS_IN_DIRECT	equ #BC83
@@ -223,6 +235,9 @@ main_loop:
 	RAM RAM_C5
 .tick:	ld a,(input)
 	call actor_tick
+	if CUSTOMERS
+	call cust_tick
+	endif
 	ld hl,ticks
 	dec (hl)
 	jr nz,.tick
@@ -259,6 +274,9 @@ render:
 	call sprites_clear
 	if TESTMODE==0
 	call actor_sprites
+	if CUSTOMERS
+	call cust_sprites
+	endif
 	endif
 	call sprites_draw
 	if DBGPOS
@@ -567,12 +585,12 @@ scroll_step_y:	db 8-7*FINE_Y
 	include "engine/scroll.asm"
 	include "engine/sprite.asm"
 	include "game/actor.asm"
+	include "game/customer.asm"
 	include "palette.asm"
 
 hud_pattern:
 	incbin "testhud.bin"
 
-	include "bill.asm"		; frame descriptors (code in banks 4/7, data 6)
 
 	if LANG_EN
 	; language-specific data will go here (text, font)
@@ -581,7 +599,7 @@ hud_pattern:
 	endif
 
 code_end:
-	assert code_end<=SAVE_AREA0,"code overlaps the sprite save areas"
+	assert code_end<=CL_BUF,"code overlaps the sprite buffers"
 	print "code end: ",{hex}code_end
 
 ; --- bank 5: map and tiles (staged at &4000 in base RAM) ---
