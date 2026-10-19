@@ -29,9 +29,9 @@ CAM_T		equ 80
 CAM_B		equ 128
 
 actor_init:
-	ld hl,96
+	ld hl,BILL_X0
 	ld (bill_x),hl
-	ld hl,110
+	ld hl,BILL_Y0
 	ld (bill_y),hl
 	xor a
 	ld (bill_dir),a
@@ -284,12 +284,10 @@ actor_sprites:
 	add hl,hl
 	ld de,bill_frames
 	add hl,de
-	RAM RAM_C4			; frame table is in bank 4
-	ld a,(hl)
+	ld a,(hl)			; frame descriptor
 	inc hl
 	ld h,(hl)
 	ld l,a
-	RAM RAM_C0
 	push hl
 	ld hl,(bill_x)
 	ld a,l

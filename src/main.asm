@@ -48,6 +48,12 @@ DEMO	equ 0
 	ifndef DBGPOS
 DBGPOS	equ DEMO
 	endif
+	ifndef BILL_X0			; start position (tests)
+BILL_X0	equ 96
+	endif
+	ifndef BILL_Y0
+BILL_Y0	equ 110
+	endif
 	ifndef CLONES			; stress test: extra copies of Bill
 CLONES	equ 0
 	endif
@@ -67,7 +73,58 @@ MAX_TICKS	equ 4		; game ticks run per drawn frame at most
 	buildcpc
 	run start
 
+	jp start			; &0100: entry
+	jp nl_save			; &0103: line helper of compiled sprites
+	assert $==#0106
+
+; Bank files loaded with the firmware before it is switched off: name,
+; RAM config (the file is loaded at &4000 in that bank).
+bank_files:
+	db "SPR4.DAT",RAM_C4
+	db "SPR6.DAT",RAM_C6
+	db 0
+CAS_IN_OPEN	equ #BC77
+CAS_IN_DIRECT	equ #BC83
+CAS_IN_CLOSE	equ #BC7A
+CAS_BUFFER	equ #3000		; 2K, free until the game starts
+
+KL_INIT_BACK	equ #BCCE
+
+load_banks:
+	; a binary started with RUN" runs with the cassette vectors: initialise
+	; AMSDOS (ROM 7) again so that CAS IN reads from the disc
+	ld c,7
+	ld de,#0040
+	ld hl,#ABFF
+	call KL_INIT_BACK
+	ld hl,bank_files
+.next:	ld a,(hl)
+	or a
+	ret z
+	push hl
+	ld de,8
+	add hl,de
+	ld a,(hl)			; RAM config
+	ld b,GA_PORT
+	ld c,a
+	out (c),c
+	pop hl
+	push hl
+	ld b,8
+	ld de,CAS_BUFFER
+	call CAS_IN_OPEN
+	ld hl,#4000
+	call CAS_IN_DIRECT
+	call CAS_IN_CLOSE
+	ld bc,GA_PORT*256+RAM_C0
+	out (c),c
+	pop hl
+	ld de,9
+	add hl,de
+	jr .next
+
 start:
+	call load_banks			; firmware still active
 	di
 	ld sp,STACK_TOP
 	im 1
@@ -515,6 +572,8 @@ scroll_step_y:	db 8-7*FINE_Y
 hud_pattern:
 	incbin "testhud.bin"
 
+	include "bill.asm"		; frame descriptors (code in banks 4/7, data 6)
+
 	if LANG_EN
 	; language-specific data will go here (text, font)
 	endif
@@ -525,16 +584,8 @@ code_end:
 	assert code_end<=SAVE_AREA0,"code overlaps the sprite save areas"
 	print "code end: ",{hex}code_end
 
-; --- bank 4: sprite graphics (staged at its runtime address &4000) ---
+; --- bank 5: map and tiles (staged at &4000 in base RAM) ---
 	org #4000
-bank4_start:
-	include "bill_spr.asm"
-bank4_end:
-	assert bank4_end<=#8000,"bank 4 full"
-	print "bank 4 used: ",{hex}bank4_end-#4000
-
-; --- bank 5: map and tiles (runtime &4000, staged at &8000) ---
-	org #4000,#8000
 bank5_start:
 tile_data:
 	incbin "testtiles.bin"
@@ -542,5 +593,5 @@ map_data:
 	incbin "testmap.bin"
 bank5_end:
 	assert bank5_end<=#8000,"bank 5 full"
-	assert bank5_end-bank5_start<=#2600,"bank 5 staging would overlap AMSDOS"
+	assert bank5_end-bank5_start<=#4000,"bank 5 staging too big"
 	print "bank 5 used: ",{hex}bank5_end-#4000

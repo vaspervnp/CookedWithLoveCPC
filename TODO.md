@@ -92,7 +92,8 @@ Top-down διαχείριση εστιατορίου. Κάθε πίστα είν
 - [x] **Bill από Blender + render2sprite + Aseprite** (assets/blender/bill_build.py, tools/render2sprite.py, assets/aseprite/bill.aseprite)
 - [x] Αυτόματος έλεγχος: DEMO + debug band + tools/gamecheck.py (σύγκριση pixel-pixel, collision)
 - [x] Bill + scroll ~25 fps
-- [ ] Στόχος 4–6 κινούμενα sprites στα 12.5 fps (τώρα ~10 fps με 4): compiled sprites ή πιο σφιχτός βρόχος γραμμής, βελτιστοποίηση `draw_char`/`copy_top`
+- [x] Precompiled sprites με κοινές γραμμές ανά bank (`tools/spritec.py`), φόρτωση banks από δίσκο, γραμμές που τυλίγουν στο 2K block στη γρήγορη διαδρομή
+- [ ] Στόχος 4–6 κινούμενα sprites στα 12.5 fps: τώρα ~3/300 s ανά compiled sprite + 1,5 restore. Επόμενα: βήμα γραμμής μέσα στο πρόγραμμα αντί για `call nl_save`, compiled path και για sprites κομμένα στην άκρη, βελτιστοποίηση `draw_char`/`copy_top`
 - [ ] Επιβεβαίωση στο Retro Virtual Machine (χρήστης)
 - [ ] Sprites στην πάνω μερική γραμμή: λειτουργεί (το copy_top γίνεται μετά τα sprites), να ελεγχθεί με ειδικό τεστ
 

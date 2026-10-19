@@ -8,11 +8,24 @@
 ; 2K block). Drawing is clipped to the visible view (bytes 2cx..2cx+79, lines
 ; sy..sy+167), which also keeps it inside the rows the ring holds.
 ;
-; Frame data (tools/sprite2asm.py), 48 lines of: db start, count, bytes...
-; Sprite graphics are in bank 4 (RAM_C4), save-under records in base RAM
-; (SAVE_AREA0/1, one per buffer). A record is a list of segments
-; [count][address][bytes], ended by count 0. Each line saves and then draws
-; only the bytes it covers.
+; Frames are compiled to Z80 code (tools/spritec.py): a frame is a program of
+; "call nl_save : call line_routine" per line. nl_save (via the fixed vector
+; at &0103) points HL at the line, saves the bytes it covers and stops after
+; the visible lines; the line routine (shared between frames when lines are
+; identical) writes the bytes with immediate masks/values. While the program
+; runs, DE = save pointer and IX = span table pointer (line routines only
+; use A and HL). That fast path is used when the whole sprite width is
+; visible; a line that crosses the end of a 2K block is drawn by nl_save on
+; a copy and written back with the wrap. Sprites cut at the left or right
+; edge are drawn from the span data, line by line with clipping.
+;
+; A frame descriptor (base RAM) gives: code bank, program, span table
+; (start, count per line), data bank, span data.
+;
+; Save-under records in base RAM (SAVE_AREA0/1, one per buffer):
+;   type 1 (compiled): [1][bank][span ptr][lines][r0][row offset][page] and
+;          the saved bytes; restored by replaying the span table
+;   type 0 (clipped):  [0] then segments [count][address][bytes], ended by 0
 ;
 ; Per frame: sprites_restore (erase what this buffer showed, in reverse
 ; order), then after buffer_sync: sprites_draw (list sorted by y).
@@ -24,10 +37,17 @@ SAVE_AREA0	equ #2000	; save-under records, base RAM (4K per buffer)
 SAVE_AREA1	equ #3000
 
 ; sprite list entry
-SE_FRAME	equ 0		; frame data pointer (bank 4)
+SE_FRAME	equ 0		; frame descriptor pointer
 SE_X		equ 2		; left edge, map pixels (even)
 SE_Y		equ 4		; top line
 SE_SIZE		equ 6
+
+; frame descriptor (tools/spritec.py)
+DS_BANK		equ 0		; RAM config of the compiled code
+DS_PROG		equ 1		; program (6 bytes per line)
+DS_SPAN		equ 3		; span table
+DS_DBANK	equ 5		; RAM config of the span data
+DS_DATA		equ 6		; span data
 
 ; Clear the sprite list for this frame.
 sprites_clear:
@@ -89,6 +109,12 @@ sprites_restore:
 	push hl
 	push bc
 	ex de,hl
+	ld a,(hl)			; record type
+	inc hl
+	or a
+	jr z,.seg
+	call restore_compiled
+	jr .end
 .seg:	ld a,(hl)
 	or a
 	jr z,.end
@@ -106,6 +132,242 @@ sprites_restore:
 	djnz .rec
 	call save_count_ptr
 	ld (hl),0
+	ret
+
+; Replay a compiled-sprite record (HL after the type byte).
+restore_compiled:
+	ld c,(hl)			; bank of the span table
+	inc hl
+	ld b,GA_PORT
+	out (c),c
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld (rc_span),de
+	ld a,(hl)
+	inc hl
+	ld (rc_n),a
+	ld a,(hl)
+	inc hl
+	ld (rc_r),a
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld (rc_row),de
+	ld a,(hl)
+	inc hl
+	ld (rc_page),a
+.line:	push hl				; record bytes
+	ld hl,(rc_span)
+	ld c,(hl)			; start
+	inc hl
+	ld b,(hl)			; count
+	inc hl
+	ld (rc_span),hl
+	ld hl,(rc_row)			; screen = page + r*&800 + row + start
+	ld a,(rc_r)
+	add a,a
+	add a,a
+	add a,a
+	add a,h
+	ld h,a
+	ld a,(rc_page)
+	add a,h
+	ld h,a
+	ld a,c
+	call wrap_add
+	ld a,b
+	or a
+	jr z,.c0
+	call wrap_test
+	jr c,.w
+	ex de,hl
+	pop hl
+	ld a,b
+	call ldi_n
+	jr .adv
+.w:	ex de,hl
+	ex (sp),hl
+	ex de,hl			; HL = screen, DE = record
+	call wrap_put
+	pop hl
+	ex de,hl			; HL = record after the line
+	jr .adv
+.c0:	pop hl
+.adv:	ld a,(rc_r)
+	inc a
+	and 7
+	ld (rc_r),a
+	jr nz,.nr
+	push hl
+	ld hl,(rc_row)
+	ld de,80
+	add hl,de
+	ld a,h
+	and 7
+	ld h,a
+	ld (rc_row),hl
+	pop hl
+.nr:	ld a,(rc_n)
+	dec a
+	ld (rc_n),a
+	jr nz,.line
+	ret
+
+; Line helper of compiled sprites (via the vector at &0103): HL = screen
+; address of the line's first covered byte, its bytes saved (DE = save
+; pointer, IX = span table, both advanced); after the last visible line it
+; leaves the program.
+nl_save:
+	ld hl,cs_left
+	dec (hl)
+	jp m,.stop
+	ld hl,(cs_addr)
+	ld a,(ix+0)			; start
+	call wrap_add
+	ld a,(ix+1)			; count (1..16)
+	inc ix
+	inc ix
+	or a
+	jr z,.adv
+	ld b,a
+	call wrap_test
+	jr c,.wrap
+	ld a,b
+	push hl
+	call ldi_n
+	pop hl
+.adv:	ld a,(cs_r)			; next line
+	inc a
+	and 7
+	ld (cs_r),a
+	jr z,.row
+	ld a,(cs_addr+1)
+	add a,8
+	ld (cs_addr+1),a
+	ret
+.row:	push hl
+	push de
+	ld hl,(cs_row)			; next char row: +80 mod 2048, raster 0
+	ld de,80
+	add hl,de
+	ld a,h
+	and 7
+	ld h,a
+	ld (cs_row),hl
+	ld a,(scr_page)
+	add a,h
+	ld h,a
+	ld (cs_addr),hl
+	pop de
+	pop hl
+	ret
+.stop:	pop hl				; leave the program
+	ret
+
+; The line crosses the end of the 2K block: save it byte by byte, run the
+; line routine on a copy in nw_tmp, write the copy back, skip the call.
+.wrap:	ld (nw_scr),hl
+	ld a,b
+	ld (nw_n),a
+	push de
+	call wrap_get			; screen -> save area
+	pop hl
+	push de				; save pointer after the line
+	ld de,nw_tmp
+	ld a,(nw_n)
+	call ldi_n			; saved bytes -> nw_tmp
+	ld hl,2				; program pointer: "call line_routine"
+	add hl,sp
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc de
+	ex de,hl
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	ld (.call+1),de
+	ld hl,nw_tmp
+.call:	call 0
+	ld hl,(nw_scr)
+	ld de,nw_tmp
+	ld a,(nw_n)
+	ld b,a
+	call wrap_put			; nw_tmp -> screen
+	pop de
+	pop hl				; past the call in the program
+	inc hl
+	inc hl
+	inc hl
+	push hl
+	jp .adv
+
+; HL = screen address + A, wrapping at the end of the 2K block.
+wrap_add:
+	add a,l
+	ld l,a
+	ret nc
+	inc h
+	ld a,h
+	and 7
+	ret nz
+	ld a,h
+	sub 8
+	ld h,a
+	ret
+
+; Carry set if B bytes from HL cross the end of the 2K block.
+wrap_test:
+	ld a,h
+	and 7
+	cp 7
+	ccf
+	ret nc				; not the block's last 256 bytes
+	ld a,b				; last byte L + B - 1 > 255?
+	dec a
+	add a,l
+	ret
+
+; B bytes screen (HL, wrapping) -> DE.
+wrap_get:
+	ld a,(hl)
+	ld (de),a
+	inc de
+	inc l
+	jr nz,.n
+	ld a,h
+	sub 7
+	ld h,a
+.n:	djnz wrap_get
+	ret
+
+; B bytes DE -> screen (HL, wrapping).
+wrap_put:
+	ld a,(de)
+	ld (hl),a
+	inc de
+	inc l
+	jr nz,.n
+	ld a,h
+	sub 7
+	ld h,a
+.n:	djnz wrap_put
+	ret
+
+; Copy A (1..16) bytes HL -> DE with an unrolled LDI chain (16 T/byte
+; instead of 21 for LDIR). BC is destroyed.
+ldi_n:
+	neg
+	add a,16
+	add a,a
+	ld (.j+1),a
+.j:	jr $+2
+	repeat 16
+	ldi
+	rend
 	ret
 
 ; HL = save pointer table of the back buffer, A = its count.
@@ -383,9 +645,27 @@ sprite_one:
 	ld (hl),e
 	inc hl
 	ld (hl),d
-	RAM RAM_C4			; sprite graphics
 	ld l,(ix+SE_FRAME)
 	ld h,(ix+SE_FRAME+1)
+	ld (sp_desc),hl
+	ld a,(sp_full)			; compiled code if fully visible, no wrap
+	or a
+	jp nz,sprite_compiled
+.clip:	ld hl,(save_ptr)		; record type 0: segments
+	ld (hl),0
+	inc hl
+	ld (save_ptr),hl
+	ld hl,(sp_desc)
+	ld de,DS_DBANK
+	add hl,de
+	ld c,(hl)			; span data bank
+	ld b,GA_PORT
+	out (c),c
+	inc hl
+	ld a,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,a
 	ld a,(sp_skip)			; skip clipped lines at the top
 	or a
 	jr z,.dr0
@@ -459,7 +739,14 @@ sprite_one:
 	call nz,mask_loop
 	ld (sp_data),de
 	jr .dnext
-.slow:	call line_clipped
+.slow:	ld a,(sp_w)			; clipped window inside the block?
+	ld b,a
+	ld a,(rs_wrap)
+	cp b
+	jr c,.wrap
+	call line_clip_fast
+	jr .dnext
+.wrap:	call line_clipped
 .dnext:	call line_next
 	jr nz,.dline
 	call row_next
@@ -485,6 +772,90 @@ mask_loop:
 	dec ixl
 	jr nz,.lp
 	ret
+
+; Compiled path: save record header, then run the frame's program from the
+; first visible line.
+sprite_compiled:
+	ld hl,(sp_desc)
+	ld a,(hl)			; DS_BANK
+	ld (cs_bank),a
+	inc hl
+	ld e,(hl)			; program
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld a,(sp_skip)			; entry = program + 6*skip
+	ld c,a
+	ld b,0
+	push hl
+	ex de,hl
+	add hl,bc
+	add hl,bc
+	add hl,bc
+	add hl,bc
+	add hl,bc
+	add hl,bc
+	ld (cs_ent),hl
+	pop hl
+	ld e,(hl)			; span table + 2*skip
+	inc hl
+	ld d,(hl)
+	ex de,hl
+	add hl,bc
+	add hl,bc
+	ld (cs_span),hl
+	ld de,(save_ptr)		; [1][bank][span][lines][r0][row][page]
+	ld a,1
+	ld (de),a
+	inc de
+	ld a,(cs_bank)
+	ld (de),a
+	inc de
+	ld a,l
+	ld (de),a
+	inc de
+	ld a,h
+	ld (de),a
+	inc de
+	ld a,(sp_lines)
+	ld (cs_left),a
+	ld (de),a
+	inc de
+	ld a,(sp_r0)
+	ld (cs_r),a
+	ld (de),a
+	inc de
+	ld hl,(sp_row0)
+	ld (cs_row),hl
+	ld a,l
+	ld (de),a
+	inc de
+	ld a,h
+	ld (de),a
+	inc de
+	ld a,(scr_page)
+	ld (de),a
+	inc de
+	ld a,(sp_r0)			; first line address
+	add a,a
+	add a,a
+	add a,a
+	add a,h
+	ld h,a
+	ld a,(scr_page)
+	add a,h
+	ld h,a
+	ld (cs_addr),hl
+	ld a,(cs_bank)
+	ld c,a
+	ld b,GA_PORT
+	out (c),c
+	ld ix,(cs_span)
+	ld hl,(cs_ent)
+	call .run
+	ld (save_ptr),de
+	ret
+.run:	jp (hl)
 
 ; --- iteration over the visible lines, row by row ---
 rows_start:
@@ -583,6 +954,80 @@ row_next:
 	ld a,(sp_left)
 	or a
 	ret
+
+; Save and draw one sprite line cut to [clipL, clipR) (row without wrap):
+; one save segment, all bytes drawn masked.
+line_clip_fast:
+	ld hl,(sp_data)
+	ld c,(hl)			; start
+	inc hl
+	ld a,(hl)
+	inc hl
+	add a,(hl)
+	inc hl
+	add a,(hl)
+	inc hl				; HL = bytes, A = count
+	ld b,a
+	add a,l				; next line
+	ld e,a
+	ld a,h
+	adc a,0
+	ld d,a
+	ld (sp_data),de
+	ld a,b
+	or a
+	ret z
+	add a,c				; end = start + count
+	ld e,a
+	ld a,(sp_cr)			; b = min(end, clipR)
+	cp e
+	jr nc,.e
+	ld e,a
+.e:	ld a,(sp_cl)			; a = max(start, clipL)
+	cp c
+	jr nc,.s
+	ld a,c
+.s:	ld d,a				; D = a, E = b
+	ld a,e
+	sub d
+	ret c
+	ret z
+	ld (dc_cnt),a			; k
+	ld a,d				; data += a - start
+	sub c
+	add a,l
+	ld l,a
+	jr nc,.d
+	inc h
+.d:	push hl				; data
+	ld a,(sp_cl)			; screen = rs_addr + (a - clipL)
+	ld b,a
+	ld a,d
+	sub b
+	ld hl,(rs_addr)
+	add a,l
+	ld l,a
+	jr nc,.a
+	inc h
+.a:	ex de,hl			; DE = screen
+	ld hl,(save_ptr)		; segment [k][address][bytes]
+	ld a,(dc_cnt)
+	ld (hl),a
+	inc hl
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	inc hl
+	ex de,hl			; HL = screen, DE = save
+	push hl
+	ld c,a
+	ld b,0
+	ldir
+	ld (save_ptr),de
+	pop hl
+	pop de				; data
+	ld a,(dc_cnt)
+	jp mask_loop
 
 ; Save and draw one sprite line byte by byte, with clipping and block wrap
 ; (rows at the view edges or across the end of a 2K block). Each visible
@@ -687,6 +1132,22 @@ sp_r:		db 0
 sp_row:		dw 0
 sp_left:	db 0
 sp_data:	dw 0
+sp_desc:	dw 0
+cs_bank:	db 0
+cs_ent:		dw 0
+cs_span:	dw 0
+cs_left:	db 0
+cs_r:		db 0
+cs_row:		dw 0
+cs_addr:	dw 0
+nw_scr:		dw 0
+nw_n:		db 0
+nw_tmp:		ds 16
+rc_span:	dw 0
+rc_n:		db 0
+rc_r:		db 0
+rc_row:		dw 0
+rc_page:	db 0
 sp_w:		db 0
 sp_full:	db 0
 sp_nr:		db 0
