@@ -14,6 +14,15 @@
 ; R9 = 7-fy, i.e. only rasters 0..7-fy. So that row is stored pre-shifted:
 ; tile rasters fy..7 go into screen blocks 0..7-fy (the hidden rasters are
 ; simply not stored). top_row/top_shift track which row is stored shifted.
+;
+; Screen memory that is visible must only change when the beam is not on it,
+; so a frame update is done in this order (scroll_update):
+;   1. moves: incoming rows are drawn at once (outside the visible view),
+;      an incoming column is only noted (it overwrites a visible column)
+;   2. build nxt_state
+;   3. after A row 0 has been displayed: re-store the top row (fix_top)
+;   4. once B has started (no playfield on screen): draw the column
+;   5. flag nxt_state; I0 (VSYNC) commits it before A is displayed again
 
 MAP_W		equ 80		; tiles (8x8)
 MAP_H		equ 84
@@ -50,6 +59,8 @@ scroll_set:
 	ld (top_row),a
 	xor a
 	ld (top_shift),a
+	ld a,255
+	ld (pending_col),a
 	ld a,(scr_cy)
 	ld b,VIEW_ROWS
 .row:	push af
@@ -73,7 +84,8 @@ scroll_right:
 	srl a
 	ld (scr_cx),a
 	add a,VIEW_CW-1
-	jp draw_col
+	ld (pending_col),a
+	ret
 
 scroll_left:
 	ld a,(scr_sx)
@@ -85,7 +97,8 @@ scroll_left:
 	ret nz
 	srl a
 	ld (scr_cx),a
-	jp draw_col
+	ld (pending_col),a
+	ret
 
 scroll_down:
 	ld hl,(scr_sy)
@@ -163,11 +176,33 @@ fix_top:
 	ld a,(scr_cy)
 	jp draw_row_s
 
-; Build nxt_state from the current scroll position and flag it for commit
-; at the next VSYNC.
-scroll_build_state:
+; Finish a frame update after the moves (steps 2-5 above).
+scroll_update:
+	call scroll_build_state
+	xor a
+	ld (sync_row0),a
+.r0:	ld a,(sync_row0)
+	or a
+	jr z,.r0
 	call fix_top
+	ld a,(pending_col)
+	inc a
+	jr z,.ready
+	xor a
+	ld (sync_bstart),a
+.b:	ld a,(sync_bstart)
+	or a
+	jr z,.b
+	ld a,(pending_col)
+	call draw_col
+	ld a,255
+	ld (pending_col),a
+.ready:	ld a,1
+	ld (nxt_ready),a
+	ret
 
+; Build nxt_state from the current scroll position (not flagged yet).
+scroll_build_state:
 	; base = (cy*40 + cx) & 1023
 	ld a,(scr_cy)
 	ld l,a
@@ -254,9 +289,6 @@ scroll_build_state:
 .ph:	ld (ix+ST_R3),a
 	ld (ix+ST_HUDMA),l
 	ld (ix+ST_HUDMA+1),h
-
-	ld a,1
-	ld (nxt_ready),a
 	ret
 
 ; HL = ring word (any) -> R12/R13 value for the &C000 page.
@@ -442,3 +474,4 @@ ca_x:		db 0
 dc_shift:	db 0
 top_row:	db 255
 top_shift:	db 0
+pending_col:	db 255		; incoming column to draw at the start of B

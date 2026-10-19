@@ -181,6 +181,8 @@ irq_i1:
 	call crtc_write
 	ld c,7
 	call crtc_write
+	ld a,1				; A row 0 has been displayed
+	ld (sync_row0),a
 	jp irq_ret
 
 ; I4: R12/R13 of B, then R9 at the start of A's last row and of B.
@@ -208,6 +210,8 @@ irq_i4:
 	ld a,B_VSYNC_ROW
 	ld c,7
 	call crtc_write
+	ld a,1				; playfield done, B (HUD/border) running
+	ld (sync_bstart),a
 	jp irq_ret
 
 jp_iy:	jp (iy)
@@ -225,5 +229,7 @@ irq_table:
 irq_n:		db 0
 frame_count:	db 0
 nxt_ready:	db 0
+sync_row0:	db 0		; set by I1 after A row 0
+sync_bstart:	db 0		; set by I4 at the start of B
 cur_state:	ds ST_SIZE,0
 nxt_state:	ds ST_SIZE,0

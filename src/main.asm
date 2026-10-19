@@ -73,6 +73,7 @@ start:
 	ld hl,TEST_Y
 	endif
 	call scroll_set
+	call fix_top
 	call scroll_build_state
 	ld hl,nxt_state
 	ld de,cur_state
@@ -123,7 +124,7 @@ main_loop:
 	call nz,scroll_up
 	pop bc
 	djnz .down
-	call scroll_build_state
+	call scroll_update
 
 	if DEBUG
 	ld bc,GA_PORT*256+GA_PEN_BORDER

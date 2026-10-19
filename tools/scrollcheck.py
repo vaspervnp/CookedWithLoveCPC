@@ -37,7 +37,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("shot")
     ap.add_argument("sx", type=int)
-    ap.add_argument("sy", type=int)
+    ap.add_argument("sy", type=int, help="-1 = find it (for shots taken while scrolling)")
     ap.add_argument("--shift", type=int, default=2)
     ap.add_argument("--hudshift", type=int, default=1)
     args = ap.parse_args()
@@ -56,6 +56,26 @@ def main():
     px = im.load()
     cx, phase = (args.sx + 1) // 2, args.sx % 2
     d = args.shift if phase else 0
+    if args.sy < 0:
+        # find sy from the middle rows (columns sampled), then check everything
+        best = None
+        for sy in range(0, 505):
+            bad = 0
+            for line in range(16, 152, 5):
+                for c in range(4, 156, 9):
+                    if px[LEFT + (c + d) * 4 + 1, (TOP + line) * 2] != rgb[map_pen(4 * cx + c, sy + line)]:
+                        bad += 1
+                        break
+                if bad:
+                    break
+            if not bad:
+                best = sy
+                break
+        if best is None:
+            print("BAD no matching sy")
+            sys.exit(1)
+        args.sy = best
+        print(f"sy={best}", end=" ")
     bad = 0
     for line in range(PF_LINES):
         y = args.sy + line
