@@ -1,0 +1,20 @@
+GIMP Palette
+Name: Cooked with Love CPC
+Columns: 8
+#
+  0   0   0	pen0_black
+  0   0 128	pen1_blue
+  0   0 255	pen2_bright_blue
+128   0   0	pen3_red
+255   0   0	pen4_bright_red
+255 128   0	pen5_orange
+255 128 128	pen6_pink
+255 255 128	pen7_pastel_yellow
+255 255   0	pen8_bright_yellow
+  0 128   0	pen9_green
+  0 255   0	pen10_bright_green
+  0 128 255	pen11_sky_blue
+128 128 128	pen12_white
+255 255 255	pen13_bright_white
+128   0 255	pen14_mauve
+128 128   0	pen15_yellow

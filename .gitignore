@@ -1,0 +1,5 @@
+build/
+assets/export/
+__pycache__/
+*.pyc
+*.blend1

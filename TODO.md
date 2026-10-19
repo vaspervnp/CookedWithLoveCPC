@@ -57,11 +57,12 @@ Top-down διαχείριση εστιατορίου. Κάθε πίστα είν
 ## Milestones
 
 ### M0 — Υποδομή project
-- [ ] Δομή φακέλων (βλ. README §7), `.gitignore` για `build/`
-- [ ] Makefile: `en`, `gr`, `run-en`, `run-gr`, `clean`, `DEBUG=1`
-- [ ] Ελάχιστο `main.asm` που κάνει boot από δισκέτα και γεμίζει την οθόνη (επιβεβαίωση RASM → iDSK → Caprice32)
-- [ ] Επιλογή palette 16 χρωμάτων (`data/palette.txt`) και αντίστοιχο preset στο Aseprite
-- [ ] `tools/png2cpc.py` (Mode 0, sprites/tiles, έλεγχος palette)
+- [x] Δομή φακέλων (βλ. README §7), `.gitignore` για `build/`
+- [x] Makefile: `en`, `gr`, `run-en`, `run-gr`, `clean`, `DEBUG=1`
+- [x] Ελάχιστο `main.asm` που κάνει boot από δισκέτα και γεμίζει την οθόνη (επιβεβαίωση RASM → iDSK → Caprice32)
+- [x] Επιλογή palette 16 χρωμάτων (`data/palette.txt`, πρόχειρη) και αντίστοιχο `assets/palette/cwl.gpl` για Aseprite
+- [x] `tools/cpcshot.sh`: headless Caprice32 + screenshot για αυτόματο έλεγχο
+- [x] `tools/png2cpc.py` (Mode 0, sprites/tiles, έλεγχος palette)
 
 ### M1 — Prototype scrolling & οθόνης (κρίσιμο, πρώτο)
 - [ ] Interrupt handler 300 Hz, συγχρονισμός με VSYNC

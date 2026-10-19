@@ -1,0 +1,22 @@
+# Cooked with Love - game palette (draft)
+# pen  firmware  name
+# Pen 0 is transparent in sprites.
+0   0   black
+1   1   blue
+2   2   bright_blue
+3   3   red
+4   6   bright_red
+5   15  orange
+6   16  pink
+7   25  pastel_yellow
+8   24  bright_yellow
+9   9   green
+10  18  bright_green
+11  11  sky_blue
+12  13  white
+13  26  bright_white
+14  5   mauve
+15  12  yellow
+#
+# border uses firmware colour:
+border 0

@@ -92,7 +92,8 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 | Διεύθυνση | Περιεχόμενο |
 |---|---|
 | `&0000–&003F` | RST / interrupt vector (`&0038`) |
-| `&0040–&3FFF` | Κύριος κώδικας engine, tables (mask, flip), stack |
+| `&0040–&00FF` | Stack |
+| `&0100–&3FFF` | Κύριος κώδικας engine (load/exec `&0100`), tables (mask, flip) |
 | `&4000–&7FFF` | Παράθυρο banking (`&7FC4`–`&7FC7`): sprites, κείμενα, συνταγές, χάρτες |
 | `&8000–&BFFF` | Σελίδα HUD (μόνο οι γραμμές του HUD) + game logic + buffers |
 | `&C000–&FFFF` | Οθόνη playfield (scroll) |
@@ -149,26 +150,25 @@ build/            generated (δεν μπαίνει στο git)
 make            # χτίζει και τις δύο δισκέτες
 make en         # build/cwl_en.dsk
 make gr         # build/cwl_gr.dsk
-make run-en     # τρέχει στο Caprice32
+make run-en     # τρέχει στο Caprice32 (RUN"CWL αυτόματα)
+make shot-en    # headless run + screenshot στο ~/snap/caprice32/current/screenshots/
+make DEBUG=1    # debug build
 ```
 
-Τι κάνει το Makefile (ενδεικτικά):
+Βήματα του Makefile:
+
+1. `tools/palette.py` — `data/palette.txt` → `build/palette.asm` (hardware colours) και `assets/palette/cwl.gpl` (palette για Aseprite).
+2. `rasm src/main.asm -Isrc -Ibuild -DLANG_EN=1` (ή `-DLANG_GR=1`) → `build/cwl_en.bin` + symbols.
+3. `iDSK` → νέα δισκέτα με το `CWL.BIN` (binary, load/exec `&0100`).
+
+Μετατροπή εικόνας:
 
 ```bash
-python3 tools/png2cpc.py ...                 # assets → build/*.bin
-python3 tools/text2asm.py --lang en          # κείμενα → build/text_en.asm
-rasm src/main.asm -DLANG_EN=1 -o build/cwl_en
-iDSK build/cwl_en.dsk -n
-iDSK build/cwl_en.dsk -i build/cwl_en.bin -t 1 -c <load> -e <exec>
+python3 tools/png2cpc.py sprite.png sprite.bin                 # sprite, γραμμή-γραμμή
+python3 tools/png2cpc.py tiles.png tiles.bin --layout tiles    # 8x8 tiles, 32 bytes το καθένα
 ```
 
-Εκτέλεση:
-
-```bash
-caprice32.launcher build/cwl_en.dsk
-```
-
-Στον emulator: `RUN"CWL`.
+Το PNG πρέπει να έχει μόνο χρώματα της palette (το διάφανο γίνεται pen 0)· διαφορετικά το εργαλείο σταματά και δείχνει τα λάθος χρώματα. Με `--halve` δέχεται εικόνα με τετράγωνα pixels σε διπλό πλάτος.
 
 ## 9. Δοκιμές
 
