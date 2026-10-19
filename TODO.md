@@ -76,7 +76,7 @@ Top-down διαχείριση εστιατορίου. Κάθε πίστα είν
 - [x] Fallbacks 4 px / 8 γραμμές (`FINE_X` / `FINE_Y`, runtime steps)
 - [x] Μέτρηση χρόνου CPU με border colours· ενημέρωση README
 - [x] Αυτόματες δοκιμές: Caprice32 (`tools/scrolltest.sh`) και CPCEC με CRTC 0–4 (`tools/cpcectest.sh`), σύγκριση pixel-pixel και ανά frame σε κίνηση
-- [ ] Επιβεβαίωση στο Retro Virtual Machine (χρήστης)
+- [x] Επιβεβαίωση στο Retro Virtual Machine (χρήστης, diag3: CWL, V, H, D)
 - [ ] (ίσως δεν χρειάζεται πια) Ανίχνευση τύπου CRTC στην εκκίνηση → επιλογή fallback
 - [ ] Δοκιμή σε πραγματικό CPC (R3 trick)
 - [ ] (αργότερα) Απόκρυψη του 2-px τρεμοπαίγματος στις πλευρικές άκρες
