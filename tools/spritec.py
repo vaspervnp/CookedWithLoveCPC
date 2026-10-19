@@ -1,32 +1,33 @@
 #!/usr/bin/env python3
 """Sprite compiler: sprite sheet PNG -> Z80 code that draws each frame.
 
-Each distinct sprite line (32 pixels, pen 0 transparent) becomes a small
-routine that writes the line's bytes with immediate values, then returns:
+Each distinct sprite line (32 pixels, pen 0 transparent) becomes a routine:
 
+    call SAVE_s_n        ; HL = IX + s (first covered byte), the n bytes
+                         ; saved to (DE) with LDI, HL back to the first byte
     ld a,(hl) / and m / or d / ld (hl),a     masked byte
     ld (hl),d                                 opaque byte
     (nothing)                                 transparent byte
     inc hl                                    between bytes
-    ret
+    jp STEP              ; IX = next line (IXH + 8, next_row on a new char row)
 
 Identical lines are stored once per bank, so parts that do not change
-between frames (head, body, empty lines, shoes...) are shared. A frame is a
-program of 6-byte steps, one per line:
+between frames (head, body, empty lines, shoes...) are shared, and so are the
+SAVE stubs (one per start/count pair). An empty line is STEP itself. A frame
+is a program of calls, one per line, ending with RET:
 
-    call NL_VECTOR       ; line helper (src/engine/sprite.asm): HL = screen
-                         ; address of the line's first covered byte, saves
-                         ; those bytes; stops after the visible lines
-    call line_routine    ; (empty lines call a shared RET)
+    call line_routine
     ...
     ret
 
-so the entry for a sprite cut at the top is program + 6 * skipped lines.
-A span table (start, count per line) goes with each frame (line helper and
-restore). The compiled code is only used when the whole sprite width is
-visible (lines crossing the end of a 2K screen block are handled by the line
-helper); sprites cut at the left/right edge are drawn from the span data (format of tools/sprite2asm.py) in another
-bank.
+The engine enters at program + 3 * skipped lines and stops after the visible
+lines by writing a RET over the next call for the duration of the run.
+While it runs: IX = screen address of the line's byte 0, DE = save pointer,
+BC and A are free (LDI). A span table (start, count per line) goes with each
+frame for the restore. The compiled code is only used when the whole sprite
+width is visible and no row crosses the end of a 2K screen block; otherwise
+the engine draws from the span data (format of tools/sprite2asm.py) in
+another bank.
 
 Outputs:
   <out>_<bank>.dat   bank images (loaded at &4000 with that RAM config)
@@ -47,11 +48,23 @@ from sprite2asm import frame_lines
 
 BANK_BASE = 0x4000
 BANK_SIZE = 0x4000
-NL_VECTOR = 0x0103           # jp nl_save, fixed at the start of the main binary
+NR_VECTOR = 0x0103           # jp next_row, fixed at the start of the main binary
 
 
-def line_code(r):
-    """Routine for one sprite line (pixel row r), or None if empty."""
+# STEP, at the start of every bank: next line, IXH + 8; on a new char row
+# (raster bits back to 0) the engine's next_row sets IX
+STEP_CODE = bytes((0xDD, 0x7C, 0xC6, 0x08, 0xDD, 0x67, 0xE6, 0x38, 0xC0,
+                   0xC3, NR_VECTOR & 255, NR_VECTOR >> 8))
+
+
+def save_code(s, n):
+    """SAVE stub: HL = IX + s, save n bytes, HL = IX + s again."""
+    return (bytes((0xDD, 0x7D, 0xC6, s, 0x6F, 0xDD, 0x7C, 0xCE, 0x00, 0x67, 0xE5))
+            + b"\xED\xA0" * n + bytes((0xE1, 0xC9)))
+
+
+def line_body(r):
+    """Drawing code of one sprite line and its (start, count), or None."""
     w = len(r)
     used = [i for i in range(w // 2) if r[2 * i] or r[2 * i + 1]]
     if not used:
@@ -68,47 +81,59 @@ def line_code(r):
             code += bytes((0x7E, 0xE6, m, 0xF6, b, 0x77))     # masked
         if i != e - 1:
             code.append(0x23)                                 # inc hl
-    code.append(0xC9)                                         # ret
     return bytes(code), (s, e - s)
 
 
 class Bank:
     def __init__(self, num):
         self.num = num
-        self.img = bytearray(b"\xC9")        # shared RET for empty lines
-        self.lines = {}
+        self.img = bytearray(STEP_CODE)
+        self.lines = {}                      # (span, body) -> address
+        self.saves = {}                      # span -> address
 
     def addr(self):
         return BANK_BASE + len(self.img)
 
     def need(self, rows):
-        """Bytes needed to add a frame (new line routines + program + spans)."""
-        new = {}
+        """Bytes needed to add a frame (new routines + program + spans)."""
+        size, lines, saves = 0, set(), set()
         for r in rows:
-            code, _ = line_code(r)
-            if code and code not in self.lines and code not in new:
-                new[code] = len(code)
-        return sum(new.values()) + 6 * len(rows) + 1 + 2 * len(rows)
+            body, span = line_body(r)
+            if body is None:
+                continue
+            if span not in self.saves and span not in saves:
+                saves.add(span)
+                size += len(save_code(*span))
+            if (span, body) not in self.lines and (span, body) not in lines:
+                lines.add((span, body))
+                size += 3 + len(body) + 3
+        return size + 3 * len(rows) + 1 + 2 * len(rows)
 
     def add(self, rows):
         calls, spans = [], []
         for r in rows:
-            code, span = line_code(r)
+            body, span = line_body(r)
             spans.append(span)
-            if code is None:
-                calls.append(BANK_BASE)       # the shared RET
+            if body is None:
+                calls.append(BANK_BASE)       # STEP only
                 continue
-            if code not in self.lines:
-                self.lines[code] = self.addr()
-                self.img += code
-            calls.append(self.lines[code])
+            if span not in self.saves:
+                self.saves[span] = self.addr()
+                self.img += save_code(*span)
+            key = (span, body)
+            if key not in self.lines:
+                self.lines[key] = self.addr()
+                sv = self.saves[span]
+                self.img += bytes((0xCD, sv & 255, sv >> 8)) + body
+                self.img += bytes((0xC3, BANK_BASE & 255, BANK_BASE >> 8))
+            calls.append(self.lines[key])
         prog = self.addr()
         for c in calls:
-            self.img += bytes((0xCD, NL_VECTOR & 255, NL_VECTOR >> 8, 0xCD, c & 255, c >> 8))
+            self.img += bytes((0xCD, c & 255, c >> 8))
         self.img.append(0xC9)
         span_addr = self.addr()
-        for s, n in spans:
-            self.img += bytes((s, n))
+        for st, n in spans:
+            self.img += bytes((st, n))
         return prog, span_addr
 
 
@@ -170,7 +195,7 @@ def main():
     for bk in banks:
         if os.path.exists(f"{args.out}_{bk.num}.dat"):
             os.remove(f"{args.out}_{bk.num}.dat")
-        if len(bk.img) > 1:            # unused bank: no file
+        if len(bk.img) > len(STEP_CODE):   # unused bank: no file
             with open(f"{args.out}_{bk.num}.dat", "wb") as f:
                 f.write(bk.img)
     with open(f"{args.out}_{args.data_bank}.dat", "wb") as f:

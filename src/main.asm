@@ -74,7 +74,7 @@ MAX_TICKS	equ 4		; game ticks run per drawn frame at most
 	run start
 
 	jp start			; &0100: entry
-	jp nl_save			; &0103: line helper of compiled sprites
+	jp next_row			; &0103: new char row for compiled sprites
 	assert $==#0106
 
 ; Bank files loaded with the firmware before it is switched off: name,
