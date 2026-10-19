@@ -40,12 +40,18 @@ def main():
     ap.add_argument("sy", type=int, help="-1 = find it (for shots taken while scrolling)")
     ap.add_argument("--shift", type=int, default=2)
     ap.add_argument("--hudshift", type=int, default=1)
+    ap.add_argument("--emu", choices=("caprice", "cpcec"), default="caprice",
+                    help="screenshot geometry/colours of the emulator")
     args = ap.parse_args()
 
     tiles = open(os.path.join(BUILD, "testtiles.bin"), "rb").read()
     tmap = open(os.path.join(BUILD, "testmap.bin"), "rb").read()
     pens, _ = load_palette()
-    rgb = [tuple(127 if c == 128 else c for c in fw_to_rgb(fw)) for fw, _ in pens]
+    global TOP
+    mid = 127
+    if args.emu == "cpcec":
+        TOP, mid = 22, 180
+    rgb = [tuple(mid if c == 128 else c for c in fw_to_rgb(fw)) for fw, _ in pens]
 
     def map_pen(x, y):
         t = tmap[(y // 8) * MAP_W + x // 8]
@@ -53,6 +59,8 @@ def main():
         return decode(b)[x % 2]
 
     im = Image.open(args.shot).convert("RGB")
+    if im.height % 2:
+        sys.exit("odd screenshot height")
     px = im.load()
     cx, phase = (args.sx + 1) // 2, args.sx % 2
     d = args.shift if phase else 0
