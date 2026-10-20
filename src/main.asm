@@ -55,14 +55,14 @@ MAP_TEST	equ TESTMODE
 	if MAP_TEST
 BILL_X0	equ 96
 	else
-BILL_X0	equ 152			; level 1: in the dining room, by the entrance
+BILL_X0	equ 176			; level 1: in the dining room, by the entrance
 	endif
 	endif
 	ifndef BILL_Y0
 	if MAP_TEST
 BILL_Y0	equ 110
 	else
-BILL_Y0	equ 600
+BILL_Y0	equ 652
 	endif
 	endif
 	ifndef AREAS			; 0: no area loading (sprite tests)
@@ -80,6 +80,10 @@ STAFF	equ 1
 	ifndef CUSTOMERS		; test customers (combined parts)
 CUSTOMERS	equ 1
 	endif
+	ifndef CUST_BENCH		; frame rate test: 5 walking customers
+CUST_BENCH	equ 0
+	endif
+SERVICE	equ CUSTOMERS && MAP_TEST==0 && CUST_BENCH==0	; customer groups (game/service.asm)
 	ifndef CLONES			; stress test: extra copies of Bill
 CLONES	equ 0
 	endif
@@ -310,7 +314,9 @@ main_loop:
 	RAM RAM_C5
 .tick:	ld a,(input)
 	call actor_tick
-	if CUSTOMERS
+	if SERVICE
+	call service_tick
+	elseif CUSTOMERS
 	call cust_tick
 	endif
 	if STAFF
@@ -503,8 +509,14 @@ R	equ 1<<KEY_RIGHT
 L	equ 1<<KEY_LEFT
 D	equ 1<<KEY_DOWN
 U	equ 1<<KEY_UP
+F	equ 1<<KEY_FIRE
 demo_script:
+	if MAP_TEST==0			; level 1: take the first group to a table for 4
+	db 0,30, L,4, 0,6, F,1, 0,4, U,22, R,20, 0,8, F,1, 0,120
+	db 0,250, 0,250, 0,250, #FF
+	else
 	db R,90, D,70, 0,10, L,120, U,40, R|D,60, L|U,50, D,140, R,200, U,120, L,40, L|D,80, 0,15, U,200, #FF
+	endif
 demo_ptr:	dw demo_script
 demo_left:	db 0
 demo_keys:	db 0
@@ -738,6 +750,9 @@ map_data:
 	include "game/customer.asm"
 	include "game/staff.asm"
 	include "game/items.asm"
+	if SERVICE
+	include "game/service.asm"
+	endif
 bank5_end:
 	if SPR_FIXED_B5
 	assert bank5_end<=SPR_FIXED_B5_BASE,"bank 5 overlaps its sprites (b5)"

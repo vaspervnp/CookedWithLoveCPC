@@ -23,40 +23,45 @@ CU_MIN		equ 9		; walking range (x / 2)
 CU_MAX		equ 10
 CU_MOOD		equ 11		; MOOD_* (src/game/items.asm)
 CU_SIT		equ 12		; 1: sitting (on a chair of the background)
-CU_SIZE		equ 13
+CU_ON		equ 13		; 0: not in the restaurant (not drawn)
+CU_TX		equ 14		; service: where it walks to (src/game/service.asm)
+CU_TY		equ 16
+CU_SIZE		equ 18
 
 SIT_DROP	equ 4		; sitting: the figure is drawn this much lower
 
-	ifndef CUST_BENCH
-CUST_BENCH	equ 0
-	endif
+; (CUST_BENCH, SERVICE: src/main.asm)
 
 	if CUST_BENCH			; frame rate test: 5 walkers in the first view
 CU_COUNT	equ 5
 cust_list:
-	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit
-	dw 10,0 : db 0,1,2,DIR_RIGHT,   1, 5, 60, 0, 0
-	dw 120,30 : db 1,2,0,DIR_LEFT, -1, 5, 60, 0, 0
-	dw 40,70 : db 2,0,1,DIR_RIGHT,  1, 5, 60, 0, 0
-	dw 90,100 : db 1,1,1,DIR_LEFT, -1, 5, 60, 0, 0
-	dw 60,120 : db 2,2,2,DIR_RIGHT, 1, 5, 60, 0, 0
+	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit on, target
+	dw 10,0 : db 0,1,2,DIR_RIGHT,   1, 5, 60, 0, 0, 1 : dw 0,0
+	dw 120,30 : db 1,2,0,DIR_LEFT, -1, 5, 60, 0, 0, 1 : dw 0,0
+	dw 40,70 : db 2,0,1,DIR_RIGHT,  1, 5, 60, 0, 0, 1 : dw 0,0
+	dw 90,100 : db 1,1,1,DIR_LEFT, -1, 5, 60, 0, 0, 1 : dw 0,0
+	dw 60,120 : db 2,2,2,DIR_RIGHT, 1, 5, 60, 0, 0, 1 : dw 0,0
+	elseif SERVICE			; the game: a pool (src/game/service.asm)
+CU_COUNT	equ 8
+cust_list:
+	ds CU_COUNT*CU_SIZE,0
 	elseif MAP_TEST==0		; level 1: at the tables of the dining room
 CU_COUNT	equ 4
 cust_list:
-	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit
+	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit on, target
 	; seats of the level's tables (build/lvl1_objs.asm)
-	dw TB0_S0_X,TB0_S0_Y : db 0,1,2,TB0_S0_DIR, 0, 0, 0, MOOD_HAPPY, 1
-	dw TB0_S1_X,TB0_S1_Y : db 1,2,1,TB0_S1_DIR, 0, 0, 0, MOOD_WAIT, 1
-	dw TB5_S0_X,TB5_S0_Y : db 2,0,1,TB5_S0_DIR, 0, 0, 0, MOOD_FOOD, 1
-	dw 40,352 : db 2,2,0,DIR_RIGHT, 1, 20, 130, 0, 0	; walking the aisle (row 24)
+	dw TB0_S0_X,TB0_S0_Y : db 0,1,2,TB0_S0_DIR, 0, 0, 0, MOOD_HAPPY, 1, 1 : dw 0,0
+	dw TB0_S1_X,TB0_S1_Y : db 1,2,1,TB0_S1_DIR, 0, 0, 0, MOOD_WAIT, 1, 1 : dw 0,0
+	dw TB5_S0_X,TB5_S0_Y : db 2,0,1,TB5_S0_DIR, 0, 0, 0, MOOD_FOOD, 1, 1 : dw 0,0
+	dw 40,352 : db 2,2,0,DIR_RIGHT, 1, 20, 130, 0, 0, 1 : dw 0,0	; walking the aisle (row 24)
 	else
 CU_COUNT	equ 4
 cust_list:
-	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit
-	dw 100,10 : db 0,1,2,DIR_DOWN,  0, 0, 0, MOOD_HAPPY, 1
-	dw 20,60 : db 1,2,0,DIR_RIGHT,  1, 10, 75, 0, 0
-	dw 30,104 : db 2,0,1,DIR_RIGHT, 0, 0, 0, MOOD_FOOD, 1
-	dw 140,112 : db 2,2,0,DIR_LEFT, -1, 50, 70, MOOD_WAIT, 0
+	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit on, target
+	dw 100,10 : db 0,1,2,DIR_DOWN,  0, 0, 0, MOOD_HAPPY, 1, 1 : dw 0,0
+	dw 20,60 : db 1,2,0,DIR_RIGHT,  1, 10, 75, 0, 0, 1 : dw 0,0
+	dw 30,104 : db 2,0,1,DIR_RIGHT, 0, 0, 0, MOOD_FOOD, 1, 1 : dw 0,0
+	dw 140,112 : db 2,2,0,DIR_LEFT, -1, 50, 70, MOOD_WAIT, 0, 1 : dw 0,0
 	endif
 
 cust_anim:	db 0
@@ -103,6 +108,9 @@ cust_sprites:
 	ld ix,cust_list
 	ld b,CU_COUNT
 .lp:	push bc
+	ld a,(ix+CU_ON)
+	or a
+	jp z,.skip
 	ld a,(ix+CU_DIR)		; frame = dir*3 + pose
 	ld c,a
 	add a,a
@@ -177,7 +185,7 @@ cust_sprites:
 	pop de
 	ld bc,(cust_y)
 	call bubble_sprite
-	ld de,CU_SIZE
+.skip:	ld de,CU_SIZE
 	add ix,de
 	pop bc
 	dec b
