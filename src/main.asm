@@ -54,6 +54,12 @@ BILL_X0	equ 96
 	ifndef BILL_Y0
 BILL_Y0	equ 110
 	endif
+	ifndef AREAS			; 0: no area loading (sprite tests)
+AREAS	equ 1
+	endif
+	ifndef TEST_AREA		; test: load area TEST_AREA-1 after the boot
+TEST_AREA	equ 0
+	endif
 	ifndef DBGFPS			; debug band: render count instead of the sprite frame
 DBGFPS	equ 0
 	endif
@@ -91,15 +97,15 @@ FRAME_VBL	equ 4		; the game: a frame every 4 VBLs = 12.5 fps
 ; RAM config (the file is loaded at &4000 in that bank).
 	include "spr.asm"		; frame descriptors (code in banks 4, 6, 7)
 
-bank_files:
+bank_files:				; length, name, RAM config
 	if SPR_BANKS&#10
-	db "SPR4.DAT",RAM_C4
+	db 8,"SPR4.DAT",RAM_C4
 	endif
 	if SPR_BANKS&#40
-	db "SPR6.DAT",RAM_C6
+	db 8,"SPR6.DAT",RAM_C6
 	endif
-	if SPR_BANKS&#80
-	db "SPR7.DAT",RAM_C7
+	if SPR_AREAS
+	db 11,"KITCHEN.SPR",RAM_C7	; the first area (others: src/game/area.asm)
 	endif
 	db 0
 CAS_IN_OPEN	equ #BC77
@@ -117,19 +123,20 @@ load_banks:
 	ld hl,#ABFF
 	call KL_INIT_BACK
 	ld hl,bank_files
-.next:	ld a,(hl)
+.next:	ld a,(hl)			; name length
 	or a
 	ret z
+	inc hl
 	push hl
-	ld de,8
+	ld e,a
+	ld d,0
 	add hl,de
-	ld a,(hl)			; RAM config
+	ld c,(hl)			; RAM config
 	ld b,GA_PORT
-	ld c,a
 	out (c),c
-	pop hl
-	push hl
-	ld b,8
+	inc hl
+	ex (sp),hl			; (sp) = next entry, HL = name
+	ld b,a
 	ld de,CAS_BUFFER
 	call CAS_IN_OPEN
 	ld hl,#4000
@@ -138,8 +145,6 @@ load_banks:
 	ld bc,GA_PORT*256+RAM_C0
 	out (c),c
 	pop hl
-	ld de,9
-	add hl,de
 	jr .next
 
 start:
@@ -191,7 +196,26 @@ start:
 	RAM RAM_C0
 	endif
 
-	xor a				; first frame into buffer 0, shown at once
+	call view_restart
+	if TEST_AREA			; test: load an area at once
+	ld a,TEST_AREA-1
+	call area_load
+	endif
+	jp main_loop
+
+; Start the display from scratch (boot, after a disc load): the rings are
+; drawn again for the camera, the sprites' save-unders are dropped, the
+; first frame goes into buffer 0 and is shown at once.
+view_restart:
+	ld a,(scr_sx)
+	ld hl,(scr_sy)
+	call scroll_set
+	xor a
+	ld (save_n),a
+	ld (save_n+1),a
+	ld hl,palette_hw
+	call set_palette
+	xor a
 	call render
 	ld hl,nxt_state
 	ld de,cur_state
@@ -203,6 +227,7 @@ start:
 	ld a,(frame_count)
 	ld (last_frame),a
 	ei
+	ret
 
 main_loop:
 .wait:	ld a,(nxt_ready)		; previous frame committed?
@@ -273,6 +298,9 @@ main_loop:
 	RAM RAM_C0
 	endif
 
+	if TESTMODE==0 && SPR_AREAS && AREAS
+	call area_check			; (may stop for a disc load)
+	endif
 	ld a,(back)			; draw the other buffer
 	xor 1
 	call render
@@ -640,6 +668,8 @@ scroll_step_y:	db 8-7*FINE_Y
 	include "game/actor.asm"
 	include "game/customer.asm"
 	include "game/staff.asm"
+	include "game/area.asm"
+	include "engine/fdc.asm"
 	include "palette.asm"
 
 hud_pattern:

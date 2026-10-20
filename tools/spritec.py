@@ -39,6 +39,7 @@ after trimming, also between sheets, are stored once.
 """
 
 import argparse
+import glob
 import os
 import sys
 
@@ -167,72 +168,104 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out", help="output prefix (path without extension)")
     ap.add_argument("--sheet", action="append", required=True,
-                    help="PREFIX:PNG:HEIGHT[:GROUP[:MIRROR_FROM[:COLUMNS[:YOFF]]]] (width 32, COLUMNS '0,1,3' "
-                         "keeps those columns of each row, YOFF = line of a part within its figure, "
-                         "added to dy); all sheets share the banks")
-    ap.add_argument("--banks", default="4,6,7", help="banks for compiled code")
+                    help="PREFIX:PNG:HEIGHT[:GROUP[:MIRROR_FROM[:COLUMNS[:YOFF[:IMAGE]]]]] (width 32, "
+                         "COLUMNS '0,1,3' keeps those columns of each row, YOFF = line of a part "
+                         "within its figure, added to dy, IMAGE = area image of the area bank "
+                         "instead of the common banks)")
+    ap.add_argument("--banks", default="4,6", help="common banks for compiled code")
+    ap.add_argument("--area-bank", type=int, default=7, help="bank of the area images")
     args = ap.parse_args()
 
     sheets = []
     for spec in args.sheet:
         f = spec.split(":")
         prefix, path, h = f[0], f[1], int(f[2])
-        group = int(f[3]) if len(f) > 3 else 0
-        mirror = int(f[4]) if len(f) > 4 else -1
+        group = int(f[3]) if len(f) > 3 and f[3] else 0
+        mirror = int(f[4]) if len(f) > 4 and f[4] else -1
         pick = [int(c) for c in f[5].split(",")] if len(f) > 5 and f[5] else None
-        yoff = int(f[6]) if len(f) > 6 else 0
-        sheets.append((prefix, path, h, yoff, load_sheet(path, 32, h, group, mirror, pick)))
+        yoff = int(f[6]) if len(f) > 6 and f[6] else 0
+        image = f[7].lower() if len(f) > 7 and f[7] else None
+        sheets.append((prefix, path, h, yoff, image, load_sheet(path, 32, h, group, mirror, pick)))
 
-    # unique frames over all sheets, with empty lines trimmed at the top and
-    # bottom (the descriptor keeps the offset), so frames that only move up
-    # or down (a head bobbing while walking) are stored once
-    uniq, uidx = [], {}
+    # unique frames per image (common banks or one area image), with empty
+    # lines trimmed at the top and bottom (the descriptor keeps the offset),
+    # so frames that only move up or down (a head bobbing while walking) are
+    # stored once
+    images = [None] + sorted({sh[4] for sh in sheets if sh[4]})
+    uniq = {g: [] for g in images}
+    uidx = {g: {} for g in images}
     index = {}
-    for prefix, path, h, yoff, frames in sheets:
+    for prefix, path, h, yoff, image, frames in sheets:
         index[prefix] = []
         for f in frames:
             rows = [i for i, r in enumerate(f) if any(r)] or [0]
             dy = rows[0]
             key = tuple(tuple(r) for r in f[dy:rows[-1] + 1])
-            if key not in uidx:
-                uidx[key] = len(uniq)
-                uniq.append(key)
-            index[prefix].append((uidx[key], dy + yoff))
+            if key not in uidx[image]:
+                uidx[image][key] = len(uniq[image])
+                uniq[image].append(key)
+            index[prefix].append((image, uidx[image][key], dy + yoff))
 
-    banks = [Bank(int(b)) for b in args.banks.split(",")]
-    placed = []
-    bi = 0
-    for f in uniq:
-        f = [list(r) for r in f]
-        while len(banks[bi].img) + banks[bi].need(f) > BANK_SIZE:
-            bi += 1
-            if bi == len(banks):
-                sys.exit("compiled sprites do not fit in the banks")
-        prog, span = banks[bi].add(f)
-        placed.append((banks[bi].num, prog, span, len(f)))
+    def place(frames, banks):
+        placed, bi = [], 0
+        for f in frames:
+            f = [list(r) for r in f]
+            while len(banks[bi].img) + banks[bi].need(f) > BANK_SIZE:
+                bi += 1
+                if bi == len(banks):
+                    return None
+            prog, span = banks[bi].add(f)
+            placed.append((banks[bi].num, prog, span, len(f)))
+        return placed
 
-    for bk in banks:
-        if os.path.exists(f"{args.out}_{bk.num}.dat"):
-            os.remove(f"{args.out}_{bk.num}.dat")
+    common = [Bank(int(b)) for b in args.banks.split(",")]
+    placed = {None: place(uniq[None], common)}
+    if placed[None] is None:
+        sys.exit("compiled sprites do not fit in the common banks")
+    area = {}
+    for g in images[1:]:
+        area[g] = [Bank(args.area_bank)]
+        placed[g] = place(uniq[g], area[g])
+        if placed[g] is None:
+            sys.exit(f"area image {g} does not fit in bank {args.area_bank}")
+
+    for p in glob.glob(f"{args.out}_*.dat"):     # stale banks/images
+        os.remove(p)
+
+    def write(name, bk):
+        p = f"{args.out}_{name}.dat"
         if len(bk.img) > len(STEP_CODE):   # unused bank: no file
-            with open(f"{args.out}_{bk.num}.dat", "wb") as f:
+            with open(p, "wb") as f:
                 f.write(bk.img)
-    used = [bk for bk in banks if len(bk.img) > len(STEP_CODE)]
+    for bk in common:
+        write(bk.num, bk)
+    for g in images[1:]:
+        write(g, area[g][0])
+    used = [bk for bk in common if len(bk.img) > len(STEP_CODE)]
     bits = sum(1 << bk.num for bk in used)
-    summary = (f"{len(uniq)} unique frames; "
-               + ", ".join(f"bank {bk.num}: {len(bk.img)}" for bk in used))
+    summary = (", ".join(f"bank {bk.num}: {len(bk.img)}" for bk in used)
+               + "".join(f"; area {g}: {len(area[g][0].img)}" for g in images[1:]))
 
     with open(f"{args.out}.asm", "w", encoding="utf-8") as f:
         f.write("; generated by tools/spritec.py\n; " + summary + "\n")
-        f.write("SPR_BANKS\tequ " + str(bits) + "\t; bit n = bank n has a file\n")
-        descs = sorted({d for v in index.values() for d in v})
-        for prefix, path, h, yoff, frames in sheets:
-            f.write(f"; {prefix}: {path}, {len(frames)} frames of 32x{h}\n{prefix}_frames:\n")
-            for u, dy in index[prefix]:
-                f.write(f"\tdw spr_d{u}_{dy}\n")
-        for u, dy in descs:
-            bank, ent, span, h = placed[u]
-            f.write(f"spr_d{u}_{dy}:\tdb #{0xC0 + bank:02X} : dw #{ent:04X},#{span:04X} : db {h},{dy}\n")
+        f.write("SPR_BANKS\tequ " + str(bits) + "\t; bit n = common bank n has a file\n")
+        f.write(f"SPR_AREAS\tequ {len(images) - 1}\t; area images (bank {args.area_bank}), files <NAME>.SPR\n")
+        for k, g in enumerate(images[1:]):
+            f.write(f"AREA_{g.upper()}\tequ {k}\n")
+        f.write("spr_area_files:\t\t; directory names (8 + 3 characters)\n")
+        for g in images[1:]:
+            f.write(f'\tdb "{g.upper()[:8]:<8}SPR"\n')
+        def dname(g, u, dy):
+            return f"spr_{g or 'c'}{u}_{dy}"
+        descs = sorted({d for v in index.values() for d in v}, key=lambda d: (d[0] or "", d[1], d[2]))
+        for prefix, path, h, yoff, image, frames in sheets:
+            f.write(f"; {prefix}: {path}, {len(frames)} frames of 32x{h}"
+                    + (f", area image {image}" if image else "") + f"\n{prefix}_frames:\n")
+            for d in index[prefix]:
+                f.write(f"\tdw {dname(*d)}\n")
+        for g, u, dy in descs:
+            bank, ent, span, h = placed[g][u]
+            f.write(f"{dname(g, u, dy)}:\tdb #{0xC0 + bank:02X} : dw #{ent:04X},#{span:04X} : db {h},{dy}\n")
     print(summary, file=sys.stderr)
 
 

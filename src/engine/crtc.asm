@@ -82,6 +82,26 @@ crtc_init:
 	ld (commit_pending),a
 	ret
 
+; A standard full frame (no splits, no interrupts needed) with all pens
+; black: the display while the CPU is busy with interrupts off (disc).
+crtc_plain:
+	ld bc,GA_PORT*256
+.pal:	out (c),c
+	ld a,#54			; black
+	out (c),a
+	inc c
+	ld a,c
+	cp GA_PEN_BORDER+1
+	jr nz,.pal
+	; no wait for VSYNC here: in frame A (R7 = 127) none would come. The
+	; first frame may come out odd; the picture is black anyway.
+	CRTC_SET 7,30
+	CRTC_SET 4,38
+	CRTC_SET 5,0
+	CRTC_SET 6,25
+	CRTC_SET 3,R3_STD
+	ret
+
 ; HL = R12/R13 value. Destroys BC.
 crtc_set_ma:
 	ld bc,#BC0C

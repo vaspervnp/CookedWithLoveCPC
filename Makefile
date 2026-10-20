@@ -38,8 +38,9 @@ $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 	$(PYTHON) tools/mktestmap.py $@ $(BUILD)/testmap.bin $(BUILD)/testhud.bin
 
 # Sprite sheets, compiled together (shared banks, identical lines and frames
-# stored once): code in banks 4, 6, 7 -> build/spr_<bank>.dat
-# and the frame descriptors build/spr.asm. Sheet: PREFIX:PNG:HEIGHT:GROUP:MIRROR[:COLUMNS[:YOFF]]
+# stored once): common code in banks 4, 6 -> build/spr_<bank>.dat, area
+# images for bank 7 -> build/spr_<image>.dat
+# and the frame descriptors build/spr.asm. Sheet: PREFIX:PNG:HEIGHT:GROUP:MIRROR[:COLUMNS[:YOFF[:IMAGE]]]
 #   bill        rows down / up / right, 5 frames each (idle, walk 1-4), of which
 #               idle, walk 1 and walk 3 are used; left = mirror
 #   cust_*      customer parts (head 20, body 14, legs 14 lines; YOFF = line of the
@@ -47,14 +48,18 @@ $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 #               any head + body + legs combine
 #   liberty     the cook: rows down / up / right x idle, walk 1, walk 2; left = mirror
 #   liberty_act chop 1-2, stir 1-2, oven 1-2 facing right, then the same mirrored
+#   blossom     the storage keeper (placeholder: Liberty's walk)
+# IMAGE (last field): the sheet goes into that area image of bank 7, a disk
+# file <IMAGE>.SPR loaded when the camera enters the area (src/game/area.asm)
 SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 	cust_head:assets/sprites/cust_head.png:20:9:6 \
 	cust_body:assets/sprites/cust_body.png:14:9:6::20 \
 	cust_legs:assets/sprites/cust_legs.png:14:9:6::34 \
-	liberty:assets/sprites/liberty.png:48:9:6 \
-	liberty_act:assets/sprites/liberty_act.png:48:6:0
+	liberty:assets/sprites/liberty.png:48:9:6:::kitchen \
+	liberty_act:assets/sprites/liberty_act.png:48:6:0:::kitchen \
+	blossom:assets/sprites/liberty.png:48:9:6:::storage
 $(BUILD)/spr.asm: $(foreach s,$(SHEETS),$(word 2,$(subst :, ,$(s)))) tools/spritec.py tools/png2cpc.py tools/cpc.py data/palette.txt | $(BUILD)
-	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6,7
+	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6 --area-bank 7
 
 # Customer part sheets from the customer renders (assets/blender/customer_build.py)
 parts:
@@ -78,6 +83,7 @@ $(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin
 	$(IDSK) $@ -i $(BUILD)/CWL.BIN -t 1 -c $(LOAD) -e $(EXEC)
 	rm -f $(BUILD)/CWL.BIN
 	cd $(BUILD) && for f in spr_?.dat; do b=$${f#spr_}; b=$${b%.dat}; cp $$f SPR$$b.DAT; $(IDSK) $(notdir $@) -i SPR$$b.DAT -t 1 -c 4000 -s >/dev/null; rm -f SPR$$b.DAT; done
+	cd $(BUILD) && for f in spr_??*.dat; do a=$${f#spr_}; a=$${a%.dat}; n=$$(echo $$a | tr a-z A-Z | cut -c1-8).SPR; cp $$f $$n; $(IDSK) $(notdir $@) -i $$n -t 1 -c 4000 -s >/dev/null; rm -f $$n; done
 
 run-en: en
 	$(CPC) -a 'run"cwl' $(BUILD)/cwl_en.dsk

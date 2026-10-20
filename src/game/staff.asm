@@ -1,4 +1,6 @@
-; Staff: Liberty / Eleftheria, the cook (sheets liberty, liberty_act).
+; Staff: Liberty / Eleftheria, the cook (sheets liberty, liberty_act; area
+; kitchen) and Blossom / Anthi, the storage keeper (sheet blossom; area
+; storage).
 ;
 ; For now she runs a looped script in the test level: chop, step right,
 ; stir, step back, oven (facing left), ... Each step: kind, a, b, ticks
@@ -24,6 +26,7 @@ lib_anim:	db 0
 
 ; One game tick.
 staff_tick:
+	call blossom_tick
 	ld hl,lib_anim
 	inc (hl)
 	ld hl,lib_t
@@ -59,8 +62,12 @@ staff_tick:
 	ld (lib_x),hl
 	ret
 
-; Add Liberty to the sprite list.
+; Add the staff of the loaded area to the sprite list (their sprites are in
+; the area image of bank 7).
 staff_sprites:
+	ld a,(area_cur)
+	cp AREA_KITCHEN
+	jp nz,blossom_sprite
 	ld ix,(lib_step)
 	ld a,(ix+0)
 	cp ST_WALK
@@ -104,4 +111,74 @@ staff_sprites:
 	ld a,(lib_x+1)
 	ld d,a
 	ld bc,(lib_y)
+	jp sprites_add
+
+; Blossom (for now): walks to and fro at the right of the map.
+BLO_MIN		equ 400
+BLO_MAX		equ 470
+
+blo_x:		dw BLO_MIN
+blo_y:		dw 430
+blo_dx:		db 1
+blo_anim:	db 0
+
+blossom_tick:
+	ld hl,blo_anim
+	inc (hl)
+	bit 0,(hl)			; a pixel every other tick
+	ret nz
+	ld a,(blo_dx)
+	ld e,a
+	rla
+	sbc a,a
+	ld d,a
+	ld hl,(blo_x)
+	add hl,de
+	ld (blo_x),hl
+	ld de,BLO_MIN
+	or a
+	sbc hl,de
+	jr z,.r
+	ld hl,(blo_x)
+	ld de,BLO_MAX
+	or a
+	sbc hl,de
+	ret nz
+	ld a,-1
+	ld (blo_dx),a
+	ret
+.r:	ld a,1
+	ld (blo_dx),a
+	ret
+
+blossom_sprite:
+	cp AREA_STORAGE
+	ret nz
+	ld a,(blo_dx)			; frame = dir*3 + walk_pose[step]
+	or a
+	ld b,DIR_RIGHT*3
+	jp p,.d
+	ld b,DIR_LEFT*3
+.d:	ld a,(blo_anim)
+	rrca
+	rrca
+	rrca
+	and 3
+	call walk_frame
+	add a,b
+	add a,a
+	ld e,a
+	ld d,0
+	ld hl,blossom_frames
+	add hl,de
+	ld a,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,a
+	ld a,(blo_x)
+	and #FE
+	ld e,a
+	ld a,(blo_x+1)
+	ld d,a
+	ld bc,(blo_y)
 	jp sprites_add
