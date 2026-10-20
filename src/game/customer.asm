@@ -26,9 +26,9 @@ CU_COUNT	equ 4
 cust_list:
 	;  x,  y       head body legs dir        dx  min/2 max/2
 	dw 100,10 : db 0,1,2,DIR_DOWN,  0, 0, 0
-	dw 20,60 : db 1,2,3,DIR_RIGHT,  1, 10, 75
+	dw 20,60 : db 1,2,0,DIR_RIGHT,  1, 10, 75
 	dw 30,104 : db 2,0,1,DIR_RIGHT, 0, 0, 0
-	dw 140,112 : db 3,3,0,DIR_LEFT, -1, 50, 70
+	dw 140,112 : db 2,2,0,DIR_LEFT, -1, 50, 70
 
 cust_anim:	db 0
 
@@ -82,13 +82,14 @@ cust_sprites:
 	ld a,(ix+CU_DX)
 	or a
 	jr z,.pose
-	ld a,(cust_anim)		; walking: steps 1 and 2, 16 ticks each
-	and 16
+	ld a,(cust_anim)		; walking: 4-step cycle, 8 ticks a step
 	rrca
 	rrca
 	rrca
-	rrca
-	inc a
+	and 3
+	push hl
+	call walk_frame
+	pop hl
 	add a,c
 	ld c,a
 .pose:	ld a,c

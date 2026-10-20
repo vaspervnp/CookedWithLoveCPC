@@ -138,15 +138,16 @@ class Bank:
         return prog, span_addr
 
 
-def load_sheet(path, fw, fh, group, mirror_from):
-    """Frames of a sheet in reading order. Every `group` frames form one
-    variant (a figure or a part style); within each, the frames from
-    `mirror_from` on are appended again mirrored (left = mirrored right)."""
+def load_sheet(path, fw, fh, group, mirror_from, pick=None):
+    """Frames of a sheet in reading order (only the columns in `pick`, if
+    given). Every `group` frames form one variant (a figure or a part style);
+    within each, the frames from `mirror_from` on are appended again mirrored
+    (left = mirrored right)."""
     img = Image.open(path).convert("RGBA")
     pens = to_pens(img, False, sprite=True)
     frames = []
     for fy in range(img.height // fh):
-        for fx in range(img.width // fw):
+        for fx in pick if pick is not None else range(img.width // fw):
             frames.append([pens[fy * fh + y][fx * fw:(fx + 1) * fw] for y in range(fh)])
     group = group or len(frames)
     out = []
@@ -162,7 +163,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out", help="output prefix (path without extension)")
     ap.add_argument("--sheet", action="append", required=True,
-                    help="PREFIX:PNG:HEIGHT[:GROUP[:MIRROR_FROM]] (width 32); all sheets share the banks")
+                    help="PREFIX:PNG:HEIGHT[:GROUP[:MIRROR_FROM[:COLUMNS]]] (width 32, COLUMNS '0,1,3' keeps "
+                         "those columns of each row); all sheets share the banks")
     ap.add_argument("--banks", default="4,6,7", help="banks for compiled code")
     args = ap.parse_args()
 
@@ -172,7 +174,8 @@ def main():
         prefix, path, h = f[0], f[1], int(f[2])
         group = int(f[3]) if len(f) > 3 else 0
         mirror = int(f[4]) if len(f) > 4 else -1
-        sheets.append((prefix, path, h, load_sheet(path, 32, h, group, mirror)))
+        pick = [int(c) for c in f[5].split(",")] if len(f) > 5 else None
+        sheets.append((prefix, path, h, load_sheet(path, 32, h, group, mirror, pick)))
 
     # unique frames over all sheets, with empty lines trimmed at the top and
     # bottom (the descriptor keeps the offset), so frames that only move up

@@ -31,7 +31,8 @@ def main():
     ap.add_argument("shot")
     ap.add_argument("--emu", choices=("caprice", "cpcec"), default="cpcec")
     ap.add_argument("--sheet", default=os.path.join(ROOT, "assets", "sprites", "bill.png"))
-    ap.add_argument("--mirror-from", type=int, default=10)
+    ap.add_argument("--mirror-from", type=int, default=6)
+    ap.add_argument("--pick", default="0,1,3", help="columns of the sheet used (as SHEETS in the Makefile)")
     ap.add_argument("--clones", type=int, default=0, help="CLONES build: copies at +26 x / +9 y")
     args = ap.parse_args()
     top, mid = (22, 180) if args.emu == "cpcec" else (25, 127)
@@ -44,7 +45,7 @@ def main():
     sheet = to_pens(Image.open(args.sheet).convert("RGBA"), False, sprite=True)
     frames = []
     for fy in range(len(sheet) // 48):
-        for fx in range(len(sheet[0]) // 32):
+        for fx in (int(c) for c in args.pick.split(",")):
             frames.append([row[fx * 32:(fx + 1) * 32] for row in sheet[fy * 48:(fy + 1) * 48]])
     frames += [[list(reversed(r)) for r in f] for f in frames[args.mirror_from:]]
 

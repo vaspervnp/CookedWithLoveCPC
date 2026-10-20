@@ -262,11 +262,23 @@ solid_at:
 .solid:	or 1
 	ret
 
+; Walk cycle of 4 steps over 3 frames (idle, walk 1, walk 2):
+; A = step (0..3) -> A = pose
+walk_frame:
+	ld hl,walk_pose
+	add a,l
+	ld l,a
+	ld a,h
+	adc a,0
+	ld h,a
+	ld a,(hl)
+	ret
+walk_pose:	db 1,0,2,0
+
 ; Put Bill into the sprite list.
 actor_sprites:
 	ld a,(bill_dir)
-	ld b,a				; frame = dir*5 + (moving ? 1 + anim : 0)
-	add a,a
+	ld b,a				; frame = dir*3 + (moving ? walk_pose[anim] : 0)
 	add a,a
 	add a,b
 	ld b,a
@@ -274,7 +286,7 @@ actor_sprites:
 	or a
 	jr z,.idle
 	ld a,(bill_anim)
-	inc a
+	call walk_frame
 	add a,b
 	ld b,a
 .idle:	ld a,b

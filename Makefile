@@ -40,10 +40,11 @@ $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 # Sprite sheets, compiled together (shared banks, identical lines and frames
 # stored once): code in banks 4, 6, 7 -> build/spr_<bank>.dat
 # and the frame descriptors build/spr.asm. Sheet: PREFIX:PNG:HEIGHT:GROUP:MIRROR
-#   bill        rows down / up / right, 5 frames each (idle, walk 1-4); left = mirror
+#   bill        rows down / up / right, 5 frames each (idle, walk 1-4), of which
+#               idle, walk 1 and walk 3 are used; left = mirror
 #   cust_*      customer parts (head 20, body 14, legs 14 lines), one variant per
 #               row with the same 15 frames; any head + body + legs combine
-SHEETS := bill:assets/sprites/bill.png:48:15:10 \
+SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 	cust_head:assets/sprites/cust_head.png:20:9:6 \
 	cust_body:assets/sprites/cust_body.png:14:9:6 \
 	cust_legs:assets/sprites/cust_legs.png:14:9:6

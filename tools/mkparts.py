@@ -32,20 +32,17 @@ PARTS = ("head", "body", "legs")
 HEADS = [
     {"hair": [14, 14, 14, 14, 1]},           # black
     {"hair": [5, 15, 15, 8, 7]},             # blonde
-    {"hair": [3, 3, 5, 5, 5]},               # ginger
     {"hair": [14, 12, 12, 13, 13]},          # grey
 ]
 BODIES = [
     {"vest": [3, 3, 4, 4], "bowtie": [12, 13]},          # red
     {"vest": [9, 9, 10, 10], "bowtie": [8, 15]},         # green
     {"vest": [2, 2, 11, 11], "bowtie": [12, 13]},        # blue
-    {"vest": [5, 5, 15, 15], "shirt": [11, 12, 13], "bowtie": [3, 4]},  # yellow
 ]
 LEGS = [
     {"trousers": [14, 1], "apron": [14, 1, 1]},          # navy
     {"trousers": [9, 9], "apron": [9, 9, 10]},           # green
     {"trousers": [3, 3], "apron": [3, 3, 4]},            # red
-    {"trousers": [12, 13], "apron": [12, 12, 13], "shoes": [14, 14, 14]},  # white
 ]
 
 
@@ -92,7 +89,7 @@ def main():
         sheets.append(sheet)
     if args.preview:
         # every head with body/legs of the same index and some mixes, pose 0
-        combos = [(h, b, l) for h in range(len(HEADS)) for b, l in ((h, h), ((h + 1) % 4, (h + 2) % 4))]
+        combos = [(h, b, l) for h in range(len(HEADS)) for b, l in ((h, h), ((h + 1) % 3, (h + 2) % 3))]
         im = Image.new("RGBA", (34 * len(combos), 48), (60, 60, 70, 255))
         for c, idx in enumerate(combos):
             for k, v in enumerate(idx):
