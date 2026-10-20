@@ -376,7 +376,6 @@ cl_f:	dw 0
 	jp bill_items
 	endif
 
-dbg_frame:	db 0
 bill_x:		dw 0
 bill_xf:	db 0
 bill_y:		dw 0

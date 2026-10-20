@@ -214,11 +214,11 @@ start:
 	endif
 	call scroll_set
 	else
+	RAM RAM_C5			; (game code in bank 5)
 	call actor_init
 	xor a
 	ld hl,0
 	call scroll_set
-	RAM RAM_C5
 	xor a
 	call actor_tick			; place the camera
 	RAM RAM_C0
@@ -691,6 +691,7 @@ hud_fill:
 	ret
 
 input:		db 0
+dbg_frame:	db 0		; Bill's frame (debug band; set in game/actor.asm)
 lb_addr:	dw 0
 render_n:	db 0
 ticks:		db 0
@@ -707,7 +708,6 @@ scroll_step_y:	db 8-7*FINE_Y
 	include "engine/crtc.asm"
 	include "engine/scroll.asm"
 	include "engine/sprite.asm"
-	include "game/actor.asm"
 	include "game/area.asm"
 	include "engine/fdc.asm"
 	include "palette.asm"
@@ -752,6 +752,7 @@ map_data:
 
 	; game logic that runs with bank 5 mapped (game ticks: the map for
 	; collisions; adding sprites in render, after buffer_sync)
+	include "game/actor.asm"
 	include "game/customer.asm"
 	include "game/staff.asm"
 	include "game/items.asm"
