@@ -67,10 +67,107 @@ trail_head:	db 0
 bill_carry:	db 0		; group + 1 whose plates Bill carries
 sv_bub_t:	db 0
 sv_money:	dw 0
+sv_served:	dw 0		; customers who paid
+sv_min:		dw 12*60	; time of day (minutes)
+sv_sec:		db 0		; ticks of the current game minute
+
+; HUD (row 1): coin + money, clock + time, person + customers served
+HUD_ROW		equ 1
+HUD_MONEY	equ 4
+HUD_TIME	equ 16
+HUD_SERVED	equ 29
+MINUTE_TICKS	equ 50		; a game minute every second
+
+; ---------------------------------------------------------------------------
+; Start of the day: the HUD.
+service_init:
+	ld a,8				; icons
+	ld b,HUD_BG
+	call hud_colors
+	ld a,G_COIN_L
+	ld bc,(1<<8)+HUD_ROW
+	call hud_char
+	ld a,G_COIN_R
+	ld bc,(2<<8)+HUD_ROW
+	call hud_char
+	ld a,13
+	ld b,HUD_BG
+	call hud_colors
+	ld a,G_CLOCK_L
+	ld bc,((HUD_TIME-3)<<8)+HUD_ROW
+	call hud_char
+	ld a,G_CLOCK_R
+	ld bc,((HUD_TIME-2)<<8)+HUD_ROW
+	call hud_char
+	ld a,G_PERSON_L
+	ld bc,((HUD_SERVED-3)<<8)+HUD_ROW
+	call hud_char
+	ld a,G_PERSON_R
+	ld bc,((HUD_SERVED-2)<<8)+HUD_ROW
+	call hud_char
+	call sv_hud_money
+	call sv_hud_served
+	; fall through
+
+; HH:MM
+sv_hud_time:
+	ld a,13
+	ld b,HUD_BG
+	call hud_colors
+	ld hl,(sv_min)
+	ld bc,60
+	ld e,-1
+.h:	inc e
+	or a
+	sbc hl,bc
+	jr nc,.h
+	add hl,bc
+	push hl
+	ld l,e
+	ld h,0
+	ld d,2
+	ld bc,(HUD_TIME<<8)+HUD_ROW
+	call hud_number
+	ld a,G_COLON
+	ld bc,((HUD_TIME+2)<<8)+HUD_ROW
+	call hud_char
+	pop hl
+	ld d,2
+	ld bc,((HUD_TIME+3)<<8)+HUD_ROW
+	jp hud_number0
+
+sv_hud_money:
+	ld a,8
+	ld b,HUD_BG
+	call hud_colors
+	ld hl,(sv_money)
+	ld d,5
+	ld bc,(HUD_MONEY<<8)+HUD_ROW
+	jp hud_number
+
+sv_hud_served:
+	ld a,13
+	ld b,HUD_BG
+	call hud_colors
+	ld hl,(sv_served)
+	ld d,3
+	ld bc,(HUD_SERVED<<8)+HUD_ROW
+	jp hud_number
 
 ; ---------------------------------------------------------------------------
 ; One game tick (bank 5).
 service_tick:
+	ld hl,sv_sec			; the clock
+	inc (hl)
+	ld a,(hl)
+	cp MINUTE_TICKS
+	jr c,.ck
+	ld (hl),0
+	ld hl,(sv_min)
+	inc hl
+	ld (sv_min),hl
+	call sv_hud_time
+.ck:
 	ld hl,cust_anim
 	inc (hl)
 	ld a,(input)			; fire: pressed this tick
@@ -623,6 +720,15 @@ sv_fire:
 .pm:	add hl,de
 	djnz .pm
 	ld (sv_money),hl
+	ld e,(ix+GR_N)
+	ld d,0
+	ld hl,(sv_served)
+	add hl,de
+	ld (sv_served),hl
+	push ix
+	call sv_hud_money
+	call sv_hud_served
+	pop ix
 	ld hl,tb_busy
 	ld e,(ix+GR_TABLE)
 	ld d,0

@@ -188,8 +188,11 @@ start:
 	ld hl,palette_hw
 	call set_palette
 
-	ld de,0				; HUD sets: (phase 0, buffer 0/1), (phase 1, ...)
-	ld a,1
+	if SERVICE			; the game's HUD (texts: game/service.asm)
+	call hud_clear
+	else
+	ld de,0				; test pattern in the HUD sets: (phase 0,
+	ld a,1				; buffer 0/1), (phase 1, ...)
 	call hud_fill
 	ld de,512
 	ld a,1
@@ -200,6 +203,7 @@ start:
 	ld de,1536
 	ld a,1+HUD_SHIFT1
 	call hud_fill
+	endif
 
 	if TESTMODE
 	if TEST_PATH==1 || TEST_PATH==3
@@ -215,6 +219,9 @@ start:
 	call scroll_set
 	else
 	RAM RAM_C5			; (game code in bank 5)
+	if SERVICE
+	call service_init
+	endif
 	call actor_init
 	xor a
 	ld hl,0
@@ -708,6 +715,7 @@ scroll_step_y:	db 8-7*FINE_Y
 	include "engine/crtc.asm"
 	include "engine/scroll.asm"
 	include "engine/sprite.asm"
+	include "engine/hud.asm"
 	include "game/area.asm"
 	include "engine/fdc.asm"
 	include "palette.asm"
