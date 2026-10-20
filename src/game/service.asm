@@ -2,13 +2,18 @@
 ; queue; Bill takes them to a table: fire next to the queue and the group
 ; follows him (each member walks to where Bill was a while ago: the trail),
 ; fire at the spot of a free table that has seats enough (below it) and they
-; walk to their chairs and sit down.
+; walk to their chairs and sit down. Then, fire at the table's spot: take
+; the order; the kitchen (automatic for now) cooks it and puts it on the
+; pass; fire at the pass: the plates on Bill's tray; fire at the table:
+; served, they eat; then fire at the table: they pay and leave.
 ;
 ; The customers are a pool (cust_list, src/game/customer.asm): a group uses
 ; GR_N consecutive records from GR_FIRST. A customer walks to (CU_TX, CU_TY)
 ; (sprite left/top), CU_DX = 1 while walking (walk animation).
 ;
-; Bubbles: in the queue "...", seated (wants to order) the notepad.
+; Bubbles: in the queue "...", seated (wants to order) the notepad, waiting
+; for the food a plate, eating a heart, wants to pay a coin; a plate over
+; the pass when an order is ready.
 
 G_MAX		equ 4		; groups at the same time
 
@@ -18,13 +23,20 @@ GS_QUEUE	equ 2
 GS_FOLLOW	equ 3		; behind Bill
 GS_SEATING	equ 4		; walking to the chairs
 GS_SEATED	equ 5		; waiting to order
+GS_ORDERED	equ 6		; in the kitchen (GR_T)
+GS_READY	equ 7		; on the pass
+GS_CARRIED	equ 8		; on Bill's tray
+GS_EATING	equ 9		; (GR_T)
+GS_PAY		equ 10		; wants to pay
+GS_LEAVING	equ 11		; walking to the door
 
 ; group record
 GR_STATE	equ 0
 GR_N		equ 1		; customers
 GR_FIRST	equ 2		; first customer (index in the pool)
 GR_TABLE	equ 3
-GR_SIZE		equ 4
+GR_T		equ 4		; timer (ticks)
+GR_SIZE		equ 8
 
 ; entrance (level 1: the mats at metatiles 8-9 of the bottom row)
 DOOR_X		equ 128		; customer sprite left/top
@@ -38,6 +50,10 @@ TRAIL_N		equ 32		; Bill's feet, recorded every 4 ticks he walks
 FOLLOW_GAP	equ 5		; trail entries between the followers
 NEAR_X		equ 28		; fire reaches this far (feet to feet)
 NEAR_Y		equ 24
+KITCHEN_T	equ 500		; cooking: 10 s
+EAT_T		equ 600		; eating: 12 s
+PRICE		equ 12		; per customer
+BUBBLE_T	equ 50		; Bill's notepad bubble after taking an order
 
 groups:		ds G_MAX*GR_SIZE,0
 tb_busy:	ds TABLE_COUNT,0	; group + 1 at the table, 0 = free
@@ -48,6 +64,9 @@ sv_tick:	db 0
 sv_seed:	dw #ACE1
 trail:		ds TRAIL_N*4,0	; x, y words
 trail_head:	db 0
+bill_carry:	db 0		; group + 1 whose plates Bill carries
+sv_bub_t:	db 0
+sv_money:	dw 0
 
 ; ---------------------------------------------------------------------------
 ; One game tick (bank 5).
@@ -70,7 +89,15 @@ service_tick:
 	and 3
 	call z,sv_trail
 	call sv_spawn
-	ld ix,groups
+	ld hl,sv_bub_t			; Bill's bubble goes after a while
+	ld a,(hl)
+	or a
+	jr z,.nb
+	dec (hl)
+	jr nz,.nb
+	xor a
+	ld (bill_bubble),a
+.nb:	ld ix,groups
 	ld b,G_MAX
 .g:	push bc
 	call sv_group
@@ -294,8 +321,31 @@ sv_group:
 	cp GS_FOLLOW
 	jr z,.follow
 	cp GS_SEATING
-	jr z,.seating
+	jp z,.seating
+	cp GS_ORDERED
+	jr z,.cook
+	cp GS_EATING
+	jr z,.eat
+	cp GS_LEAVING
+	ret nz
+	call sv_arrived			; at the door: gone
+	ret nz
+	call sv_members
+.off:	ld (iy+CU_ON),0
+	ld de,CU_SIZE
+	add iy,de
+	djnz .off
+	ld (ix+GR_STATE),GS_FREE
 	ret
+.cook:	call sv_dect
+	ret nz
+	ld (ix+GR_STATE),GS_READY
+	ret
+.eat:	call sv_dect
+	ret nz
+	ld (ix+GR_STATE),GS_PAY
+	ld a,MOOD_PAY
+	jp sv_mood
 .arrive:
 	call sv_arrived
 	ret nz
@@ -436,12 +486,162 @@ sv_table:
 	add hl,de
 	ret
 
+; Count down the group's timer: Z at 0.
+sv_dect:
+	ld l,(ix+GR_T)
+	ld h,(ix+GR_T+1)
+	dec hl
+	ld (ix+GR_T),l
+	ld (ix+GR_T+1),h
+	ld a,h
+	or l
+	ret
+
+; IX = group A
+sv_group_a:
+	add a,a
+	add a,a
+	add a,a
+	ld e,a
+	ld d,0
+	ld ix,groups
+	add ix,de
+	ret
+
+; carry if Bill is on the spot of table A (below it)
+sv_at_table:
+	call sv_table
+	inc hl
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	push hl
+	ld hl,(bill_x)
+	ld c,NEAR_X/2
+	call sv_near
+	pop hl
+	ret nc
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	ld hl,(bill_y)
+	ld c,NEAR_Y/2
+	jp sv_near
+
 ; ---------------------------------------------------------------------------
-; Fire: take the queue's group along, or seat the group that follows.
+; Fire: what is next to Bill.
 sv_fire:
 	ld a,(sv_follow)
 	or a
-	jr nz,.seat
+	jp nz,.seat
+	ld hl,(bill_x)			; at the pass: take the plates of a ready order
+	ld de,PASS_BX
+	ld c,NEAR_X/2
+	call sv_near
+	jr nc,.tables
+	ld hl,(bill_y)
+	ld de,PASS_BY
+	ld c,NEAR_Y
+	call sv_near
+	jr nc,.tables
+	ld a,(bill_carry)
+	or a
+	jr nz,.tables
+	ld ix,groups
+	ld b,G_MAX
+.p:	ld a,(ix+GR_STATE)
+	cp GS_READY
+	jr z,.pick
+	ld de,GR_SIZE
+	add ix,de
+	djnz .p
+	jr .tables
+.pick:	ld (ix+GR_STATE),GS_CARRIED
+	ld a,G_MAX			; group + 1
+	sub b
+	inc a
+	ld (bill_carry),a
+	ld a,(ix+GR_N)			; the tray holds 3 plates (the sprite)
+	cp 4
+	jr c,.p3
+	ld a,3
+.p3:	ld (bill_plates),a
+	ret
+.tables:				; at a group's table: order, serve, pay
+	ld ix,groups
+	ld b,G_MAX
+.t:	push bc
+	ld a,(ix+GR_STATE)
+	cp GS_SEATED
+	jr z,.tt
+	cp GS_CARRIED
+	jr z,.tt
+	cp GS_PAY
+	jr nz,.tn
+.tt:	ld a,(ix+GR_TABLE)
+	call sv_at_table
+	jr c,.act
+.tn:	ld de,GR_SIZE
+	add ix,de
+	pop bc
+	djnz .t
+	jp .queue
+.act:	pop bc
+	ld a,(ix+GR_STATE)
+	cp GS_SEATED
+	jr nz,.serve
+	ld (ix+GR_STATE),GS_ORDERED	; the order: to the kitchen
+	ld (ix+GR_T),KITCHEN_T&255
+	ld (ix+GR_T+1),KITCHEN_T>>8
+	ld a,MOOD_ORDER
+	ld (bill_bubble),a
+	ld a,BUBBLE_T
+	ld (sv_bub_t),a
+	ld a,MOOD_FOOD
+	jp sv_mood
+.serve:	cp GS_CARRIED
+	jr nz,.pay
+	ld a,G_MAX			; their plates on Bill's tray?
+	sub b
+	inc a
+	ld c,a
+	ld a,(bill_carry)
+	cp c
+	ret nz
+	xor a
+	ld (bill_carry),a
+	ld (bill_plates),a
+	ld (ix+GR_STATE),GS_EATING
+	ld (ix+GR_T),EAT_T&255
+	ld (ix+GR_T+1),EAT_T>>8
+	ld a,MOOD_HAPPY
+	jp sv_mood
+.pay:	ld b,(ix+GR_N)			; money, the table is free, out
+	ld hl,(sv_money)
+	ld de,PRICE
+.pm:	add hl,de
+	djnz .pm
+	ld (sv_money),hl
+	ld hl,tb_busy
+	ld e,(ix+GR_TABLE)
+	ld d,0
+	add hl,de
+	ld (hl),0
+	ld (ix+GR_STATE),GS_LEAVING
+	xor a
+	call sv_mood
+	call sv_members
+.lv:	ld (iy+CU_SIT),0
+	ld (iy+CU_TX),DOOR_X&255
+	ld (iy+CU_TX+1),DOOR_X>>8
+	ld (iy+CU_TY),DOOR_Y&255
+	ld (iy+CU_TY+1),DOOR_Y>>8
+	ld de,CU_SIZE
+	add iy,de
+	djnz .lv
+	ret
+.queue:					; next to the queue: they follow
 	ld ix,groups
 	ld b,G_MAX
 .g:	ld a,(ix+GR_STATE)
@@ -464,14 +664,9 @@ sv_fire:
 	call sv_mood
 	jp sv_trail_fill
 .seat:	dec a				; IX = the following group
-	add a,a
-	add a,a
-	ld e,a
-	ld d,0
-	ld ix,groups
-	add ix,de
+	call sv_group_a
 	ld c,0				; tables
-.t:	ld a,c
+.st:	ld a,c
 	cp TABLE_COUNT
 	ret nc
 	ld hl,tb_busy
@@ -480,36 +675,19 @@ sv_fire:
 	add hl,de
 	ld a,(hl)
 	or a
-	jr nz,.tn
+	jr nz,.sn
 	ld a,c
 	call sv_table
 	ld a,(hl)			; seats enough?
 	cp (ix+GR_N)
-	jr c,.tn
-	inc hl
-	ld e,(hl)			; Bill on its spot?
-	inc hl
-	ld d,(hl)
-	inc hl
-	push hl
+	jr c,.sn
 	push bc
-	ld hl,(bill_x)
-	ld c,NEAR_X/2
-	call sv_near
-	pop bc
-	pop hl
-	jr nc,.tn
-	ld e,(hl)
-	inc hl
-	ld d,(hl)
-	push bc
-	ld hl,(bill_y)
-	ld c,NEAR_Y/2
-	call sv_near
+	ld a,c
+	call sv_at_table
 	pop bc
 	jr c,.sit
-.tn:	inc c
-	jr .t
+.sn:	inc c
+	jr .st
 .sit:	ld (ix+GR_TABLE),c		; the table is theirs
 	ld hl,tb_busy
 	ld e,c
@@ -564,6 +742,22 @@ sv_bill_near:
 	ld hl,(bill_y)
 	ld c,NEAR_Y
 	jp sv_near
+
+; A plate over the pass while an order waits there (render, bank 5).
+service_sprites:
+	ld ix,groups
+	ld b,G_MAX
+.l:	ld a,(ix+GR_STATE)
+	cp GS_READY
+	jr z,.show
+	ld de,GR_SIZE
+	add ix,de
+	djnz .l
+	ret
+.show:	ld de,PASS_X-8
+	ld bc,PASS_Y+8
+	ld a,MOOD_FOOD
+	jp bubble_a
 
 ; ---------------------------------------------------------------------------
 ; Every customer one step to its target: 1 pixel and 2 lines, facing the

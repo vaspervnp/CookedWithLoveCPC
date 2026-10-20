@@ -366,6 +366,9 @@ render:
 	if CUSTOMERS
 	call cust_sprites
 	endif
+	if SERVICE
+	call service_sprites
+	endif
 	if STAFF
 	call staff_sprites
 	endif
@@ -511,8 +514,10 @@ D	equ 1<<KEY_DOWN
 U	equ 1<<KEY_UP
 F	equ 1<<KEY_FIRE
 demo_script:
-	if MAP_TEST==0			; level 1: take the first group to a table for 4
-	db 0,30, L,4, 0,6, F,1, 0,4, U,22, R,20, 0,8, F,1, 0,120
+	if MAP_TEST==0			; level 1: the first group, all the service
+	db 0,30, L,4, 0,6, F,1, 0,4, U,22, R,20, 0,8, F,1, 0,120	; to a table for 4
+	db F,1, R,32, U,27, 0,90, F,1	; order, to the pass, take the plates
+	db D,27, L,32, 0,4, F,1, 0,165, F,1	; serve, they eat, pay
 	db 0,250, 0,250, 0,250, #FF
 	else
 	db R,90, D,70, 0,10, L,120, U,40, R|D,60, L|U,50, D,140, R,200, U,120, L,40, L|D,80, 0,15, U,200, #FF

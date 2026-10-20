@@ -10,7 +10,8 @@ engine's test is tile >= SOLID_FIRST), and writes:
 
   <out>_src_tiles.bin   tiles, 32 bytes each (Mode 0, 4 bytes x 8 lines)
   <out>_src_map.bin     80 x 84 tile map
-  <out>.asm             SOLID_FIRST and the object constants
+  <out>.asm             SOLID_FIRST, the object constants, Bill's spot at
+                        the pass
   <out>_objs.asm        the level's objects (data for bank 5):
       tables: found by their pattern, a table for 2 is <t>, a table for 4
         <T> over <U> (a chair on each side of each row); per table the
@@ -170,6 +171,16 @@ def main():
         f.write("SEAT_SIZE equ 5\n")
         for k, (c, name) in enumerate(STATIONS):
             f.write(f"STN_{name.upper()}\tequ {k}\n")
+        # Bill's spot at the pass (its dining room side: the free side left
+        # or right of it, half way down the two metatiles)
+        for c, mx, my, sides in stations:
+            if c == "P":
+                side = -1 if sides & 1 else 1
+                f.write(f"PASS_BX\tequ {16 * (mx + side) + 8}\t; Bill's feet at the pass\n")
+                f.write(f"PASS_BY\tequ {16 * my + 24}\n")
+                f.write(f"PASS_X\tequ {16 * mx}\t; the pass, top left (map pixels)\n")
+                f.write(f"PASS_Y\tequ {16 * my}\n")
+                break
     write_objects(f"{args.out}_objs.asm", args.level, tables, stations)
     print(f"{args.out}: {len(used)} tiles ({solid_first} walkable), {len(tables)} tables "
           f"({sum(len(t[0]) for t in tables)} seats), {len(stations)} stations", file=sys.stderr)
