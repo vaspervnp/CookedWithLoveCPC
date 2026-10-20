@@ -155,11 +155,11 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 | `&8000–&BFFF` | Οθόνη playfield, buffer 0 (ring 1024 words) |
 | `&C000–&FFFF` | Οθόνη playfield, buffer 1 |
 | bank 4 (`&C4`) | Compiled sprites (STEP, stubs SAVE, ρουτίνες γραμμών, προγράμματα frames, spans) |
-| bank 5 (`&C5`) | Χάρτης πίστας και tiles |
+| bank 5 (`&C5`) | Χάρτης πίστας και tiles, και ο κώδικας του παιχνιδιού που τρέχει με τη bank 5 ενεργή (πελάτες, προσωπικό· ~7,5K ελεύθερα). Ο κοινός κώδικας (&0100–&1FEF) είναι σχεδόν γεμάτος, οπότε η λογική του παιχνιδιού μπαίνει εδώ |
 | bank 6 (`&C6`) | Compiled sprites (συνέχεια): κοινά (Bill, πελάτες) |
 | bank 7 (`&C7`) | Sprites της περιοχής: μία «εικόνα» ανά περιοχή (κουζίνα: Ελευθερία, αποθήκη: Ανθή), από τον δίσκο |
 
-**Προϋπολογισμός sprites:** κοινά στις banks 4 + 6 (32K): Bill ~10,1K, πελάτες ~20,7K, σύνολο 30,8K. Η bank 7 (16K) έχει τα sprites της περιοχής που βλέπει η κάμερα: κουζίνα 15K (Ελευθερία), αποθήκη (Ανθή).
+**Προϋπολογισμός sprites:** κοινά στις banks 4 + 6 (32K): Bill ~10,1K, πελάτες ~20,7K, σύνολο 30,8K. Η bank 7 (16K) έχει τα sprites της περιοχής που βλέπει η κάμερα: κουζίνα 15K (Ελευθερία), αποθήκη 15,4K (Ανθή).
 
 **Φόρτωση:**
 - Το `CWL.BIN` φορτώνεται στο `&0100`. Τα δεδομένα της bank 5 είναι «σταθμευμένα» στο `&4000` και στο boot το `mem_relocate` τα μεταφέρει στη bank και καθαρίζει το `&4000`–`&FFFF`.
@@ -200,6 +200,7 @@ assets/blender/bill_build.py        tools/render2sprite.py          tools/sprite
 3. **Aseprite** (MCP, Lua): το `assets/aseprite/bill.aseprite` έχει frames, tags `down/up/right`, pixel ratio 2:1 και την palette `assets/palette/cwl.gpl`. Αν διορθωθεί με το χέρι, γίνεται export ξανά στο `assets/sprites/bill.png`.
 4. **tools/spritec.py** (στο `make`, λίστα `SHEETS` στο Makefile): όλα τα sheets → compiled κώδικας με κοινές γραμμές (`build/spr_N.dat` → `SPRN.DAT`) και descriptors των frames (`build/spr.asm`, στη βασική RAM).
 6. **Προσωπικό (Ελευθερία):** στο Blender `exec(open(".../assets/blender/liberty_build.py").read())` (σκηνή `CWL_Liberty`, αντικείμενα `LIB_*`, κοινά βοηθητικά στο `cwl_char.py`). Αποδίδει περπάτημα (3 κατευθύνσεις × 3 πόζες) και ενέργειες στο προφίλ: κόψιμο (μαχαίρι πάνω/κάτω), ανακάτεμα (κουτάλα αριστερά/δεξιά), φούρνος (σκύβει, σηκώνει). Το **tools/charsheet.py** (`make staff`) βγάζει τα `liberty.png` και `liberty_act.png`. Στο παιχνίδι το [src/game/staff.asm](src/game/staff.asm) την κινεί με ένα δοκιμαστικό script (`-DSTAFF=0` την αφαιρεί).
+7. **Προσωπικό (Ανθή):** `assets/blender/blossom_build.py` (σκηνή `CWL_Blossom`, αντικείμενα `BLO_*`). Μπλε φόρμα με τιράντες, πράσινο κοντομάνικο, κόκκινη αλογοουρά, κούτα. Αποδίδει περπάτημα, περπάτημα με την κούτα (κάτω και δεξιά· προς τα πάνω η κούτα κρύβεται, οπότε χρησιμοποιείται το απλό περπάτημα) και βάλσιμο στο ράφι στα δεξιά της. Το `make staff` βγάζει τα `blossom.png`, `blossom_carry.png` και `blossom_act.png`.
 5. **Πελάτες:** στο Blender `exec(open(".../assets/blender/customer_build.py").read())` (σκηνή `CWL_Customer`, αντικείμενα `CUST_*`) αποδίδει κάθε στυλ κάθε κομματιού στο `build/render/cust`. Μετά το **tools/custparts.py** (`make parts`) βγάζει τα `assets/sprites/cust_head/body/legs.png`, με τα χρώματα κάθε στυλ.
 
 ### Tiles, χάρτες, κείμενα

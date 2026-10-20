@@ -48,7 +48,10 @@ $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 #               any head + body + legs combine
 #   liberty     the cook: rows down / up / right x idle, walk 1, walk 2; left = mirror
 #   liberty_act chop 1-2, stir 1-2, oven 1-2 facing right, then the same mirrored
-#   blossom     the storage keeper (placeholder: Liberty's walk)
+#   blossom     the storage keeper: walk as liberty; blossom_carry the same with a
+#               box, rows down / right (left = mirror; going up the box is hidden,
+#               the walk is used); blossom_act putting a box on a shelf to her
+#               right (2 frames, not mirrored: the storage image is full)
 # IMAGE (last field): the sheet goes into that area image of bank 7, a disk
 # file <IMAGE>.SPR loaded when the camera enters the area (src/game/area.asm)
 SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
@@ -57,7 +60,9 @@ SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 	cust_legs:assets/sprites/cust_legs.png:14:9:6::34 \
 	liberty:assets/sprites/liberty.png:48:9:6:::kitchen \
 	liberty_act:assets/sprites/liberty_act.png:48:6:0:::kitchen \
-	blossom:assets/sprites/liberty.png:48:9:6:::storage
+	blossom:assets/sprites/blossom.png:48:9:6:::storage \
+	blossom_carry:assets/sprites/blossom_carry.png:48:6:3:::storage \
+	blossom_act:assets/sprites/blossom_act.png:48:2::::storage
 $(BUILD)/spr.asm: $(foreach s,$(SHEETS),$(word 2,$(subst :, ,$(s)))) tools/spritec.py tools/png2cpc.py tools/cpc.py data/palette.txt | $(BUILD)
 	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6 --area-bank 7
 
@@ -68,6 +73,7 @@ parts:
 # Staff sheets from their renders (assets/blender/<name>_build.py)
 staff:
 	$(PYTHON) tools/charsheet.py liberty $(BUILD)/render/liberty assets/sprites
+	$(PYTHON) tools/charsheet.py blossom $(BUILD)/render/blossom assets/sprites
 
 $(BUILD)/cwl_en.bin: $(SRC) $(GEN) FORCE
 	$(RASM) src/main.asm -Isrc -I$(BUILD) -DLANG_EN=1 $(RASMFLAGS) -ob $@ -os $(BUILD)/cwl_en.sym -s

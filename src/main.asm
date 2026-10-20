@@ -666,8 +666,6 @@ scroll_step_y:	db 8-7*FINE_Y
 	include "engine/scroll.asm"
 	include "engine/sprite.asm"
 	include "game/actor.asm"
-	include "game/customer.asm"
-	include "game/staff.asm"
 	include "game/area.asm"
 	include "engine/fdc.asm"
 	include "palette.asm"
@@ -693,6 +691,11 @@ tile_data:
 	incbin "testtiles.bin"
 map_data:
 	incbin "testmap.bin"
+
+	; game logic that runs with bank 5 mapped (game ticks: the map for
+	; collisions; adding sprites in render, after buffer_sync)
+	include "game/customer.asm"
+	include "game/staff.asm"
 bank5_end:
 	assert bank5_end<=#8000,"bank 5 full"
 	assert bank5_end-bank5_start<=#4000,"bank 5 staging too big"

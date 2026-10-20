@@ -38,6 +38,24 @@ CHARS = {
         },
         "side": lambda tag: "right" in tag or tag.startswith("act_"),
     },
+    "blossom": {
+        "mats": ["hair", "skin", "shirt", "overall", "buckle", "boots", "box", "tape",
+                 "eyes", "mouth", "brows"],
+        "ramps": {"hair": [3, 3, 4, 5], "skin": [5, 6, 6, 6], "shirt": [9, 10, 10],
+                  "overall": [1, 2, 2], "buckle": [12], "boots": [14, 14],
+                  "box": [5, 5, 15], "tape": [7], "mouth": [3]},
+        "priority": {"buckle": 2, "tape": 2, "mouth": 3},
+        "sheets": {
+            "blossom": [["walk_down0", "walk_down1", "walk_down2"],
+                        ["walk_up0", "walk_up1", "walk_up2"],
+                        ["walk_right0", "walk_right1", "walk_right2"]],
+            # carrying away from the viewer the box is hidden: walk_up is used
+            "blossom_carry": [["carry_down0", "carry_down1", "carry_down2"],
+                              ["carry_right0", "carry_right1", "carry_right2"]],
+            "blossom_act": [["act_shelf0", "act_shelf1"]],
+        },
+        "side": lambda tag: "right" in tag or tag.startswith("act_"),
+    },
 }
 
 W, H = 32, 48
