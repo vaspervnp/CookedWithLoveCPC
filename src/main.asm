@@ -105,7 +105,7 @@ bank_files:				; length, name, RAM config, address
 	db 8,"SPR6.DAT",RAM_C6 : dw #4000
 	endif
 	if SPR_FIXED_B5
-	db 6,"B5.SPR",RAM_C5 : dw #7000	; top of bank 5 (the rest: mem_relocate)
+	db 6,"B5.SPR",RAM_C5 : dw SPR_FIXED_B5_BASE	; top of bank 5 (the rest: mem_relocate)
 	endif
 	if SPR_AREAS
 	db 11,"KITCHEN.SPR",RAM_C7 : dw #4000	; the first area (others: src/game/area.asm)
@@ -708,7 +708,7 @@ map_data:
 	include "game/items.asm"
 bank5_end:
 	if SPR_FIXED_B5
-	assert bank5_end<=#7000,"bank 5 overlaps its sprites (&7000)"
+	assert bank5_end<=SPR_FIXED_B5_BASE,"bank 5 overlaps its sprites (b5)"
 	endif
 	assert bank5_end<=#8000,"bank 5 full"
 	assert bank5_end-bank5_start<=#4000,"bank 5 staging too big"

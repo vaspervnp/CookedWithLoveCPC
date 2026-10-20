@@ -348,7 +348,7 @@ cl_f:	dw 0
 	ld (tray_x),de
 	ld (tray_y),bc
 	call sprites_add
-	jp tray_sprite
+	jp bill_items
 	endif
 
 dbg_frame:	db 0

@@ -268,7 +268,8 @@ def main():
             f.write(f"AREA_{g.upper()}\tequ {k}\n")
         for g in fixed:
             bank, base, size = fixed[g]
-            f.write(f"SPR_FIXED_{g.upper()}\tequ {int(g in images)}\t; file {g.upper()}.SPR at #{base:04X} of bank {bank}\n")
+            f.write(f"SPR_FIXED_{g.upper()}\tequ {int(g in images)}\t; file {g.upper()}.SPR in bank {bank}\n")
+            f.write(f"SPR_FIXED_{g.upper()}_BASE\tequ #{base:04X}\n")
         f.write("spr_area_files:\t\t; directory names (8 + 3 characters)\n")
         for g in areas:
             f.write(f'\tdb "{g.upper()[:8]:<8}SPR"\n')

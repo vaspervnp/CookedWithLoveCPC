@@ -1,6 +1,7 @@
 ; Add-on sprites drawn together with a figure, as separate sprites with their
-; own depth key (sheets tray and bubble, fixed image b5 at &7000 of bank 5):
-; Bill's tray with 1-3 plates and the customers' mood bubbles.
+; own depth key (sheets tray and bubble, fixed image b5 at the top of bank 5):
+; Bill's tray with 1-3 plates, the customers' mood bubbles and Bill's
+; bubble (a notepad while he takes an order).
 
 TRAY_DY		equ 19		; tray top below Bill's top (at the hands)
 BUBBLE_DY	equ -14		; bubble above a customer's head
@@ -11,17 +12,33 @@ MOOD_ANGRY	equ 2
 MOOD_WAIT	equ 3		; ...
 MOOD_FOOD	equ 4		; wants food
 MOOD_PAY	equ 5		; wants to pay
+MOOD_ORDER	equ 6		; Bill: taking an order
 
-	ifndef TRAY_PLATES
+	ifndef TRAY_PLATES		; tests
 TRAY_PLATES	equ 0
+	endif
+	ifndef TEST_BUBBLE
+TEST_BUBBLE	equ 0
 	endif
 
 bill_plates:	db TRAY_PLATES	; plates carried, 0-3
+bill_bubble:	db TEST_BUBBLE	; MOOD_* above Bill, 0 = none
 tray_x:		dw 0		; Bill's sprite (left, top)
 tray_y:		dw 0
 
-; Bill's tray, right after his sprite (spr_z = his depth: drawn after him).
-; Hidden when he faces away (the tray is in front of him).
+; Bill's add-ons, right after his sprite: his bubble, and the tray (spr_z =
+; his depth: drawn after him; hidden when he faces away, it is in front).
+bill_items:
+	ld a,(bill_bubble)
+	or a
+	jr z,tray_sprite
+	ld de,(tray_x)
+	ld bc,(tray_y)
+	ld hl,(spr_z)
+	push hl
+	call bubble_a
+	pop hl
+	ld (spr_z),hl
 tray_sprite:
 	ld a,(bill_plates)
 	or a
@@ -62,6 +79,7 @@ bubble_sprite:
 	ld a,(ix+CU_MOOD)
 	or a
 	ret z
+bubble_a:				; the same with A = MOOD_*
 	dec a
 	add a,a
 	ld l,a

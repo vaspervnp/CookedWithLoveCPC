@@ -7,7 +7,8 @@ own depth key), so the figures need no extra poses.
                              (Bill facing down), then from the side (facing
                              right; left = mirror)
   assets/sprites/bubble.png  32x14 frames: heart (happy), angry, waiting
-                             (...), wants food (plate), wants to pay (coin)
+                             (...), wants food (plate), wants to pay (coin); Bill
+                             taking an order (notepad)
 
 Usage: items.py <out dir> [--preview out.png]
 """
@@ -102,6 +103,17 @@ def bubble(icon):
             put(c, x, 6, BLACK)
     elif icon == "food":
         plate(c, 16, 6.5, FOOD[0], 5.5, 3.6)
+    elif icon == "order":                                # notepad and pencil
+        for y in range(3, 10):
+            for x in range(13, 18):
+                put(c, x, y, BWHITE if y > 3 else BRED)
+        for y in (5, 7):
+            for x in (14, 15, 16):
+                put(c, x, y, BLUE)
+        for k in range(4):
+            put(c, 19, 3 + k * 2, BYEL)
+            put(c, 19, 4 + k * 2, BYEL)
+        put(c, 19, 10, BLACK)
     elif icon == "pay":
         ellipse(c, 16, 6, 3.2, 3.2, BYEL)
         ellipse(c, 16, 6, 3.2, 3.2, ORANGE, fill=False)
@@ -130,7 +142,7 @@ def main():
     rgb = [fw_to_rgb(fw) for fw, _ in pens]
     a = save([tray_front(n) for n in (1, 2, 3)] + [tray_side(n) for n in (1, 2, 3)], 32, 12,
              os.path.join(args.out, "tray.png"), rgb)
-    b = save([bubble(i) for i in ("heart", "angry", "wait", "food", "pay")], 32, 14,
+    b = save([bubble(i) for i in ("heart", "angry", "wait", "food", "pay", "order")], 32, 14,
              os.path.join(args.out, "bubble.png"), rgb)
     if args.preview:
         pv = Image.new("RGBA", (max(a.width, b.width), a.height + b.height + 2), (60, 60, 70, 255))

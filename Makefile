@@ -57,7 +57,7 @@ $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 #               right (2 frames, not mirrored: the storage image is full)
 # IMAGE (last field): the sheet goes into that area image of bank 7, a disk
 # file <IMAGE>.SPR loaded when the camera enters the area (src/game/area.asm);
-# image b5 is the top 4K of bank 5 (&7000), always resident (B5.SPR)
+# image b5 is the top of bank 5 (&6F00), always resident (B5.SPR)
 SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 	cust_head:assets/sprites/cust_head.png:20:9:6 \
 	cust_body:assets/sprites/cust_body.png:14:9:6::20 \
@@ -71,7 +71,7 @@ SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 	blossom_carry:assets/sprites/blossom_carry.png:48:6:3:::storage \
 	blossom_act:assets/sprites/blossom_act.png:48:2::::storage
 $(BUILD)/spr.asm: $(foreach s,$(SHEETS),$(word 2,$(subst :, ,$(s)))) tools/spritec.py tools/png2cpc.py tools/cpc.py data/palette.txt | $(BUILD)
-	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6 --area-bank 7 --fixed b5:5:0x7000:0x1000
+	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6 --area-bank 7 --fixed b5:5:0x6F00:0x1100
 
 # Customer part sheets from the customer renders (assets/blender/customer_build.py)
 parts:
