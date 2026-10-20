@@ -43,7 +43,8 @@ $(BUILD)/test_map.bin: $(BUILD)/testtiles.bin tools/maps2asm.py
 	$(PYTHON) tools/maps2asm.py $(BUILD)/testtiles.bin $(BUILD)/testmap.bin $(BUILD)/test
 
 # Level 1: the map (assets/maps/level1.txt) on the restaurant tileset
-# (assets/tiles/restaurant.png/.txt, drawn by tools/mktileset.py: make tiles)
+# (assets/tiles/restaurant.png/.txt, drawn by tools/mktileset.py: make tiles),
+# with its objects (tables, stations: build/lvl1_objs.asm)
 $(BUILD)/lvl1_map.bin: assets/maps/level1.txt assets/tiles/restaurant.png assets/tiles/restaurant.txt tools/buildmap.py tools/maps2asm.py | $(BUILD)
 	$(PYTHON) tools/buildmap.py assets/tiles/restaurant.png assets/maps/level1.txt $(BUILD)/lvl1
 	$(PYTHON) tools/maps2asm.py $(BUILD)/lvl1_src_tiles.bin $(BUILD)/lvl1_src_map.bin $(BUILD)/lvl1

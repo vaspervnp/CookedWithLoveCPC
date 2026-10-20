@@ -44,10 +44,10 @@ cust_list:
 CU_COUNT	equ 4
 cust_list:
 	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit
-	; on a chair at metatile (mx, my): x = 16*mx - 8, y = 16*my - 30
-	dw 24,306 : db 0,1,2,DIR_RIGHT, 0, 0, 0, MOOD_HAPPY, 1	; table for 2 at (3,21)
-	dw 56,306 : db 1,2,1,DIR_LEFT,  0, 0, 0, MOOD_WAIT, 1
-	dw 184,386 : db 2,0,1,DIR_RIGHT, 0, 0, 0, MOOD_FOOD, 1	; table for 4 at (13,26)
+	; seats of the level's tables (build/lvl1_objs.asm)
+	dw TB0_S0_X,TB0_S0_Y : db 0,1,2,TB0_S0_DIR, 0, 0, 0, MOOD_HAPPY, 1
+	dw TB0_S1_X,TB0_S1_Y : db 1,2,1,TB0_S1_DIR, 0, 0, 0, MOOD_WAIT, 1
+	dw TB5_S0_X,TB5_S0_Y : db 2,0,1,TB5_S0_DIR, 0, 0, 0, MOOD_FOOD, 1
 	dw 40,352 : db 2,2,0,DIR_RIGHT, 1, 20, 130, 0, 0	; walking the aisle (row 24)
 	else
 CU_COUNT	equ 4

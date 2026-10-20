@@ -729,6 +729,10 @@ map_data:
 	endif
 	assert (meta_data&#3FF)==0
 
+	if MAP_TEST==0			; tables, stations (tools/buildmap.py)
+	include "lvl1_objs.asm"
+	endif
+
 	; game logic that runs with bank 5 mapped (game ticks: the map for
 	; collisions; adding sprites in render, after buffer_sync)
 	include "game/customer.asm"
