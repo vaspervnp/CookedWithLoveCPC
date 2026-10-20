@@ -7,6 +7,11 @@
 ; pass; fire at the pass: the plates on Bill's tray; fire at the table:
 ; served, they eat; then fire at the table: they pay and leave.
 ;
+; The day: from 12:00 (a game minute a second); at DAY_END no more
+; customers come; when the last group has left, the HUD's second row shows
+; the day's stars (served against lost customers) and earnings, and fire
+; starts the next day.
+;
 ; Patience: GR_P (255 at the start) goes down while they wait for Bill (in
 ; the queue, to order, for the food, to pay): a point every PAT_RATE ticks,
 ; about a minute from full to nothing; every service step refills
@@ -79,8 +84,15 @@ trail_head:	db 0
 bill_carry:	db 0		; group + 1 whose plates Bill carries
 sv_bub_t:	db 0
 sv_money:	dw 0
-sv_served:	dw 0		; customers who paid
-sv_lost:	dw 0		; customers who left angry
+sv_served:	dw 0		; customers who paid today
+sv_lost:	dw 0		; customers who left angry today
+sv_day:		db 1
+sv_phase:	db 0		; 0 open, 1 closed (no more arrivals), 2 over
+sv_money0:	dw 0		; money when the day started
+	ifndef DAY_MIN			; length of the day (game minutes; tests: shorter)
+DAY_MIN		equ 180
+	endif
+DAY_END		equ 12*60+DAY_MIN
 sv_min:		dw 12*60	; time of day (minutes)
 sv_sec:		db 0		; ticks of the current game minute
 
@@ -89,6 +101,11 @@ HUD_ROW		equ 1
 HUD_MONEY	equ 4
 HUD_TIME	equ 16
 HUD_SERVED	equ 29
+HUD_LOST	equ 37
+HUD_ROW2	equ 2		; day, at the end of the day stars and earnings
+HUD_DAY		equ 4
+HUD_STARS	equ 15
+HUD_EARN	equ 29
 MINUTE_TICKS	equ 50		; a game minute every second
 
 ; ---------------------------------------------------------------------------
@@ -118,8 +135,37 @@ service_init:
 	ld a,G_PERSON_R
 	ld bc,((HUD_SERVED-2)<<8)+HUD_ROW
 	call hud_char
+	ld a,4				; angry: red
+	ld b,HUD_BG
+	call hud_colors
+	ld a,G_ANGRY_L
+	ld bc,((HUD_LOST-3)<<8)+HUD_ROW
+	call hud_char
+	ld a,G_ANGRY_R
+	ld bc,((HUD_LOST-2)<<8)+HUD_ROW
+	call hud_char
+	ld a,5				; day: orange
+	ld b,HUD_BG
+	call hud_colors
+	ld a,G_SUN_L
+	ld bc,(1<<8)+HUD_ROW2
+	call hud_char
+	ld a,G_SUN_R
+	ld bc,(2<<8)+HUD_ROW2
+	call hud_char
 	call sv_hud_money
+sv_hud_day:				; the counters of the day
+	ld a,5
+	ld b,HUD_BG
+	call hud_colors
+	ld a,(sv_day)
+	ld l,a
+	ld h,0
+	ld d,2
+	ld bc,(HUD_DAY<<8)+HUD_ROW2
+	call hud_number
 	call sv_hud_served
+	call sv_hud_lost
 	; fall through
 
 ; HH:MM
@@ -167,10 +213,127 @@ sv_hud_served:
 	ld bc,(HUD_SERVED<<8)+HUD_ROW
 	jp hud_number
 
+sv_hud_lost:
+	ld a,4
+	ld b,HUD_BG
+	call hud_colors
+	ld hl,(sv_lost)
+	ld d,3
+	ld bc,(HUD_LOST<<8)+HUD_ROW
+	jp hud_number
+
+; The end of the day: stars and earnings. 3 stars: nobody lost; 2: served
+; at least 3 times the lost; 1: at least as many; else none.
+sv_summary:
+	ld hl,(sv_lost)
+	ld de,(sv_served)
+	ld c,0
+	ld a,d				; nobody came: no stars
+	or e
+	jr z,.st
+	ld a,h
+	or l
+	ld c,3
+	jr z,.st
+	ld c,0
+	ex de,hl			; HL = served, DE = lost
+	or a
+	sbc hl,de
+	jr c,.st			; fewer served than lost
+	inc c
+	or a
+	sbc hl,de
+	jr c,.st
+	or a
+	sbc hl,de
+	jr c,.st			; served < 3 lost
+	inc c
+.st:	ld a,c
+	ld (sm_stars),a
+	ld a,8
+	ld b,HUD_BG
+	call hud_colors
+	ld b,HUD_STARS			; three stars, the first C full
+	ld c,0
+.sl:	push bc
+	ld a,(sm_stars)
+	cp c
+	ld a,G_STAR0_L
+	jr z,.e
+	jr c,.e
+	ld a,G_STAR_L
+.e:	push af
+	ld c,HUD_ROW2
+	call hud_char
+	pop af
+	pop bc
+	push bc
+	inc a
+	inc b
+	ld c,HUD_ROW2
+	call hud_char
+	pop bc
+	inc b
+	inc b
+	inc b
+	inc c
+	ld a,c
+	cp 3
+	jr nz,.sl
+	ld a,G_COIN_L			; earnings
+	ld bc,((HUD_EARN-3)<<8)+HUD_ROW2
+	call hud_char
+	ld a,G_COIN_R
+	ld bc,((HUD_EARN-2)<<8)+HUD_ROW2
+	call hud_char
+	ld hl,(sv_money)
+	ld de,(sv_money0)
+	or a
+	sbc hl,de
+	ld d,5
+	ld bc,(HUD_EARN<<8)+HUD_ROW2
+	jp hud_number
+
+; Fire after the end of the day: the next one.
+sv_new_day:
+	ld hl,sv_day
+	inc (hl)
+	ld hl,12*60
+	ld (sv_min),hl
+	ld hl,0
+	ld (sv_served),hl
+	ld (sv_lost),hl
+	ld hl,(sv_money)
+	ld (sv_money0),hl
+	ld hl,50
+	ld (sv_spawn_t),hl
+	xor a
+	ld (sv_phase),a
+	ld a,HUD_BG			; clear the stars and earnings
+	ld b,a
+	call hud_colors
+	ld b,HUD_STARS
+.c:	push bc
+	ld a,G_SPACE
+	ld c,HUD_ROW2
+	call hud_char
+	pop bc
+	inc b
+	ld a,b
+	cp HUD_EARN+5
+	jr nz,.c
+	call sv_hud_day
+	jp sv_hud_time
+
+sm_stars:	db 0
+
 ; ---------------------------------------------------------------------------
 ; One game tick (bank 5).
 service_tick:
-	ld hl,sv_sec			; the clock
+	ld a,(sv_phase)			; the clock (stops when the day is over)
+	cp 2
+	jr z,.ck
+	ld hl,sv_sec
 	inc (hl)
 	ld a,(hl)
 	cp MINUTE_TICKS
@@ -179,7 +342,13 @@ service_tick:
 	ld hl,(sv_min)
 	inc hl
 	ld (sv_min),hl
-	call sv_hud_time
+	ld de,DAY_END			; closing time: no more arrivals
+	or a
+	sbc hl,de
+	jr nz,.tm
+	ld a,1
+	ld (sv_phase),a
+.tm:	call sv_hud_time
 .ck:
 	ld hl,cust_anim
 	inc (hl)
@@ -215,7 +384,21 @@ service_tick:
 	add ix,de
 	pop bc
 	djnz .g
-	ld a,(cust_anim)		; walking: a step every other tick
+	ld a,(sv_phase)			; closed and everybody gone: the day is over
+	dec a
+	jr nz,.nw
+	ld ix,groups
+	ld b,G_MAX
+.f:	ld a,(ix+GR_STATE)
+	or a
+	jr nz,.nw
+	ld de,GR_SIZE
+	add ix,de
+	djnz .f
+	ld a,2
+	ld (sv_phase),a
+	call sv_summary
+.nw:	ld a,(cust_anim)		; walking: a step every other tick
 	rrca
 	ret c
 	jp sv_walk
@@ -327,6 +510,9 @@ sv_trail_fill:
 ; ---------------------------------------------------------------------------
 ; A new group now and then, while nobody waits at the entrance.
 sv_spawn:
+	ld a,(sv_phase)			; open only
+	or a
+	ret nz
 	ld hl,(sv_spawn_t)
 	dec hl
 	ld (sv_spawn_t),hl
@@ -587,6 +773,9 @@ sv_angry:
 	ld hl,(sv_lost)
 	add hl,de
 	ld (sv_lost),hl
+	push ix
+	call sv_hud_lost
+	pop ix
 	ld a,MOOD_ANGRY
 	; fall through
 
@@ -736,6 +925,9 @@ sv_at_table:
 ; ---------------------------------------------------------------------------
 ; Fire: what is next to Bill.
 sv_fire:
+	ld a,(sv_phase)
+	cp 2
+	jp z,sv_new_day
 	ld a,(sv_follow)
 	or a
 	jp nz,.seat

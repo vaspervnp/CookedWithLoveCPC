@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """HUD font: glyphs of 4 x 8 Mode 0 pixels (40 columns), 1 bit per pixel,
-drawn here as text; icons are two glyphs wide.
+drawn here as text; icons are two glyphs wide (money, clock, customer,
+angry customer, day, star full and empty).
 
 Output (asm, base RAM): hud_font (8 bytes per glyph, the low nibble of each
 byte is a line, bit 3 = left pixel), G_* glyph numbers, and m0_left /
@@ -46,6 +47,34 @@ ICONS = {
               "#......#",
               ".#....#.",
               "..####.."],
+    "ANGRY": ["..####..",
+              ".#....#.",
+              "#.#..#.#",
+              "#......#",
+              "#..##..#",
+              ".##..##.",
+              "..####.."],
+    "SUN": ["#..##..#",
+            ".#....#.",
+            "..####..",
+            "#.####.#",
+            "..####..",
+            ".#....#.",
+            "#..##..#"],
+    "STAR": ["...##...",
+             "...##...",
+             "########",
+             ".######.",
+             "..####..",
+             ".##..##.",
+             "##....##"],
+    "STAR0": ["...##...",
+              "..#..#..",
+              "###..###",
+              ".#....#.",
+              "..#..#..",
+              ".#.##.#.",
+              "##....##"],
     "PERSON": ["...##...",
                "...##...",
                "..####..",
