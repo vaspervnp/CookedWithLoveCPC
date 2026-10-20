@@ -156,14 +156,19 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 | `&C000–&FFFF` | Οθόνη playfield, buffer 1 |
 | bank 4 (`&C4`) | Compiled sprites (STEP, stubs SAVE, ρουτίνες γραμμών, προγράμματα frames, spans) |
 | bank 5 (`&C5`) | Χάρτης πίστας και tiles |
-| bank 6 (`&C6`) | Compiled sprites (συνέχεια) |
-| bank 7 (`&C7`) | Compiled sprites (συνέχεια) |
+| bank 6 (`&C6`) | Compiled sprites (συνέχεια): κοινά (Bill, πελάτες) |
+| bank 7 (`&C7`) | Sprites της περιοχής: μία «εικόνα» ανά περιοχή (κουζίνα: Ελευθερία, αποθήκη: Ανθή), από τον δίσκο |
 
-**Προϋπολογισμός sprites (banks 4, 6, 7 = 48K):** Bill ~10,1K, πελάτες (27 συνδυασμοί) ~20,7K, Ελευθερία ~15,7K (περπάτημα + 6 ενέργειες × 2 πλευρές), σύνολο 46,5K, ελεύθερα ~1,5K. Για την Ανθή χρειάζεται χώρος: ενέργειες μόνο προς μία πλευρά (~4K λιγότερα), λιγότερες πόζες ή φόρτωση ανά περιοχή.
+**Προϋπολογισμός sprites:** κοινά στις banks 4 + 6 (32K): Bill ~10,1K, πελάτες ~20,7K, σύνολο 30,8K. Η bank 7 (16K) έχει τα sprites της περιοχής που βλέπει η κάμερα: κουζίνα 15K (Ελευθερία), αποθήκη (Ανθή).
 
 **Φόρτωση:**
 - Το `CWL.BIN` φορτώνεται στο `&0100`. Τα δεδομένα της bank 5 είναι «σταθμευμένα» στο `&4000` και στο boot το `mem_relocate` τα μεταφέρει στη bank και καθαρίζει το `&4000`–`&FFFF`.
-- Πριν από αυτό το `load_banks` φορτώνει τα `SPRn.DAT` (system files στο δίσκο) κατευθείαν στις banks με το firmware (`CAS IN OPEN/DIRECT/CLOSE`, αφού ξανά-αρχικοποιήσει το AMSDOS με `KL INIT BACK`, γιατί ένα binary που ξεκινά με `RUN"` βλέπει τα vectors της κασέτας). Νέο αρχείο bank προστίθεται στον πίνακα `bank_files` του [src/main.asm](src/main.asm).
+- **Φόρτωση ανά περιοχή** ([src/game/area.asm](src/game/area.asm), [src/engine/fdc.asm](src/engine/fdc.asm)):
+  - Όταν η κάμερα μπαίνει σε άλλη περιοχή, το `area_check` φορτώνει το `<ΠΕΡΙΟΧΗ>.SPR` στη bank 7. Στην πίστα δοκιμής η κουζίνα είναι sx < 60 και η αποθήκη sx > 140, με υστέρηση ανάμεσα.
+  - Χωρίς firmware: δικός μας οδηγός για τον µPD765 με polling. Διαβάζει τον κατάλογο του AMSDOS (track 0, &C1–&C4), μαζεύει τα blocks όλων των extents του αρχείου, και διαβάζει κάθε σειρά συνεχόμενων sectors ενός track με μία εντολή Read Data.
+  - Η μεταφορά δεν σηκώνει interrupts (ένα byte κάθε 32 µs), οπότε η οθόνη μαυρίζει για ~1 s (`crtc_plain`: κανονικό frame, όλα τα pens μαύρα). Μετά το `view_restart` ξαναστήνει την προβολή, όπως στο boot.
+  - Για τεστ: `-DTEST_AREA=n` φορτώνει την περιοχή n−1 μετά το boot, `-DAREAS=0` απενεργοποιεί τη φόρτωση, `-DFDC_DEBUG=1` δείχνει το στάδιο στο border.
+- Πριν από αυτό το `load_banks` φορτώνει τα `SPRn.DAT` και την πρώτη περιοχή (`KITCHEN.SPR`, system files στο δίσκο) κατευθείαν στις banks με το firmware (`CAS IN OPEN/DIRECT/CLOSE`, αφού ξανά-αρχικοποιήσει το AMSDOS με `KL INIT BACK`, γιατί ένα binary που ξεκινά με `RUN"` βλέπει τα vectors της κασέτας). Νέο αρχείο bank προστίθεται στον πίνακα `bank_files` του [src/main.asm](src/main.asm).
 
 ## 5. Κείμενα και γλώσσες
 
