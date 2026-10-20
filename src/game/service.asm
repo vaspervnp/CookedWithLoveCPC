@@ -7,6 +7,12 @@
 ; pass; fire at the pass: the plates on Bill's tray; fire at the table:
 ; served, they eat; then fire at the table: they pay and leave.
 ;
+; Patience: GR_P (255 at the start) goes down while they wait for Bill (in
+; the queue, to order, for the food, to pay): a point every PAT_RATE ticks,
+; about a minute from full to nothing; every service step refills
+; PAT_REFILL. Below PAT_ANGRY the bubble is the angry one; at 0 they leave
+; without paying. The tip is GR_P / 32 (0-7).
+;
 ; The customers are a pool (cust_list, src/game/customer.asm): a group uses
 ; GR_N consecutive records from GR_FIRST. A customer walks to (CU_TX, CU_TY)
 ; (sprite left/top), CU_DX = 1 while walking (walk animation).
@@ -36,7 +42,10 @@ GR_N		equ 1		; customers
 GR_FIRST	equ 2		; first customer (index in the pool)
 GR_TABLE	equ 3
 GR_T		equ 4		; timer (ticks)
-GR_SIZE		equ 8
+GR_P		equ 6		; patience
+GR_PT		equ 7		; ticks to the next point lost
+GR_MOOD		equ 8		; bubble of the state (angry: shown instead)
+GR_SIZE		equ 16
 
 ; entrance (level 1: the mats at metatiles 8-9 of the bottom row)
 DOOR_X		equ 128		; customer sprite left/top
@@ -54,6 +63,9 @@ KITCHEN_T	equ 500		; cooking: 10 s
 EAT_T		equ 600		; eating: 12 s
 PRICE		equ 12		; per customer
 BUBBLE_T	equ 50		; Bill's notepad bubble after taking an order
+PAT_RATE	equ 12
+PAT_REFILL	equ 96
+PAT_ANGRY	equ 64
 
 groups:		ds G_MAX*GR_SIZE,0
 tb_busy:	ds TABLE_COUNT,0	; group + 1 at the table, 0 = free
@@ -68,6 +80,7 @@ bill_carry:	db 0		; group + 1 whose plates Bill carries
 sv_bub_t:	db 0
 sv_money:	dw 0
 sv_served:	dw 0		; customers who paid
+sv_lost:	dw 0		; customers who left angry
 sv_min:		dw 12*60	; time of day (minutes)
 sv_sec:		db 0		; ticks of the current game minute
 
@@ -369,6 +382,9 @@ sv_spawn:
 	djnz .chk
 	ld (ix+GR_FIRST),c
 	ld (ix+GR_STATE),GS_ARRIVE
+	ld (ix+GR_P),255		; full patience
+	ld (ix+GR_PT),PAT_RATE
+	ld (ix+GR_MOOD),0
 	call sv_members			; in at the door, to the queue
 	ld hl,QUEUE_X
 .m:	push bc
@@ -402,7 +418,7 @@ sv_spawn:
 	djnz .m
 	ret
 .busy:	inc c
-	jr .try
+	jp .try
 .style:	call sv_rand			; 0-2
 	and 3
 	cp 3
@@ -412,7 +428,24 @@ sv_spawn:
 ; ---------------------------------------------------------------------------
 ; State of group IX.
 sv_group:
-	ld a,(ix+GR_STATE)
+	ld a,(ix+GR_STATE)		; waiting for Bill: patience goes
+	cp GS_QUEUE
+	jr z,.wait
+	cp GS_SEATED
+	jr c,.state
+	cp GS_EATING
+	jr z,.state
+	cp GS_LEAVING
+	jr nc,.state
+.wait:	dec (ix+GR_PT)
+	jr nz,.state
+	ld (ix+GR_PT),PAT_RATE
+	dec (ix+GR_P)
+	jp z,sv_angry
+	ld a,(ix+GR_P)
+	cp PAT_ANGRY-1
+	call z,sv_show_mood
+.state:	ld a,(ix+GR_STATE)
 	cp GS_ARRIVE
 	jr z,.arrive
 	cp GS_FOLLOW
@@ -514,15 +547,88 @@ sv_group:
 	ret nz
 	ld (ix+GR_STATE),GS_SEATED
 	ld a,MOOD_ORDER
+	ld (ix+GR_MOOD),a
 	; fall through
 
-; Mood A on the group's first customer (its bubble).
+; More patience (a service step), the bubble again.
+sv_refill:
+	ld a,(ix+GR_P)
+	add a,PAT_REFILL
+	jr nc,.n
+	ld a,255
+.n:	ld (ix+GR_P),a
+	jr sv_show_mood
+
+; Mood A of the group's state.
 sv_mood:
-	push af
+	ld (ix+GR_MOOD),a
+	; fall through
+
+; Its bubble on the group's first customer: the state's, or angry when
+; patience is low (while it has a bubble).
+sv_show_mood:
 	ld a,(ix+GR_FIRST)
 	call sv_cust
-	pop af
-	ld (iy+CU_MOOD),a
+	ld a,(ix+GR_MOOD)
+	or a
+	jr z,.set
+	ld a,(ix+GR_P)
+	cp PAT_ANGRY
+	ld a,MOOD_ANGRY
+	jr c,.set
+	ld a,(ix+GR_MOOD)
+.set:	ld (iy+CU_MOOD),a
+	ret
+
+; Out of patience: they leave without paying.
+sv_angry:
+	ld e,(ix+GR_N)
+	ld d,0
+	ld hl,(sv_lost)
+	add hl,de
+	ld (sv_lost),hl
+	ld a,MOOD_ANGRY
+	; fall through
+
+; The group leaves (mood A on the way): the table is free again, the
+; plates on Bill's tray for them are wasted, all walk to the door.
+sv_leave:
+	call sv_mood
+	ld a,(ix+GR_STATE)
+	cp GS_SEATING
+	jr c,.nt
+	ld hl,tb_busy
+	ld e,(ix+GR_TABLE)
+	ld d,0
+	add hl,de
+	ld (hl),0
+.nt:	push ix				; group + 1 = (IX - groups) / 16 + 1
+	pop hl
+	ld de,groups
+	or a
+	sbc hl,de
+	ld a,l
+	rrca
+	rrca
+	rrca
+	rrca
+	inc a
+	ld hl,bill_carry
+	cp (hl)
+	jr nz,.nc
+	xor a
+	ld (hl),a
+	ld (bill_plates),a
+.nc:	ld (ix+GR_STATE),GS_LEAVING
+	call sv_members
+.lv:	ld (iy+CU_SIT),0
+	ld (iy+CU_TX),DOOR_X&255
+	ld (iy+CU_TX+1),DOOR_X>>8
+	ld (iy+CU_TY),DOOR_Y&255
+	ld (iy+CU_TY+1),DOOR_Y>>8
+	ld de,CU_SIZE
+	add iy,de
+	djnz .lv
 	ret
 
 ; Z if customer IY is at its target
@@ -596,6 +702,7 @@ sv_dect:
 
 ; IX = group A
 sv_group_a:
+	add a,a
 	add a,a
 	add a,a
 	add a,a
@@ -696,7 +803,8 @@ sv_fire:
 	ld a,BUBBLE_T
 	ld (sv_bub_t),a
 	ld a,MOOD_FOOD
-	jp sv_mood
+	call sv_mood
+	jp sv_refill
 .serve:	cp GS_CARRIED
 	jr nz,.pay
 	ld a,G_MAX			; their plates on Bill's tray?
@@ -713,12 +821,20 @@ sv_fire:
 	ld (ix+GR_T),EAT_T&255
 	ld (ix+GR_T+1),EAT_T>>8
 	ld a,MOOD_HAPPY
-	jp sv_mood
-.pay:	ld b,(ix+GR_N)			; money, the table is free, out
+	call sv_mood
+	jp sv_refill
+.pay:	ld b,(ix+GR_N)			; money and tip, the table is free, out
 	ld hl,(sv_money)
 	ld de,PRICE
 .pm:	add hl,de
 	djnz .pm
+	ld a,(ix+GR_P)
+	rlca
+	rlca
+	rlca
+	and 7
+	ld e,a
+	add hl,de
 	ld (sv_money),hl
 	ld e,(ix+GR_N)
 	ld d,0
@@ -729,24 +845,8 @@ sv_fire:
 	call sv_hud_money
 	call sv_hud_served
 	pop ix
-	ld hl,tb_busy
-	ld e,(ix+GR_TABLE)
-	ld d,0
-	add hl,de
-	ld (hl),0
-	ld (ix+GR_STATE),GS_LEAVING
 	xor a
-	call sv_mood
-	call sv_members
-.lv:	ld (iy+CU_SIT),0
-	ld (iy+CU_TX),DOOR_X&255
-	ld (iy+CU_TX+1),DOOR_X>>8
-	ld (iy+CU_TY),DOOR_Y&255
-	ld (iy+CU_TY+1),DOOR_Y>>8
-	ld de,CU_SIZE
-	add iy,de
-	djnz .lv
-	ret
+	jp sv_leave
 .queue:					; next to the queue: they follow
 	ld ix,groups
 	ld b,G_MAX
