@@ -73,7 +73,8 @@ FINE_Y	equ 1
 	include "engine/defs.asm"
 
 STACK_TOP	equ #0100
-MAX_TICKS	equ 4		; game ticks run per drawn frame at most
+MAX_TICKS	equ 4		; game ticks run per drawn frame at most (test modes)
+FRAME_VBL	equ 4		; the game: a frame every 4 VBLs = 12.5 fps
 
 	org #0100
 	buildcpc
@@ -211,6 +212,7 @@ main_loop:
 	out (c),a
 	endif
 
+	if TESTMODE
 	; ticks since the last update (1..MAX_TICKS)
 	ld a,(last_frame)
 	ld b,a
@@ -223,6 +225,24 @@ main_loop:
 	jr c,.t2
 	ld a,MAX_TICKS
 .t2:	ld (ticks),a
+	else
+	; fixed rate: a frame every FRAME_VBL VBLs (12.5 fps), FRAME_VBL ticks
+.pace:	ld a,(last_frame)
+	ld b,a
+	ld a,(frame_count)
+	sub b
+	cp FRAME_VBL
+	jr c,.pace
+	cp FRAME_VBL*2			; a frame late: start counting again
+	ld a,b
+	jr c,.ph
+	ld a,(frame_count)
+	sub FRAME_VBL
+.ph:	add a,FRAME_VBL
+	ld (last_frame),a
+	ld a,FRAME_VBL
+	ld (ticks),a
+	endif
 
 	if TESTMODE
 	call test_path_input

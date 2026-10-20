@@ -25,7 +25,9 @@ FOOT_T		equ -5
 ; camera dead-zone (feet position on screen)
 CAM_L		equ 60
 CAM_R		equ 100
+	ifndef CAM_T			; (tests: smaller puts Bill in the partial top row)
 CAM_T		equ 80
+	endif
 CAM_B		equ 128
 
 actor_init:
