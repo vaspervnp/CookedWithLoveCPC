@@ -8,7 +8,9 @@ outline) with the colours of that style, and its band is cut out: head lines
 0-19, body 20-33, legs 34-47. Output sheets have one row per style and 9
 frames per row (down, up, right x idle, walk 1, walk 2), the layout
 tools/spritec.py expects (GROUP 9, MIRROR_FROM 6). Any head combines with any
-body and legs.
+body and legs. The sitting legs (cust_sit, legs colours) are only seen in
+profile: one frame per row (right; GROUP 1, MIRROR_FROM 0). Facing down the
+table hides them, facing up the body does.
 
 Usage: custparts.py <render dir> <out dir> [--preview out.png]
 """
@@ -22,8 +24,9 @@ from PIL import Image
 import render2sprite as r2s
 from cpc import fw_to_rgb, load_palette
 
-SPLIT = {"head": (0, 20), "body": (20, 34), "legs": (34, 48)}
+SPLIT = {"head": (0, 20), "body": (20, 34), "legs": (34, 48), "sit": (34, 48)}
 DIRS = ("down", "up", "right")
+SIT_DIRS = ("right",)        # sitting facing down/up the legs are not drawn
 POSES = 3
 
 # materials of the renders (same order as MATS in customer_build.py)
@@ -54,6 +57,8 @@ STYLES = {
 
 def convert(renders, feats, part, style, d, i):
     tag = f"{part}{style}_{d}{i}"
+    if part == "sit":
+        part = "legs"                           # the legs' colours
     idi = Image.open(os.path.join(renders, f"id_{tag}.png")).convert("RGBA")
     shi = Image.open(os.path.join(renders, f"shade_{tag}.png")).convert("RGBA")
     saved = (r2s.MATS, dict(r2s.RAMP), dict(r2s.PRIORITY))
@@ -89,12 +94,14 @@ def main():
     feats = json.load(open(os.path.join(args.renders, "features.json")))
     sheets = {}
     for part, (y0, y1) in SPLIT.items():
-        n = len(STYLES[part])
-        sheet = Image.new("RGBA", (32 * POSES * len(DIRS), (y1 - y0) * n), (0, 0, 0, 0))
+        n = len(STYLES["legs" if part == "sit" else part])
+        poses = 1 if part == "sit" else POSES
+        dirs = SIT_DIRS if part == "sit" else DIRS
+        sheet = Image.new("RGBA", (32 * poses * len(dirs), (y1 - y0) * n), (0, 0, 0, 0))
         for st in range(n):
             col = 0
-            for d in DIRS:
-                for i in range(POSES):
+            for d in dirs:
+                for i in range(poses):
                     px = convert(args.renders, feats, part, st, d, i)
                     for y in range(y0, y1):
                         for x in range(32):

@@ -62,6 +62,7 @@ SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 	cust_head:assets/sprites/cust_head.png:20:9:6 \
 	cust_body:assets/sprites/cust_body.png:14:9:6::20 \
 	cust_legs:assets/sprites/cust_legs.png:14:9:6::34 \
+	cust_sit:assets/sprites/cust_sit.png:14:1:0::34 \
 	tray:assets/sprites/tray.png:12:6:3:::b5 \
 	bubble:assets/sprites/bubble.png:14:::::b5 \
 	liberty:assets/sprites/liberty.png:48:9:6:::kitchen \

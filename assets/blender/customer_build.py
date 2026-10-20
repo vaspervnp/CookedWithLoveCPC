@@ -6,7 +6,8 @@ its own scene "CWL_Customer" with objects named "CUST_*".
 A customer is three parts that combine freely (tools/custparts.py cuts them
 out of the renders): head (sprite lines 0-19), body (20-33) and legs (34-47).
 Each style of a part is its own set of objects; for every style, direction
-(down, up, right) and pose (idle, walk 1, walk 2) only that style's objects
+(down, up, right) and pose (idle, walk 1, walk 2; sitting legs sit<k>: only
+in profile, idle) only that style's objects
 (plus the neck, shared by head and body so the seam closes) are rendered:
   id_<part><style>_<dir><pose>.png    flat emission colour per material
   shade_<part><style>_<dir><pose>.png white diffuse lit by a sun
@@ -174,6 +175,8 @@ HIP_Z = 1.16         # legs pivot
 HEM_Z = 1.07         # bottom of every top: sprite line ~34
 SHOULDER_Z = 1.93
 HEAD_Z = 2.78
+SIT_THIGH = 0.72     # sitting: hip to knee
+SIT_SHIN = 0.48      # knee to the sole
 
 
 def build(sc):
@@ -200,6 +203,29 @@ def build(sc):
     mesh_obj(sc, "l0_seat", cyl(0.42, 0.4, 0.2, 0.62), "bottom", (0, 0, HIP_Z + 0.1), body, "legs0")
     mesh_obj(sc, "l1_skirt", cyl(0.44, 0.6, 0.62, 0.7), "bottom", (0, 0, HIP_Z + 0.1), body, "legs1")
     mesh_obj(sc, "l2_seat", cyl(0.43, 0.42, 0.2, 0.62), "bottom", (0, 0, HIP_Z + 0.1), body, "legs2")
+
+    # ---- the same styles sitting: thighs forward, shins down (no chair:
+    # it is part of the background); feet higher than standing, the game
+    # draws the figure lower by SIT_DROP lines ----
+    for side, sx in (("l", 0.2), ("r", -0.2)):
+        th = empty(sc, "thigh_" + side, (sx, 0, HIP_Z), body)
+        th.rotation_euler = (math.radians(-90), 0, 0)
+        knee = empty(sc, "knee_" + side, (sx, -SIT_THIGH, HIP_Z - 0.02), body)
+        mesh_obj(sc, "s0_thigh_" + side, cyl(0.2, 0.19, SIT_THIGH + 0.1), "bottom", (0, 0, 0.1), th, "sit0")
+        mesh_obj(sc, "s0_shin_" + side, cyl(0.18, 0.16, SIT_SHIN), "bottom", (0, 0, 0.05), knee, "sit0")
+        mesh_obj(sc, "s0_shoe_" + side, sphere(0.2, (1.0, 1.75, 0.65)), "shoes", (0, -0.1, -SIT_SHIN - 0.04), knee, "sit0")
+        mesh_obj(sc, "s1_thigh_" + side, cyl(0.15, 0.13, SIT_THIGH + 0.1), "skin", (0, 0, 0.1), th, "sit1")
+        mesh_obj(sc, "s1_shin_" + side, cyl(0.12, 0.11, SIT_SHIN), "skin", (0, 0, 0.0), knee, "sit1")
+        mesh_obj(sc, "s1_shoe_" + side, sphere(0.17, (1.0, 1.6, 0.6)), "shoes", (0, -0.08, -SIT_SHIN - 0.05), knee, "sit1")
+        mesh_obj(sc, "s2_thigh_" + side, cyl(0.21, 0.21, SIT_THIGH + 0.1), "bottom", (0, 0, 0.1), th, "sit2")
+        mesh_obj(sc, "s2_shin_" + side, cyl(0.2, 0.2, SIT_SHIN - 0.08), "bottom", (0, 0, 0.05), knee, "sit2")
+        mesh_obj(sc, "s2_cuff_" + side, cyl(0.21, 0.21, 0.08), "trim", (0, 0, -SIT_SHIN + 0.04), knee, "sit2")
+        mesh_obj(sc, "s2_shoe_" + side, sphere(0.2, (1.0, 1.8, 0.6)), "shoes", (0, -0.1, -SIT_SHIN - 0.04), knee, "sit2")
+    mesh_obj(sc, "s0_seat", cyl(0.42, 0.4, 0.2, 0.62), "bottom", (0, 0, HIP_Z + 0.1), body, "sit0")
+    lap = cyl(0.5, 0.5, 0.2, 0.75)                 # the skirt over the thighs
+    mesh_obj(sc, "s1_skirt", cyl(0.44, 0.5, 0.22, 0.7), "bottom", (0, 0, HIP_Z + 0.1), body, "sit1")
+    mesh_obj(sc, "s1_lap", lap, "bottom", (0, -0.28, HIP_Z + 0.12), body, "sit1")
+    mesh_obj(sc, "s2_seat", cyl(0.43, 0.42, 0.2, 0.62), "bottom", (0, 0, HIP_Z + 0.1), body, "sit2")
 
     # ---- body styles: top from the shoulders to the hem, arms ----
     top_h = 2.12 - HEM_Z
@@ -341,7 +367,8 @@ def render_all(sc, only=None):
     feats = {}
     sets = ([("head%d" % k, ("head%d" % k, "neck")) for k in range(HEADS)]
             + [("body%d" % k, ("body%d" % k, "neck")) for k in range(BODIES)]
-            + [("legs%d" % k, ("legs%d" % k,)) for k in range(LEGS)])
+            + [("legs%d" % k, ("legs%d" % k,)) for k in range(LEGS)]
+            + [("sit%d" % k, ("sit%d" % k,)) for k in range(LEGS)])
     fpath = os.path.join(OUT, "features.json")
     if only and os.path.exists(fpath):
         feats = json.load(open(fpath))
@@ -349,9 +376,9 @@ def render_all(sc, only=None):
         if only and name not in only:
             continue
         show(groups)
-        for dname, rot in DIRS:
+        for dname, rot in (DIRS[2:] if name.startswith("sit") else DIRS):
             root.rotation_euler = (0, 0, math.radians(rot))
-            for i, (leg, arm, bob) in enumerate(POSES):
+            for i, (leg, arm, bob) in enumerate(POSES[:1] if name.startswith("sit") else POSES):
                 pose(sc, leg, arm, bob)
                 bpy.context.view_layer.update()
                 tag = "%s_%s%d" % (name, dname, i)
