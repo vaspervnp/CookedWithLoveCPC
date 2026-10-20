@@ -52,9 +52,9 @@ SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 $(BUILD)/spr.asm: $(foreach s,$(SHEETS),$(word 2,$(subst :, ,$(s)))) tools/spritec.py tools/png2cpc.py tools/cpc.py data/palette.txt | $(BUILD)
 	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6,7
 
-# Customer part sheets from the character renders (placeholder recolours)
+# Customer part sheets from the customer renders (assets/blender/customer_build.py)
 parts:
-	$(PYTHON) tools/mkparts.py $(BUILD)/render/bill assets/sprites
+	$(PYTHON) tools/custparts.py $(BUILD)/render/cust assets/sprites
 
 $(BUILD)/cwl_en.bin: $(SRC) $(GEN) FORCE
 	$(RASM) src/main.asm -Isrc -I$(BUILD) -DLANG_EN=1 $(RASMFLAGS) -ob $@ -os $(BUILD)/cwl_en.sym -s
