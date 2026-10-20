@@ -48,11 +48,22 @@ DEMO	equ 0
 	ifndef DBGPOS
 DBGPOS	equ DEMO
 	endif
+	ifndef MAP_TEST			; 1: the scroll test map, 0: level 1
+MAP_TEST	equ TESTMODE
+	endif
 	ifndef BILL_X0			; start position (tests)
+	if MAP_TEST
 BILL_X0	equ 96
+	else
+BILL_X0	equ 152			; level 1: in the dining room, by the entrance
+	endif
 	endif
 	ifndef BILL_Y0
+	if MAP_TEST
 BILL_Y0	equ 110
+	else
+BILL_Y0	equ 600
+	endif
 	endif
 	ifndef AREAS			; 0: no area loading (sprite tests)
 AREAS	equ 1
@@ -80,6 +91,11 @@ FINE_Y	equ 1
 	endif
 
 	include "engine/defs.asm"
+	if MAP_TEST			; SOLID_FIRST of the map
+	include "test.asm"
+	else
+	include "lvl1.asm"
+	endif
 
 STACK_TOP	equ #0100
 MAX_TICKS	equ 4		; game ticks run per drawn frame at most (test modes)
@@ -696,13 +712,22 @@ code_end:
 ; --- bank 5: map and tiles (staged at &4000 in base RAM) ---
 	org #4000
 bank5_start:
+	if MAP_TEST
 meta_data:				; 4 planes of 256 (tools/maps2asm.py), 1K
 	incbin "test_meta.bin"		; aligned: the plane is picked with xor
-	assert (meta_data&#3FF)==0
 tile_data:				; (aligned: draw_char)
 	incbin "test_tiles.bin"
 map_data:
 	incbin "test_map.bin"
+	else
+meta_data:
+	incbin "lvl1_meta.bin"
+tile_data:
+	incbin "lvl1_tiles.bin"
+map_data:
+	incbin "lvl1_map.bin"
+	endif
+	assert (meta_data&#3FF)==0
 
 	; game logic that runs with bank 5 mapped (game ticks: the map for
 	; collisions; adding sprites in render, after buffer_sync)

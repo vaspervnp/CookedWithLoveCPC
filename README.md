@@ -100,9 +100,12 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 
 ### 3.4 Tiles και χάρτες
 - Tile: 8×8 pixels (4 bytes × 8 γραμμές = 32 bytes). Ταιριάζει ακριβώς με 2 CRTC chars πλάτος και 1 row ύψος.
-- Metatile: 16×16 pixels (2×2 tiles) για τον σχεδιασμό χαρτών.
-- Χάρτης πίστας: 40×42 metatiles = 1680 bytes (πριν τη συμπίεση).
-- Κάθε tile έχει attributes: εμπόδιο, περιοχή (εστιατόριο/κουζίνα/αποθήκη), αντικείμενο αλληλεπίδρασης (τραπέζι, καρέκλα, φούρνος, ράφι...), κλειδωμένη περιοχή επέκτασης.
+- Metatile: 16×16 pixels (2×2 tiles). Ο χάρτης στη μνήμη είναι **40×42 metatiles = 1680 bytes** (αντί για 6,7K σε tiles) ([src/engine/scroll.asm](src/engine/scroll.asm)):
+  - `meta_data`: 4 «επίπεδα» των 256 bytes, ευθυγραμμισμένα στο 1K. Το επίπεδο k = 2·(γραμμή tile & 1) + (στήλη tile & 1) έχει το tile αυτού του τεταρτημορίου κάθε metatile, οπότε η αναζήτηση είναι `ld l,metatile : ld h,επίπεδο : ld a,(hl)` και το επόμενο τεταρτημόριο ένα `xor 1`/`xor 2` στο `h`.
+  - `tile_data`: τα tiles (έως 256, 32 bytes το καθένα), `map_data`: ο χάρτης.
+- Εμπόδιο: tile ≥ `SOLID_FIRST` (τα tiles ταξινομούνται: πρώτα όσα περπατιούνται). Τα υπόλοιπα attributes (περιοχή, αντικείμενο αλληλεπίδρασης, κλειδωμένη επέκταση) θα έρθουν με το gameplay.
+- **Πίστα 1** ([assets/maps/level1.txt](assets/maps/level1.txt)): ένας χαρακτήρας ανά metatile, με υπόμνημα στο `assets/tiles/restaurant.txt`. Αριστερά η τραπεζαρία (κλειστή επέκταση πάνω από το σχοινί, είσοδος κάτω), στη μέση η κουζίνα (πάσο προς την τραπεζαρία, κλειστό κάτω μέρος), δεξιά η αποθήκη (θυρίδα προς την κουζίνα, πόρτα παραλαβής). Οι πελάτες κάθονται **στο πλάι** των τραπεζιών, στο προφίλ (`<t>` για 2, `<T>` πάνω από `<U>` για 4): έτσι οι φιγούρες δεν σκεπάζουν το τραπέζι (είναι 3 φορές ψηλότερες από ένα metatile).
+- Τα test builds (`TEST_X/TEST_Y/TEST_PATH`) και οι έλεγχοι sprites χρησιμοποιούν τον χάρτη δοκιμής (`-DMAP_TEST=1`).
 
 ### 3.5 Sprites — υλοποιημένο στο M2 ([src/engine/sprite.asm](src/engine/sprite.asm), [tools/spritec.py](tools/spritec.py))
 - Χαρακτήρες **32×48 pixels** (16 bytes × 48 γραμμές), pen 0 διάφανο. Όλα τα sprites είναι **precompiled**.
@@ -155,7 +158,7 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 | `&8000–&BFFF` | Οθόνη playfield, buffer 0 (ring 1024 words) |
 | `&C000–&FFFF` | Οθόνη playfield, buffer 1 |
 | bank 4 (`&C4`) | Compiled sprites (STEP, stubs SAVE, ρουτίνες γραμμών, προγράμματα frames, spans) |
-| bank 5 (`&C5`) | `&4000`–`&6EFF`: χάρτης πίστας και tiles, και ο κώδικας του παιχνιδιού που τρέχει με τη bank 5 ενεργή (πελάτες, προσωπικό, αντικείμενα· ~2,9K ελεύθερα). Ο κοινός κώδικας (&0100–&1FEF) είναι σχεδόν γεμάτος, οπότε η λογική του παιχνιδιού μπαίνει εδώ. `&6F00`–`&7FFF`: η σταθερή εικόνα sprites `b5` (δίσκος του Bill, φούσκες, `B5.SPR`) |
+| bank 5 (`&C5`) | `&4000`–`&6EFF`: χάρτης πίστας (metatiles 1K, tiles 3,1K, χάρτης 1,6K), και ο κώδικας του παιχνιδιού που τρέχει με τη bank 5 ενεργή (πελάτες, προσωπικό, αντικείμενα· ~5,1K ελεύθερα). Ο κοινός κώδικας (&0100–&1FEF) είναι σχεδόν γεμάτος, οπότε η λογική του παιχνιδιού μπαίνει εδώ. `&6F00`–`&7FFF`: η σταθερή εικόνα sprites `b5` (δίσκος του Bill, φούσκες, `B5.SPR`) |
 | bank 6 (`&C6`) | Compiled sprites (συνέχεια): κοινά (Bill, πελάτες) |
 | bank 7 (`&C7`) | Sprites της περιοχής: μία «εικόνα» ανά περιοχή (κουζίνα: Ελευθερία, αποθήκη: Ανθή), από τον δίσκο |
 
@@ -206,7 +209,9 @@ assets/blender/bill_build.py        tools/render2sprite.py          tools/sprite
 
 ### Tiles, χάρτες, κείμενα
 - **tools/png2cpc.py**: PNG → Mode 0 bytes (sprites, tiles, γραμματοσειρές), με έλεγχο palette. Για sprites το αδιαφανές μαύρο γίνεται pen 14.
-- **tools/maps2asm.py** (μελλοντικό): χάρτες → metatile maps + attributes.
+- **tools/mktileset.py** (`make tiles`): το tileset του εστιατορίου ως pixel art από κώδικα (metatiles 16×16 με το πάτωμά τους από κάτω, στο `assets/tiles/restaurant.png` και `.txt`: χαρακτήρας χάρτη, όνομα, εμπόδιο ανά τεταρτημόριο).
+- **tools/buildmap.py**: tileset + πίστα (`assets/maps/*.txt`) → μοναδικά tiles 8×8 (πρώτα όσα περπατιούνται, μετά τα εμπόδια: `SOLID_FIRST` στο `build/lvl1.asm`) και χάρτης tiles 80×84.
+- **tools/maps2asm.py**: χάρτης tiles → metatiles 2×2 (`build/<map>_map.bin`, `_meta.bin`, `_tiles.bin`). Ο χάρτης δοκιμής περνά από το ίδιο εργαλείο.
 - Η συμπίεση θα γίνεται από τον RASM (ZX0) κατά το build.
 
 ## 7. Δομή φακέλων
@@ -273,4 +278,4 @@ python3 tools/png2cpc.py tiles.png tiles.bin --layout tiles    # 8x8 tiles, 32 b
 - `-DTEST_PATH=3` κάνει συνεχές bounce μεταξύ (0,0) και (TEST_X, TEST_Y), για δοκιμές σε άλλους emulators ή σε πραγματικό CPC.
 - Το R3 trick πρέπει να δοκιμαστεί σε πραγματικό CPC/monitor. Για περιπτώσεις που δεν δουλεύει υπάρχουν τα fallbacks `FINE_X=0` / `FINE_Y=0`.
 - Debug build (`make DEBUG=1`): το border γίνεται λευκό όσο δουλεύει ο main loop, για μέτρηση του χρόνου CPU.
-- **Sprites/παιχνίδι:** το `-DDEMO=1` κάνει τον Bill να περπατά μόνος του με σενάριο. Η debug γραμμή (HUD line 0) δείχνει κάμερα, θέση και frame του sprite και χρόνους σταδίων. Το `tools/gamecheck.py` αποδίδει την αναμενόμενη εικόνα (χάρτης + sprite), τη συγκρίνει pixel-pixel και ελέγχει ότι τα πόδια δεν είναι μέσα σε εμπόδιο. Το `-DCLONES=n` προσθέτει αντίγραφα του Bill για stress test. Το `-DCUSTOMERS=0` βγάζει τους δοκιμαστικούς πελάτες (το `gamecheck` ξέρει μόνο τον Bill). Το `tools/custcheck.py` ελέγχει pixel-pixel τους ακίνητους πελάτες σε κανονικό build. Το `tools/spritetest.sh` τρέχει όλους τους ελέγχους sprites (και τον Bill στην πάνω μερική γραμμή, με `-DCAM_T=40`). Τα `-DBILL_X0=x -DBILL_Y0=y -DDBGPOS=1` ξεκινούν τον Bill σε δοσμένη θέση (π.χ. `BILL_X0=100 BILL_Y0=232` για γραμμές που τυλίγουν στο 2K block).
+- **Sprites/παιχνίδι:** το `-DDEMO=1` κάνει τον Bill να περπατά μόνος του με σενάριο. Η debug γραμμή (HUD line 0) δείχνει κάμερα, θέση και frame του sprite και χρόνους σταδίων. Το `tools/gamecheck.py` αποδίδει την αναμενόμενη εικόνα (χάρτης + sprite), τη συγκρίνει pixel-pixel και ελέγχει ότι τα πόδια δεν είναι μέσα σε εμπόδιο. Το `-DCLONES=n` προσθέτει αντίγραφα του Bill για stress test. Το `-DCUSTOMERS=0` βγάζει τους δοκιμαστικούς πελάτες (το `gamecheck` ξέρει μόνο τον Bill). Το `tools/custcheck.py` ελέγχει pixel-pixel τους ακίνητους πελάτες (build με `-DMAP_TEST=1`). Το `tools/spritetest.sh` τρέχει όλους τους ελέγχους sprites (και τον Bill στην πάνω μερική γραμμή, με `-DCAM_T=40`). Τα `-DBILL_X0=x -DBILL_Y0=y -DDBGPOS=1` ξεκινούν τον Bill σε δοσμένη θέση (π.χ. `BILL_X0=100 BILL_Y0=232` για γραμμές που τυλίγουν στο 2K block).

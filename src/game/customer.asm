@@ -40,6 +40,15 @@ cust_list:
 	dw 40,70 : db 2,0,1,DIR_RIGHT,  1, 5, 60, 0, 0
 	dw 90,100 : db 1,1,1,DIR_LEFT, -1, 5, 60, 0, 0
 	dw 60,120 : db 2,2,2,DIR_RIGHT, 1, 5, 60, 0, 0
+	elseif MAP_TEST==0		; level 1: at the tables of the dining room
+CU_COUNT	equ 4
+cust_list:
+	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit
+	; on a chair at metatile (mx, my): x = 16*mx - 8, y = 16*my - 30
+	dw 24,306 : db 0,1,2,DIR_RIGHT, 0, 0, 0, MOOD_HAPPY, 1	; table for 2 at (3,21)
+	dw 56,306 : db 1,2,1,DIR_LEFT,  0, 0, 0, MOOD_WAIT, 1
+	dw 184,386 : db 2,0,1,DIR_RIGHT, 0, 0, 0, MOOD_FOOD, 1	; table for 4 at (13,26)
+	dw 40,352 : db 2,2,0,DIR_RIGHT, 1, 20, 130, 0, 0	; walking the aisle (row 24)
 	else
 CU_COUNT	equ 4
 cust_list:

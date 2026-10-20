@@ -7,7 +7,7 @@ PYTHON ?= python3
 
 BUILD  := build
 SRC    := $(shell find src -name '*.asm')
-GEN    := $(BUILD)/palette.asm $(BUILD)/testtiles.bin $(BUILD)/test_map.bin $(BUILD)/spr.asm
+GEN    := $(BUILD)/palette.asm $(BUILD)/testtiles.bin $(BUILD)/test_map.bin $(BUILD)/lvl1_map.bin $(BUILD)/spr.asm
 
 LOAD   := 0100
 EXEC   := 0100
@@ -20,7 +20,7 @@ RASMFLAGS += $(EXTRA)
 
 FORCE:
 
-.PHONY: FORCE parts staff items all en gr run-en run-gr shot-en shot-gr palette clean
+.PHONY: FORCE parts staff items tiles all en gr run-en run-gr shot-en shot-gr palette clean
 
 all: en gr
 en: $(BUILD)/cwl_en.dsk
@@ -35,12 +35,21 @@ $(BUILD)/palette.asm: data/palette.txt tools/palette.py tools/cpc.py | $(BUILD)
 	$(PYTHON) tools/palette.py --asm $@ --gpl assets/palette/cwl.gpl
 
 $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
-	$(PYTHON) tools/mktestmap.py $@ $(BUILD)/testmap.bin $(BUILD)/testhud.bin
+	$(PYTHON) tools/mktestmap.py $@ $(BUILD)/testmap.bin $(BUILD)/testhud.bin --asm $(BUILD)/test.asm
 
 # Map in 16x16 metatiles: build/<map>_map.bin, _meta.bin, _tiles.bin (and
 # the plain _tilemap.bin for the screenshot checkers)
 $(BUILD)/test_map.bin: $(BUILD)/testtiles.bin tools/maps2asm.py
 	$(PYTHON) tools/maps2asm.py $(BUILD)/testtiles.bin $(BUILD)/testmap.bin $(BUILD)/test
+
+# Level 1: the map (assets/maps/level1.txt) on the restaurant tileset
+# (assets/tiles/restaurant.png/.txt, drawn by tools/mktileset.py: make tiles)
+$(BUILD)/lvl1_map.bin: assets/maps/level1.txt assets/tiles/restaurant.png assets/tiles/restaurant.txt tools/buildmap.py tools/maps2asm.py | $(BUILD)
+	$(PYTHON) tools/buildmap.py assets/tiles/restaurant.png assets/maps/level1.txt $(BUILD)/lvl1
+	$(PYTHON) tools/maps2asm.py $(BUILD)/lvl1_src_tiles.bin $(BUILD)/lvl1_src_map.bin $(BUILD)/lvl1
+
+tiles:
+	$(PYTHON) tools/mktileset.py assets/tiles
 
 # Sprite sheets, compiled together (shared banks, identical lines and frames
 # stored once): common code in banks 4, 6 -> build/spr_<bank>.dat, area

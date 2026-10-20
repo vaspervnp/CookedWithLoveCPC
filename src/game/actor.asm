@@ -15,7 +15,7 @@ SPEED_X		equ 160		; 1/256 px per tick
 SPEED_Y		equ 320		; 1/256 line per tick
 ANIM_STEP	equ 7		; distance units per walk frame
 
-SOLID_FIRST	equ 48		; tiles >= this block movement
+; tiles >= SOLID_FIRST block movement (from the map: build/test.asm, lvl1.asm)
 
 ; feet box relative to (x, y)
 FOOT_L		equ -6

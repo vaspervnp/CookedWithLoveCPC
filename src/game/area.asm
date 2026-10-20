@@ -4,11 +4,19 @@
 ; loaded with the FDC (src/engine/fdc.asm): the display stops (black, plain
 ; CRTC frame) for about a second and the view is rebuilt.
 ;
-; Test level: the kitchen is the left of the map, the storage the right;
-; between the two thresholds the loaded area stays (no ping-pong).
+; Between the two thresholds the loaded area stays (no ping-pong). Level 1:
+; dining room and kitchen are the kitchen area (screen columns 0-2), the
+; storage screen column 3; storage loads when the camera is well into it
+; (the kitchen is then out of view but for its right edge, where Liberty is
+; not drawn), the kitchen when the storage is out of view.
 
+	if MAP_TEST			; test map: kitchen left, storage right
 AREA_SX_KITCHEN	equ 60		; scroll x below: kitchen
 AREA_SX_STORAGE	equ 140		; scroll x above: storage
+	else
+AREA_SX_KITCHEN	equ 150		; camera left < 300 px: storage out of view
+AREA_SX_STORAGE	equ 190		; camera left > 380 px
+	endif
 AREA_HDR	equ 128		; AMSDOS header in front of the image
 
 area_cur:	db AREA_KITCHEN	; loaded at boot (load_banks)

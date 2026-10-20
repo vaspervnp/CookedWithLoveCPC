@@ -28,24 +28,32 @@ SR_SIZE		equ 17
 
 STAFF_N		equ 2
 
+	if MAP_TEST
+LIB_X0 equ 90 : LIB_Y0 equ 118 : LIB_WALK equ 60
+BLO_X0 equ 400 : BLO_Y0 equ 430 : BLO_WALK equ 70
+	else				; level 1: kitchen row 12, storage row 24
+LIB_X0 equ 344 : LIB_Y0 equ 160 : LIB_WALK equ 96
+BLO_X0 equ 520 : BLO_Y0 equ 352 : BLO_WALK equ 90
+	endif
+
 staff_list:
-	dw 90,118, lib_script : db 64,0 : dw lib_script
+	dw LIB_X0,LIB_Y0, lib_script : db 64,0 : dw lib_script
 	dw liberty_frames, 0, liberty_act_frames : db AREA_KITCHEN
-	dw 400,430, blo_script : db 70,0 : dw blo_script
+	dw BLO_X0,BLO_Y0, blo_script : db 70,0 : dw blo_script
 	dw blossom_frames, blossom_carry_frames, blossom_act_frames : db AREA_STORAGE
 
 lib_script:
-	db ST_ACT, 0, 0, 64		; chop
-	db ST_WALK, DIR_RIGHT, 1, 60
-	db ST_ACT, 1, 0, 64		; stir
-	db ST_WALK, DIR_LEFT, -1, 60
+	db ST_ACT, 0, 6, 64		; chop (counter to her left)
+	db ST_WALK, DIR_RIGHT, 1, LIB_WALK
+	db ST_ACT, 1, 0, 64		; stir (stove to her right)
+	db ST_WALK, DIR_LEFT, -1, LIB_WALK
 	db ST_ACT, 2, 6, 48		; oven, facing left
 	db #FF
 
 blo_script:
-	db ST_CARRY, DIR_RIGHT, 1, 70	; box to the shelf
+	db ST_CARRY, DIR_RIGHT, 1, BLO_WALK	; box to the shelf
 	db ST_ACT, 0, 0, 48		; onto the shelf (to her right)
-	db ST_WALK, DIR_LEFT, -1, 70
+	db ST_WALK, DIR_LEFT, -1, BLO_WALK
 	db ST_WALK, DIR_DOWN, 0, 16	; (turns to the viewer)
 	db #FF
 

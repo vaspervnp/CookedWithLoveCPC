@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Check the still test customers (src/game/customer.asm) in a CPCEC shot
-of a build with the camera at 0,0: every pixel of each figure (head + body +
+of a build with the camera at 0,0 (make en EXTRA=-DMAP_TEST=1): every pixel of each figure (head + body +
 legs parts from the cust_* sheets) must be on screen as expected. Sitting,
 the figure is SIT_DROP lines lower, with the cust_sit legs in profile and
 none facing down.
