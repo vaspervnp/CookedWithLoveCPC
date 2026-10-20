@@ -345,7 +345,10 @@ cl_x:	dw 0
 cl_y:	dw 0
 cl_f:	dw 0
 	else
-	jp sprites_add
+	ld (tray_x),de
+	ld (tray_y),bc
+	call sprites_add
+	jp tray_sprite
 	endif
 
 dbg_frame:	db 0

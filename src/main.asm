@@ -97,15 +97,18 @@ FRAME_VBL	equ 4		; the game: a frame every 4 VBLs = 12.5 fps
 ; RAM config (the file is loaded at &4000 in that bank).
 	include "spr.asm"		; frame descriptors (code in banks 4, 6, 7)
 
-bank_files:				; length, name, RAM config
+bank_files:				; length, name, RAM config, address
 	if SPR_BANKS&#10
-	db 8,"SPR4.DAT",RAM_C4
+	db 8,"SPR4.DAT",RAM_C4 : dw #4000
 	endif
 	if SPR_BANKS&#40
-	db 8,"SPR6.DAT",RAM_C6
+	db 8,"SPR6.DAT",RAM_C6 : dw #4000
+	endif
+	if SPR_FIXED_B5
+	db 6,"B5.SPR",RAM_C5 : dw #7000	; top of bank 5 (the rest: mem_relocate)
 	endif
 	if SPR_AREAS
-	db 11,"KITCHEN.SPR",RAM_C7	; the first area (others: src/game/area.asm)
+	db 11,"KITCHEN.SPR",RAM_C7 : dw #4000	; the first area (others: src/game/area.asm)
 	endif
 	db 0
 CAS_IN_OPEN	equ #BC77
@@ -135,11 +138,16 @@ load_banks:
 	ld b,GA_PORT
 	out (c),c
 	inc hl
+	ld e,(hl)			; load address
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld (lb_addr),de
 	ex (sp),hl			; (sp) = next entry, HL = name
 	ld b,a
 	ld de,CAS_BUFFER
 	call CAS_IN_OPEN
-	ld hl,#4000
+	ld hl,(lb_addr)
 	call CAS_IN_DIRECT
 	call CAS_IN_CLOSE
 	ld bc,GA_PORT*256+RAM_C0
@@ -650,6 +658,7 @@ hud_fill:
 	ret
 
 input:		db 0
+lb_addr:	dw 0
 render_n:	db 0
 ticks:		db 0
 last_frame:	db 0
@@ -696,7 +705,11 @@ map_data:
 	; collisions; adding sprites in render, after buffer_sync)
 	include "game/customer.asm"
 	include "game/staff.asm"
+	include "game/items.asm"
 bank5_end:
+	if SPR_FIXED_B5
+	assert bank5_end<=#7000,"bank 5 overlaps its sprites (&7000)"
+	endif
 	assert bank5_end<=#8000,"bank 5 full"
 	assert bank5_end-bank5_start<=#4000,"bank 5 staging too big"
 	print "bank 5 used: ",{hex}bank5_end-#4000

@@ -20,7 +20,7 @@ RASMFLAGS += $(EXTRA)
 
 FORCE:
 
-.PHONY: FORCE parts staff all en gr run-en run-gr shot-en shot-gr palette clean
+.PHONY: FORCE parts staff items all en gr run-en run-gr shot-en shot-gr palette clean
 
 all: en gr
 en: $(BUILD)/cwl_en.dsk
@@ -46,6 +46,9 @@ $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 #   cust_*      customer parts (head 20, body 14, legs 14 lines; YOFF = line of the
 #               part in the figure), one style per row with the same 9 frames;
 #               any head + body + legs combine
+#   tray        Bill's tray with 1-3 plates: front (facing down), side (right; left =
+#               mirror); bubble: mood bubbles (heart, angry, waiting, food, pay)
+#               (tools/items.py, make items)
 #   liberty     the cook: rows down / up / right x idle, walk 1, walk 2; left = mirror
 #   liberty_act chop 1-2, stir 1-2, oven 1-2 facing right, then the same mirrored
 #   blossom     the storage keeper: walk as liberty; blossom_carry the same with a
@@ -53,22 +56,29 @@ $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 #               the walk is used); blossom_act putting a box on a shelf to her
 #               right (2 frames, not mirrored: the storage image is full)
 # IMAGE (last field): the sheet goes into that area image of bank 7, a disk
-# file <IMAGE>.SPR loaded when the camera enters the area (src/game/area.asm)
+# file <IMAGE>.SPR loaded when the camera enters the area (src/game/area.asm);
+# image b5 is the top 4K of bank 5 (&7000), always resident (B5.SPR)
 SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 	cust_head:assets/sprites/cust_head.png:20:9:6 \
 	cust_body:assets/sprites/cust_body.png:14:9:6::20 \
 	cust_legs:assets/sprites/cust_legs.png:14:9:6::34 \
+	tray:assets/sprites/tray.png:12:6:3:::b5 \
+	bubble:assets/sprites/bubble.png:14:::::b5 \
 	liberty:assets/sprites/liberty.png:48:9:6:::kitchen \
 	liberty_act:assets/sprites/liberty_act.png:48:6:0:::kitchen \
 	blossom:assets/sprites/blossom.png:48:9:6:::storage \
 	blossom_carry:assets/sprites/blossom_carry.png:48:6:3:::storage \
 	blossom_act:assets/sprites/blossom_act.png:48:2::::storage
 $(BUILD)/spr.asm: $(foreach s,$(SHEETS),$(word 2,$(subst :, ,$(s)))) tools/spritec.py tools/png2cpc.py tools/cpc.py data/palette.txt | $(BUILD)
-	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6 --area-bank 7
+	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6 --area-bank 7 --fixed b5:5:0x7000:0x1000
 
 # Customer part sheets from the customer renders (assets/blender/customer_build.py)
 parts:
 	$(PYTHON) tools/custparts.py $(BUILD)/render/cust assets/sprites
+
+# Small add-on sprites (tray, mood bubbles), pixel art by code
+items:
+	$(PYTHON) tools/items.py assets/sprites
 
 # Staff sheets from their renders (assets/blender/<name>_build.py)
 staff:

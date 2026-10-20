@@ -17,7 +17,8 @@ CU_DIR		equ 7		; DIR_*
 CU_DX		equ 8		; walking: pixels per tick (signed, 0 = standing)
 CU_MIN		equ 9		; walking range (x / 2)
 CU_MAX		equ 10
-CU_SIZE		equ 11
+CU_MOOD		equ 11		; MOOD_* (src/game/items.asm)
+CU_SIZE		equ 12
 
 	ifndef CUST_BENCH
 CUST_BENCH	equ 0
@@ -26,20 +27,20 @@ CUST_BENCH	equ 0
 	if CUST_BENCH			; frame rate test: 5 walkers in the first view
 CU_COUNT	equ 5
 cust_list:
-	;  x,  y       head body legs dir        dx  min/2 max/2
-	dw 10,0 : db 0,1,2,DIR_RIGHT,   1, 5, 60
-	dw 120,30 : db 1,2,0,DIR_LEFT, -1, 5, 60
-	dw 40,70 : db 2,0,1,DIR_RIGHT,  1, 5, 60
-	dw 90,100 : db 1,1,1,DIR_LEFT, -1, 5, 60
-	dw 60,120 : db 2,2,2,DIR_RIGHT, 1, 5, 60
+	;  x,  y       head body legs dir        dx  min/2 max/2 mood
+	dw 10,0 : db 0,1,2,DIR_RIGHT,   1, 5, 60, 0
+	dw 120,30 : db 1,2,0,DIR_LEFT, -1, 5, 60, 0
+	dw 40,70 : db 2,0,1,DIR_RIGHT,  1, 5, 60, 0
+	dw 90,100 : db 1,1,1,DIR_LEFT, -1, 5, 60, 0
+	dw 60,120 : db 2,2,2,DIR_RIGHT, 1, 5, 60, 0
 	else
 CU_COUNT	equ 4
 cust_list:
-	;  x,  y       head body legs dir        dx  min/2 max/2
-	dw 100,10 : db 0,1,2,DIR_DOWN,  0, 0, 0
-	dw 20,60 : db 1,2,0,DIR_RIGHT,  1, 10, 75
-	dw 30,104 : db 2,0,1,DIR_RIGHT, 0, 0, 0
-	dw 140,112 : db 2,2,0,DIR_LEFT, -1, 50, 70
+	;  x,  y       head body legs dir        dx  min/2 max/2 mood
+	dw 100,10 : db 0,1,2,DIR_DOWN,  0, 0, 0, MOOD_HAPPY
+	dw 20,60 : db 1,2,0,DIR_RIGHT,  1, 10, 75, 0
+	dw 30,104 : db 2,0,1,DIR_RIGHT, 0, 0, 0, MOOD_FOOD
+	dw 140,112 : db 2,2,0,DIR_LEFT, -1, 50, 70, MOOD_WAIT
 	endif
 
 cust_anim:	db 0
@@ -128,7 +129,11 @@ cust_sprites:
 	ld e,a
 	ld d,(ix+CU_X+1)
 	ld bc,(cust_y)
+	push de
 	call sprites_add_z
+	pop de
+	ld bc,(cust_y)
+	call bubble_sprite
 	ld de,CU_SIZE
 	add ix,de
 	pop bc
