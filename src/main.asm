@@ -54,6 +54,9 @@ BILL_X0	equ 96
 	ifndef BILL_Y0
 BILL_Y0	equ 110
 	endif
+	ifndef DBGFPS			; debug band: render count instead of the sprite frame
+DBGFPS	equ 0
+	endif
 	ifndef CUSTOMERS		; test customers (combined parts)
 CUSTOMERS	equ 1
 	endif
@@ -258,6 +261,8 @@ main_loop:
 
 ; Draw a complete frame into buffer A and flag it for display.
 render:
+	ld hl,render_n			; renders so far (frame rate test)
+	inc (hl)
 	call scroll_select
 	if DBGPOS
 	call prof_start
@@ -284,7 +289,7 @@ render:
 	endif
 	RAM RAM_C0			; HUD sets (copy_top) are in the base &4000 page
 	call scroll_build_state
-	call copy_top
+	call copy_top_if
 	if DBGPOS
 	call prof_mark
 	call dbg_band
@@ -438,13 +443,29 @@ dbg_band:
 	ld e,0
 	ld a,(scr_sx)
 	call .byte
+	if DBGFPS			; frame rate test: stage times in whole bytes
+	ld hl,(prof_t)
+	call .word
+	ld hl,(prof_t+2)
+	call .word
+	ld a,(spr_n)			; sprites, of which drawn by the clipped path
+	ld h,a
+	ld a,(clip_count)
+	ld l,a
+	call .word
+	else
 	ld hl,(scr_sy)
 	call .word
 	ld hl,(spr_list+SE_X)
 	call .word
 	ld hl,(spr_list+SE_Y)
 	call .word
+	endif
+	if DBGFPS
+	ld a,(render_n)			; frame rate test: renders so far
+	else
 	ld a,(dbg_frame)
+	endif
 	call .byte
 	ld hl,prof_t			; 4 stage times (1/300 s), 4 bits each
 	ld a,(hl)
@@ -497,9 +518,11 @@ prof_mark:
 	or a
 	sbc hl,de
 	ld a,l
+	if DBGFPS==0			; 4 bits in the normal band
 	cp 16
 	jr c,.ok
 	ld a,15
+	endif
 .ok:	ld hl,(prof_ptr)
 	ld (hl),a
 	inc hl
@@ -570,6 +593,7 @@ hud_fill:
 	ret
 
 input:		db 0
+render_n:	db 0
 ticks:		db 0
 last_frame:	db 0
 hf_src:		db 0

@@ -1,13 +1,11 @@
 ; Customers: figures made of three compiled parts, head (20 lines), body (14)
 ; and legs (14), in any combination of styles (tools/mkparts.py, sheets
-; cust_head/cust_body/cust_legs). The three parts are added one under the
-; other with the depth key of the whole figure (its bottom line).
+; cust_head/cust_body/cust_legs). A customer is one sprite entry with the
+; three parts (their dy counts from the figure's top line).
 ;
 ; Test placement for now: some customers stand, some walk to and fro.
 
 CU_PART_FRAMES	equ 12		; per style: (down, up, right, left) x (idle, walk 1, walk 2)
-CU_HEAD_H	equ 20
-CU_BODY_H	equ 14
 
 ; customer record
 CU_X		equ 0		; left edge, map pixels (even)
@@ -21,14 +19,28 @@ CU_MIN		equ 9		; walking range (x / 2)
 CU_MAX		equ 10
 CU_SIZE		equ 11
 
-CU_COUNT	equ 4
+	ifndef CUST_BENCH
+CUST_BENCH	equ 0
+	endif
 
+	if CUST_BENCH			; frame rate test: 5 walkers in the first view
+CU_COUNT	equ 5
+cust_list:
+	;  x,  y       head body legs dir        dx  min/2 max/2
+	dw 10,0 : db 0,1,2,DIR_RIGHT,   1, 5, 60
+	dw 120,30 : db 1,2,0,DIR_LEFT, -1, 5, 60
+	dw 40,70 : db 2,0,1,DIR_RIGHT,  1, 5, 60
+	dw 90,100 : db 1,1,1,DIR_LEFT, -1, 5, 60
+	dw 60,120 : db 2,2,2,DIR_RIGHT, 1, 5, 60
+	else
+CU_COUNT	equ 4
 cust_list:
 	;  x,  y       head body legs dir        dx  min/2 max/2
 	dw 100,10 : db 0,1,2,DIR_DOWN,  0, 0, 0
 	dw 20,60 : db 1,2,0,DIR_RIGHT,  1, 10, 75
 	dw 30,104 : db 2,0,1,DIR_RIGHT, 0, 0, 0
 	dw 140,112 : db 2,2,0,DIR_LEFT, -1, 50, 70
+	endif
 
 cust_anim:	db 0
 
@@ -100,28 +112,32 @@ cust_sprites:
 	ld de,48
 	add hl,de
 	ld (spr_z),hl
-	ld a,(ix+CU_HEAD)
-	ld hl,cust_head_frames
-	ld de,0
-	call .part
-	ld a,(ix+CU_BODY)
+	ld a,(ix+CU_BODY)		; one sprite entry, three parts
 	ld hl,cust_body_frames
-	ld de,CU_HEAD_H
-	call .part
+	call .desc
+	ld (spr_f2),hl
 	ld a,(ix+CU_LEGS)
 	ld hl,cust_legs_frames
-	ld de,CU_HEAD_H+CU_BODY_H
-	call .part
+	call .desc
+	ld (spr_f3),hl
+	ld a,(ix+CU_HEAD)
+	ld hl,cust_head_frames
+	call .desc
+	ld a,(ix+CU_X)			; even x (whole bytes)
+	and #FE
+	ld e,a
+	ld d,(ix+CU_X+1)
+	ld bc,(cust_y)
+	call sprites_add_z
 	ld de,CU_SIZE
 	add ix,de
 	pop bc
-	djnz .lp
+	dec b
+	jp nz,.lp
 	ret
 
-; A = style, HL = frame table, DE = line offset of the part
-.part:	push ix
-	push de
-	ld e,a				; descriptor = table[style*12 + frame]
+; A = style, HL = frame table -> HL = descriptor of table[style*12 + frame]
+.desc:	ld e,a
 	ld d,0
 	ex de,hl
 	add hl,hl
@@ -140,19 +156,6 @@ cust_sprites:
 	inc hl
 	ld h,(hl)
 	ld l,a
-	pop de
-	push hl
-	ld hl,(cust_y)			; y of the part
-	add hl,de
-	ld b,h
-	ld c,l
-	ld a,(ix+CU_X)			; even x (whole bytes)
-	and #FE
-	ld e,a
-	ld d,(ix+CU_X+1)
-	pop hl
-	call sprites_add_z
-	pop ix
 	ret
 
 cust_f:		db 0

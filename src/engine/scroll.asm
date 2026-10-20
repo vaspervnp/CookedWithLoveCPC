@@ -286,6 +286,44 @@ scroll_build_state:
 
 ; Copy rasters fy..7 of the back ring's row cy (scr_base, set by
 ; scroll_build_state) into its top buffer. Needs RAM_C0.
+; copy_top only when the top row of this buffer can differ from what its top
+; buffer holds: scroll moved since this buffer was last built, or a sprite is
+; or was (last time) in the partial top row.
+copy_top_if:
+	ld a,(back)
+	ld e,a
+	ld d,0
+	ld hl,tc_hit
+	add hl,de
+	ld a,(top_hit)
+	ld c,(hl)			; last time's flag for this buffer
+	ld (hl),a
+	or c
+	ld b,a				; B != 0: a sprite there
+	ld hl,tc_sx
+	add hl,de
+	ld a,(scr_sx)
+	cp (hl)
+	ld (hl),a
+	jr nz,copy_top
+	ld hl,tc_sy
+	add hl,de
+	add hl,de
+	ld a,(scr_sy)
+	cp (hl)
+	ld (hl),a
+	inc hl
+	jr nz,.sy1
+	ld a,(scr_sy+1)
+	cp (hl)
+	ld (hl),a
+	jr nz,copy_top
+	ld a,b
+	or a
+	ret z
+	jr copy_top
+.sy1:	ld a,(scr_sy+1)
+	ld (hl),a
 copy_top:
 	ld hl,(scr_base)
 	add hl,hl
@@ -331,8 +369,8 @@ copy_top:
 	pop hl
 	ld a,(top_n1)
 	ld c,a
-	ld b,0
-	ldir
+	call ldi_c
+	ld a,(top_n1)
 	cp 80
 	jr z,.next
 	ld a,h				; wrap to block start
@@ -342,8 +380,7 @@ copy_top:
 	neg
 	add a,80
 	ld c,a
-	ld b,0
-	ldir
+	call ldi_c
 .next:	pop bc
 	inc c
 	inc b
@@ -351,6 +388,28 @@ copy_top:
 	cp 8
 	jr nz,.line
 	ret
+
+; C (1..80) bytes HL -> DE with an unrolled LDI chain (16 T/byte instead
+; of 21). BC is destroyed.
+ldi_c:
+	ld b,0
+	push hl
+	ld hl,ldi80_end
+	or a
+	sbc hl,bc
+	sbc hl,bc
+	ld (.c+1),hl
+	pop hl
+.c:	jp 0
+ldi80:	repeat 80
+	ldi
+	rend
+ldi80_end:
+	ret
+
+tc_hit:		db 0,0		; per buffer: a sprite was in the partial top row
+tc_sx:		db #FF,#FF	; per buffer: scroll at the last copy_top
+tc_sy:		dw #FFFF,#FFFF
 
 ; ---------------------------------------------------------------------------
 ; Draw map char row Y (A) for X = cx..cx+39. Needs RAM_C5.

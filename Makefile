@@ -39,15 +39,16 @@ $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 
 # Sprite sheets, compiled together (shared banks, identical lines and frames
 # stored once): code in banks 4, 6, 7 -> build/spr_<bank>.dat
-# and the frame descriptors build/spr.asm. Sheet: PREFIX:PNG:HEIGHT:GROUP:MIRROR
+# and the frame descriptors build/spr.asm. Sheet: PREFIX:PNG:HEIGHT:GROUP:MIRROR[:COLUMNS[:YOFF]]
 #   bill        rows down / up / right, 5 frames each (idle, walk 1-4), of which
 #               idle, walk 1 and walk 3 are used; left = mirror
-#   cust_*      customer parts (head 20, body 14, legs 14 lines), one variant per
-#               row with the same 15 frames; any head + body + legs combine
+#   cust_*      customer parts (head 20, body 14, legs 14 lines; YOFF = line of the
+#               part in the figure), one style per row with the same 9 frames;
+#               any head + body + legs combine
 SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 	cust_head:assets/sprites/cust_head.png:20:9:6 \
-	cust_body:assets/sprites/cust_body.png:14:9:6 \
-	cust_legs:assets/sprites/cust_legs.png:14:9:6
+	cust_body:assets/sprites/cust_body.png:14:9:6::20 \
+	cust_legs:assets/sprites/cust_legs.png:14:9:6::34
 $(BUILD)/spr.asm: $(foreach s,$(SHEETS),$(word 2,$(subst :, ,$(s)))) tools/spritec.py tools/png2cpc.py tools/cpc.py data/palette.txt | $(BUILD)
 	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6,7
 
