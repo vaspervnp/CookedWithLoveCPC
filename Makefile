@@ -7,7 +7,7 @@ PYTHON ?= python3
 
 BUILD  := build
 SRC    := $(shell find src -name '*.asm')
-GEN    := $(BUILD)/palette.asm $(BUILD)/testtiles.bin $(BUILD)/spr.asm
+GEN    := $(BUILD)/palette.asm $(BUILD)/testtiles.bin $(BUILD)/test_map.bin $(BUILD)/spr.asm
 
 LOAD   := 0100
 EXEC   := 0100
@@ -36,6 +36,11 @@ $(BUILD)/palette.asm: data/palette.txt tools/palette.py tools/cpc.py | $(BUILD)
 
 $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 	$(PYTHON) tools/mktestmap.py $@ $(BUILD)/testmap.bin $(BUILD)/testhud.bin
+
+# Map in 16x16 metatiles: build/<map>_map.bin, _meta.bin, _tiles.bin (and
+# the plain _tilemap.bin for the screenshot checkers)
+$(BUILD)/test_map.bin: $(BUILD)/testtiles.bin tools/maps2asm.py
+	$(PYTHON) tools/maps2asm.py $(BUILD)/testtiles.bin $(BUILD)/testmap.bin $(BUILD)/test
 
 # Sprite sheets, compiled together (shared banks, identical lines and frames
 # stored once): common code in banks 4, 6 -> build/spr_<bank>.dat, area

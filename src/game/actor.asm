@@ -216,7 +216,7 @@ box_free:
 	ld de,0
 	jp solid_at
 
-; NZ if the tile at (bf_x + BC, bf_y + DE) is solid.
+; NZ if the tile at (bf_x + BC, bf_y + DE) is solid (outside the map too).
 solid_at:
 	ld hl,(bf_y)
 	add hl,de
@@ -226,19 +226,13 @@ solid_at:
 	rr l
 	srl h
 	rr l				; tile row
+	ld a,h
+	or a
+	jr nz,.solid
 	ld a,l
 	cp MAP_H
 	jr nc,.solid
-	add hl,hl			; *80
-	add hl,hl
-	add hl,hl
-	add hl,hl
-	ld d,h
-	ld e,l
-	add hl,hl
-	add hl,hl
-	add hl,de
-	push hl
+	ld (sa_ty),a
 	ld hl,(bf_x)
 	add hl,bc
 	srl h
@@ -247,14 +241,43 @@ solid_at:
 	rr l
 	srl h
 	rr l				; tile column
+	ld a,h
+	or a
+	jr nz,.solid
 	ld a,l
 	cp MAP_W
-	pop de
 	jr nc,.solid
+	ld c,a				; C = tile column
+	ld a,(sa_ty)			; metatile: map + (row >> 1)*40 + (column >> 1)
+	srl a
+	ld l,a
+	ld h,0
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	ld d,h
+	ld e,l
+	add hl,hl
+	add hl,hl
+	add hl,de
+	ld a,c
+	srl a
+	ld e,a
+	ld d,0
 	add hl,de
 	ld de,map_data
 	add hl,de
-	ld a,(hl)
+	ld e,(hl)
+	ld a,(sa_ty)			; plane: (row & 1)*2 + (column & 1)
+	and 1
+	add a,a
+	ld b,a
+	ld a,c
+	and 1
+	or b
+	add a,hi(meta_data)
+	ld d,a
+	ld a,(de)			; the tile
 	cp SOLID_FIRST
 	ld a,0
 	jr c,.free
@@ -263,6 +286,8 @@ solid_at:
 	ret
 .solid:	or 1
 	ret
+
+sa_ty:	db 0
 
 ; Walk cycle of 4 steps over 3 frames (idle, walk 1, walk 2):
 ; A = step (0..3) -> A = pose

@@ -3,7 +3,8 @@
 
 Each of the 16 screens has its own colour. Every tile has a black top line and
 left column (grid), so 1-line / 2-pixel offsets are easy to see. Some tiles
-carry a white diagonal and every screen has its number in a corner tile, so
+carry a white diagonal (on the 16x16 metatile grid, so the map compresses)
+and every screen has its number in a corner tile, so
 direction and position can be read off a screenshot.
 
 Outputs: <tiles.bin> (N tiles x 32 bytes), <map.bin> (80x84 bytes) and
@@ -91,7 +92,7 @@ def main():
                 t = 49
             elif (lx, ly) == (1, 1):
                 t = 32 + s
-            elif (tx + 2 * ty) % 9 == 0:
+            elif tx % 2 == 0 and ty % 2 == 0 and (tx // 2 + 2 * (ty // 2)) % 5 == 0:
                 t = 16 + s
             else:
                 t = s

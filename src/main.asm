@@ -696,10 +696,13 @@ code_end:
 ; --- bank 5: map and tiles (staged at &4000 in base RAM) ---
 	org #4000
 bank5_start:
-tile_data:
-	incbin "testtiles.bin"
+meta_data:				; 4 planes of 256 (tools/maps2asm.py), 1K
+	incbin "test_meta.bin"		; aligned: the plane is picked with xor
+	assert (meta_data&#3FF)==0
+tile_data:				; (aligned: draw_char)
+	incbin "test_tiles.bin"
 map_data:
-	incbin "testmap.bin"
+	incbin "test_map.bin"
 
 	; game logic that runs with bank 5 mapped (game ticks: the map for
 	; collisions; adding sprites in render, after buffer_sync)

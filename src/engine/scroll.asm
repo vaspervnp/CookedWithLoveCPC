@@ -20,9 +20,14 @@
 ; Drawing a frame (see main.asm): restore sprites, buffer_sync, draw sprites,
 ; copy_top, scroll_build_state. Tiles and map are in bank 5 (RAM_C5 while
 ; drawing), the HUD sets in the base &4000 page (RAM_C0 for copy_top).
+;
+; The map is made of 16x16 metatiles (tools/maps2asm.py): map_data holds
+; MAP_MW x MAP_H/2 metatile indices, meta_data 4 aligned planes of 256 bytes,
+; plane k = tile of quadrant k (2*(tile row & 1) + (tile column & 1)).
 
 MAP_W		equ 80		; tiles (8x8)
 MAP_H		equ 84
+MAP_MW		equ MAP_W/2	; metatiles (2x2 tiles) per map row
 MAP_CW		equ MAP_W*2	; chars (4x8)
 VIEW_CW		equ 40
 VIEW_ROWS	equ PF_ROWS+1	; rows kept valid in the ring (cy..cy+21)
@@ -423,14 +428,18 @@ draw_row:
 	call char_addr
 	ld b,VIEW_CW
 .lp:	push bc
-	ld a,(ix+0)
-	call draw_char
+	call map_char
 	pop bc
-	ld a,c
+	ld a,c				; next char: other half of the tile,
 	xor 2
 	ld c,a
 	jr nz,.same
-	inc ix
+	ld a,(ca_plane)			; next tile: other quadrant column,
+	xor 1
+	ld (ca_plane),a
+	rra
+	jr c,.same
+	inc ix				; next metatile
 .same:	inc e
 	inc e
 	jr nz,.nw
@@ -460,9 +469,17 @@ draw_col:
 .n:	ld (dc_rows),a
 	ld a,b
 	call char_addr			; DE = screen, IX = map, C = half*2
-.lp:	ld a,(ix+0)
-	call draw_char
-	ld a,e				; next row: +80 bytes, wrap in the 2K block
+.lp:	call map_char
+	ld a,(ca_plane)			; next tile row: other quadrant row,
+	xor 2
+	ld (ca_plane),a
+	and 2
+	jr nz,.sm
+	push bc				; next metatile row
+	ld bc,MAP_MW
+	add ix,bc
+	pop bc
+.sm:	ld a,e				; next row: +80 bytes, wrap in the 2K block
 	add a,80
 	ld e,a
 	jr nc,.nc
@@ -473,18 +490,26 @@ draw_col:
 	ld a,(scr_page)
 	or d
 	ld d,a
-.nc:	push bc
-	ld bc,MAP_W
-	add ix,bc
-	pop bc
-	ld hl,dc_rows
+.nc:	ld hl,dc_rows
 	dec (hl)
 	jr nz,.lp
 	ret
 
 ; In: A = Y, (ca_x) = X
-; Out: DE = screen address (line 0), IX = map pointer, C = half*2
+; Out: DE = screen address (line 0), IX = metatile pointer, ca_plane =
+; plane of the tile quadrant, C = half*2
 char_addr:
+	ld b,a				; plane: (Y & 1)*2 + (X >> 1 & 1)
+	and 1
+	add a,a
+	ld c,a
+	ld a,(ca_x)
+	rra
+	and 1
+	or c
+	add a,hi(meta_data)
+	ld (ca_plane),a
+	ld a,b
 	ld l,a
 	ld h,0
 	add hl,hl
@@ -509,22 +534,44 @@ char_addr:
 	ld h,a
 	ex de,hl			; DE = screen
 	pop hl
-	add hl,hl			; 80Y
+	push de
+	ld a,b				; metatile: map + (Y >> 1)*40 + (X >> 2)
+	srl a
+	ld l,a
+	ld h,0
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	ld d,h
+	ld e,l
+	add hl,hl
+	add hl,hl
+	add hl,de
 	ld a,(ca_x)
-	ld c,a
-	srl c
-	ld b,0
-	add hl,bc
-	ld bc,map_data
-	add hl,bc
+	rra
+	rra
+	and #3F
+	ld e,a
+	ld d,0
+	add hl,de
+	ld de,map_data
+	add hl,de
 	push hl
 	pop ix
+	pop de
 	ld a,(ca_x)
 	and 1
 	add a,a
 	ld c,a
 	ret
 
+; Draw the char of the metatile at IX, quadrant plane (ca_plane), half C.
+map_char:
+	ld l,(ix+0)
+	ld a,(ca_plane)
+	ld h,a
+	ld a,(hl)
+	; fall through
 ; Draw one char (2 bytes x 8 lines) of a tile.
 ; In: A = tile, C = half*2, DE = screen address. Out: DE preserved.
 ; Destroys: A, B, HL
@@ -573,6 +620,7 @@ scr_page:	db #80		; high byte of the back buffer (&80 / &C0)
 back:		db 0		; back buffer 0/1
 buf_state:	ds 8,0		; per buffer: BS_CX, BS_CY, BS_OK, pad
 ca_x:		db 0
+ca_plane:	db 0
 dc_y0:		db 0
 dc_rows:	db 0
 top_dst:	dw 0		; byte offset of the top buffer in the &4000 page

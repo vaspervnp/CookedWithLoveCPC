@@ -20,14 +20,14 @@ for g in $TYPES; do
 	for xy in "0 0" "0 1" "0 2" "0 3" "0 4" "0 5" "0 6" "0 7" "1 7" "77 250" "240 504"; do
 		set -- $xy
 		make -s en EXTRA="-DTEST_X=$1 -DTEST_Y=$2" >/dev/null 2>&1
-		rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "700,701,702" $g
+		rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "850,851,852" $g
 		echo -n "static [$1,$2]"; check $1 $2; echo
 	done
 	make -s en EXTRA="-DTEST_PATH=3 -DTEST_X=0 -DTEST_Y=40" >/dev/null 2>&1
-	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, 720 1 780)" $g
+	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, 870 1 930)" $g
 	echo -n "bounce V"; check 0 -1; echo
 	make -s en EXTRA="-DTEST_PATH=3 -DTEST_X=12 -DTEST_Y=0" >/dev/null 2>&1
-	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, 720 1 750)" $g
+	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, 870 1 900)" $g
 	echo -n "bounce H"; check -1 0; echo
 done
 make -s en >/dev/null 2>&1
