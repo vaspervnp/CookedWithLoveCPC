@@ -57,6 +57,9 @@ BILL_Y0	equ 110
 	ifndef DBGFPS			; debug band: render count instead of the sprite frame
 DBGFPS	equ 0
 	endif
+	ifndef STAFF			; the cook (test script)
+STAFF	equ 1
+	endif
 	ifndef CUSTOMERS		; test customers (combined parts)
 CUSTOMERS	equ 1
 	endif
@@ -261,6 +264,9 @@ main_loop:
 	if CUSTOMERS
 	call cust_tick
 	endif
+	if STAFF
+	call staff_tick
+	endif
 	ld hl,ticks
 	dec (hl)
 	jr nz,.tick
@@ -301,6 +307,9 @@ render:
 	call actor_sprites
 	if CUSTOMERS
 	call cust_sprites
+	endif
+	if STAFF
+	call staff_sprites
 	endif
 	endif
 	call sprites_draw
@@ -630,6 +639,7 @@ scroll_step_y:	db 8-7*FINE_Y
 	include "engine/sprite.asm"
 	include "game/actor.asm"
 	include "game/customer.asm"
+	include "game/staff.asm"
 	include "palette.asm"
 
 hud_pattern:

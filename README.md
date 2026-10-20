@@ -159,7 +159,7 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 | bank 6 (`&C6`) | Compiled sprites (συνέχεια) |
 | bank 7 (`&C7`) | Compiled sprites (συνέχεια) |
 
-**Προϋπολογισμός sprites (banks 4, 6, 7 = 48K):** Bill ~10,1K (idle + 2 βήματα), πελάτες (3 στυλ × 3 κομμάτια = 27 συνδυασμοί) ~20,7K, σύνολο 30,8K, ελεύθερα ~17K. Η Ελευθερία και η Ανθή με τις ίδιες πόζες θέλουν ~10K η καθεμία, οπότε για τη δεύτερη θα χρειαστούν λιγότερες πόζες ή φόρτωση ανά περιοχή.
+**Προϋπολογισμός sprites (banks 4, 6, 7 = 48K):** Bill ~10,1K, πελάτες (27 συνδυασμοί) ~20,7K, Ελευθερία ~15,7K (περπάτημα + 6 ενέργειες × 2 πλευρές), σύνολο 46,5K, ελεύθερα ~1,5K. Για την Ανθή χρειάζεται χώρος: ενέργειες μόνο προς μία πλευρά (~4K λιγότερα), λιγότερες πόζες ή φόρτωση ανά περιοχή.
 
 **Φόρτωση:**
 - Το `CWL.BIN` φορτώνεται στο `&0100`. Τα δεδομένα της bank 5 είναι «σταθμευμένα» στο `&4000` και στο boot το `mem_relocate` τα μεταφέρει στη bank και καθαρίζει το `&4000`–`&FFFF`.
@@ -194,6 +194,7 @@ assets/blender/bill_build.py        tools/render2sprite.py          tools/sprite
    - σχεδιάζει το πρόσωπο σε καθαρά pixels από το `features.json` και προσθέτει μαύρο περίγραμμα (pen 14)
 3. **Aseprite** (MCP, Lua): το `assets/aseprite/bill.aseprite` έχει frames, tags `down/up/right`, pixel ratio 2:1 και την palette `assets/palette/cwl.gpl`. Αν διορθωθεί με το χέρι, γίνεται export ξανά στο `assets/sprites/bill.png`.
 4. **tools/spritec.py** (στο `make`, λίστα `SHEETS` στο Makefile): όλα τα sheets → compiled κώδικας με κοινές γραμμές (`build/spr_N.dat` → `SPRN.DAT`) και descriptors των frames (`build/spr.asm`, στη βασική RAM).
+6. **Προσωπικό (Ελευθερία):** στο Blender `exec(open(".../assets/blender/liberty_build.py").read())` (σκηνή `CWL_Liberty`, αντικείμενα `LIB_*`, κοινά βοηθητικά στο `cwl_char.py`). Αποδίδει περπάτημα (3 κατευθύνσεις × 3 πόζες) και ενέργειες στο προφίλ: κόψιμο (μαχαίρι πάνω/κάτω), ανακάτεμα (κουτάλα αριστερά/δεξιά), φούρνος (σκύβει, σηκώνει). Το **tools/charsheet.py** (`make staff`) βγάζει τα `liberty.png` και `liberty_act.png`. Στο παιχνίδι το [src/game/staff.asm](src/game/staff.asm) την κινεί με ένα δοκιμαστικό script (`-DSTAFF=0` την αφαιρεί).
 5. **Πελάτες:** στο Blender `exec(open(".../assets/blender/customer_build.py").read())` (σκηνή `CWL_Customer`, αντικείμενα `CUST_*`) αποδίδει κάθε στυλ κάθε κομματιού στο `build/render/cust`. Μετά το **tools/custparts.py** (`make parts`) βγάζει τα `assets/sprites/cust_head/body/legs.png`, με τα χρώματα κάθε στυλ.
 
 ### Tiles, χάρτες, κείμενα
