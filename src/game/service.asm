@@ -122,11 +122,14 @@ HUD_ROW2	equ 2		; day, at the end of the day stars and earnings
 HUD_DAY		equ 4
 HUD_STARS	equ 15
 HUD_EARN	equ 29
+HUD_ROW3	equ 3		; the status: open, closed, the day over
 MINUTE_TICKS	equ 50		; a game minute every second
 
 ; ---------------------------------------------------------------------------
 ; Start of the day: the HUD.
 service_init:
+	xor a
+	call sv_status
 	ld a,8				; icons
 	ld b,HUD_BG
 	call hud_colors
@@ -310,6 +313,44 @@ sv_summary:
 	ld bc,(HUD_EARN<<8)+HUD_ROW2
 	jp hud_number
 
+; The status line (HUD row 3) of phase A: open, closed, the day over.
+sv_status:
+	push af
+	ld a,HUD_BG
+	ld b,a
+	call hud_colors
+	ld bc,(1<<8)+HUD_ROW3
+	ld e,40
+	call hud_spaces
+	pop af
+	ld hl,txt_open
+	ld c,10				; open: green
+	or a
+	jr z,.one
+	ld hl,txt_closed
+	ld c,4				; closed: red
+	dec a
+	jr nz,.end
+.one:	push hl
+	ld a,c
+	ld b,HUD_BG
+	call hud_colors
+	pop hl
+	ld bc,(1<<8)+HUD_ROW3
+	jp hud_text
+.end:	ld a,13				; the day over, fire: the next one
+	ld b,HUD_BG
+	call hud_colors
+	ld hl,txt_day_end
+	ld bc,(1<<8)+HUD_ROW3
+	call hud_text
+	ld a,8
+	ld b,HUD_BG
+	call hud_colors
+	ld hl,txt_next
+	ld bc,((39-TXT_NEXT_LEN)<<8)+HUD_ROW3
+	jp hud_text
+
 ; Fire after the end of the day: the next one.
 sv_new_day:
 	ld hl,sv_day
@@ -325,19 +366,13 @@ sv_new_day:
 	ld (sv_spawn_t),hl
 	xor a
 	ld (sv_phase),a
+	call sv_status
 	ld a,HUD_BG			; clear the stars and earnings
 	ld b,a
 	call hud_colors
-	ld b,HUD_STARS
-.c:	push bc
-	ld a,G_SPACE
-	ld c,HUD_ROW2
-	call hud_char
-	pop bc
-	inc b
-	ld a,b
-	cp HUD_EARN+5
-	jr nz,.c
+	ld bc,(HUD_STARS<<8)+HUD_ROW2
+	ld e,HUD_EARN+5
+	call hud_spaces
 	call sv_hud_day
 	jp sv_hud_time
 
@@ -364,6 +399,7 @@ service_tick:
 	jr nz,.tm
 	ld a,1
 	ld (sv_phase),a
+	call sv_status
 .tm:	call sv_hud_time
 .ck:
 	ld hl,cust_anim
@@ -413,6 +449,7 @@ service_tick:
 	djnz .f
 	ld a,2
 	ld (sv_phase),a
+	call sv_status
 	call sv_summary
 .nw:	call sv_talk
 	ld a,(cust_anim)		; walking: a step every other tick
@@ -1239,16 +1276,9 @@ sv_hud_tickets:
 	ld a,HUD_BG			; clear the row
 	ld b,a
 	call hud_colors
-	ld b,HUD_TICKETS
-.cl:	push bc
-	ld a,G_SPACE
-	ld c,HUD_ROW2
-	call hud_char
-	pop bc
-	inc b
-	ld a,b
-	cp 40
-	jr nz,.cl
+	ld bc,(HUD_TICKETS<<8)+HUD_ROW2
+	ld e,40
+	call hud_spaces
 	ld a,HUD_TICKETS
 	ld (st_col),a
 	ld ix,groups

@@ -7,7 +7,7 @@ PYTHON ?= python3
 
 BUILD  := build
 SRC    := $(shell find src -name '*.asm')
-GEN    := $(BUILD)/palette.asm $(BUILD)/hudfont.asm $(BUILD)/recipes.asm $(BUILD)/testtiles.bin $(BUILD)/test_map.bin $(BUILD)/lvl1_map.bin $(BUILD)/spr.asm
+GEN    := $(BUILD)/palette.asm $(BUILD)/hudfont.asm $(BUILD)/recipes.asm $(BUILD)/text_en.asm $(BUILD)/text_gr.asm $(BUILD)/testtiles.bin $(BUILD)/test_map.bin $(BUILD)/lvl1_map.bin $(BUILD)/spr.asm
 
 LOAD   := 0100
 EXEC   := 0100
@@ -36,6 +36,10 @@ $(BUILD)/palette.asm: data/palette.txt tools/palette.py tools/cpc.py | $(BUILD)
 
 $(BUILD)/hudfont.asm: tools/mkfont.py tools/cpc.py | $(BUILD)
 	$(PYTHON) tools/mkfont.py $@
+
+# HUD texts of each language and the letters they use
+$(BUILD)/text_%.asm: data/text/strings.tsv tools/text2asm.py tools/mkfont.py | $(BUILD)
+	$(PYTHON) tools/text2asm.py $< $* $(BUILD)/text_$*_font.asm $@
 
 $(BUILD)/recipes.asm: data/recipes/recipes.tsv tools/recipes2asm.py | $(BUILD)
 	$(PYTHON) tools/recipes2asm.py $< $@

@@ -1,0 +1,8 @@
+# HUD texts (tools/text2asm.py): id, English, Greek. Capitals only (Greek
+# without accents, as Greek is written in capitals); 4x8 font, 40 columns.
+id	en	gr
+OPEN	OPEN	ΑΝΟΙΧΤΑ
+CLOSED	CLOSED	ΚΛΕΙΣΤΑ
+DAY_END	END OF THE DAY	ΤΕΛΟΣ ΤΗΣ ΜΕΡΑΣ
+NEXT	FIRE: NEXT DAY	FIRE: ΝΕΑ ΜΕΡΑ
+BROKE	BANKRUPT!	ΠΤΩΧΕΥΣΗ!

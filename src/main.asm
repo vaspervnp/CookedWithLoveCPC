@@ -554,11 +554,6 @@ scroll_step_y:	db 8-7*FINE_Y
 
 
 
-	if LANG_EN
-	; language-specific data will go here (text, font)
-	endif
-	if LANG_GR
-	endif
 
 ; --- boot: runs once before the game, in the second save-under area after
 ; the cassette buffer (the sprites overwrite it later; the binary covers it

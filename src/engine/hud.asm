@@ -2,7 +2,8 @@
 ; written into the four HUD sets of the base &4000 page (set s at byte
 ; s*512; the sets of R3 phase 1 hold the HUD one byte to the left, so it
 ; stays still). Called from the game code in bank 5: maps the base RAM and
-; bank 5 again before returning. Colours and numbers: src/game/hudtext.asm
+; bank 5 again before returning. Texts: hud_text (data/text/strings.tsv).
+; Colours and numbers: src/game/hudtext.asm
 ; (bank 5).
 
 HUD_BG		equ 0		; HUD background pen
@@ -12,7 +13,6 @@ HUD_LINE	equ 12		; the line under the HUD
 hud_char:
 	ld l,a
 	ld h,0
-	add hl,hl
 	add hl,hl
 	add hl,hl
 	ld de,hud_font
@@ -47,8 +47,15 @@ hud_char:
 	RAM RAM_C0
 	ld b,8				; lines: +&800
 .line:	push bc
-	ld a,(de)			; left pixels: bits 3, 2; right: 1, 0
-	inc de
+	ld a,(de)			; two lines a byte: the upper one high
+	bit 0,b
+	jr nz,.lo
+	rrca
+	rrca
+	rrca
+	rrca
+	dec de
+.lo:	inc de				; left pixels: bits 3, 2; right: 1, 0
 	push de
 	push hl
 	ld e,a
@@ -105,4 +112,43 @@ hud_char:
 
 hud_pair:	ds 4,0
 
-	include "hudfont.asm"
+; Text HL (glyphs, #FF at the end: tools/text2asm.py) at column B, row C.
+hud_text:
+	ld a,(hl)
+	cp #FF
+	ret z
+	push hl
+	push bc
+	call hud_char
+	pop bc
+	pop hl
+	inc hl
+	inc b
+	jr hud_text
+
+; Spaces from column B up to column E (not included), row C.
+hud_spaces:
+	ld a,b
+	cp e
+	ret nc
+	push bc
+	push de
+	ld a,G_SPACE
+	call hud_char
+	pop de
+	pop bc
+	inc b
+	jr hud_spaces
+
+	if LANG_EN			; the texts (tools/text2asm.py)
+	include "text_en.asm"
+	else
+	include "text_gr.asm"
+	endif
+
+	include "hudfont.asm"		; hud_font last: the letters follow
+	if LANG_EN
+	include "text_en_font.asm"
+	else
+	include "text_gr_font.asm"
+	endif
