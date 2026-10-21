@@ -32,6 +32,13 @@
 ;
 ; Per frame: sprites_restore (erase what this buffer showed, in reverse
 ; order), then after buffer_sync: sprites_draw (list sorted by depth).
+;
+; Stamps (sprites added with spr_stamp = 1: figures that stay still, such
+; as sitting customers) stay in the ring: they are drawn first, under the
+; others, without save-under, and only when needed: when the stamps of this
+; buffer changed (the old ones are erased by redrawing their tiles) or when
+; buffer_sync drew new tiles (their parts may have scrolled in). A frame
+; without changes costs nothing for them.
 
 SPR_W		equ 16		; bytes
 SPR_MAX		equ 16
@@ -47,7 +54,9 @@ SE_Y		equ 4		; top line
 SE_Z		equ 6		; depth key (bottom line)
 SE_F2		equ 8		; 2nd and 3rd part of a figure (0 = none): descriptors
 SE_F3		equ 10		; whose dy counts from the figure's top line
-SE_SIZE		equ 12
+SE_STAMP	equ 12		; 1: a stamp (see above)
+SE_SIZE		equ 16
+STAMP_MAX	equ 12
 
 ; frame descriptor (tools/spritec.py)
 DS_BANK		equ 0		; RAM config of the compiled code
@@ -93,11 +102,9 @@ sprites_add_z:
 	ld h,0
 	add hl,hl
 	add hl,hl
-	push de
-	ld d,h
-	ld e,l
 	add hl,hl
-	add hl,de			; index*12
+	add hl,hl			; index*16
+	push de
 	ld de,spr_list
 	add hl,de
 	pop de
@@ -131,9 +138,14 @@ sprites_add_z:
 	ld (hl),e
 	inc hl
 	ld (hl),d
+	inc hl
+	ld a,(spr_stamp)
+	ld (hl),a
 	ld hl,0
 	ld (spr_f2),hl
 	ld (spr_f3),hl
+	xor a
+	ld (spr_stamp),a
 	; insert the new index into the draw order by depth (spr_keys sorted,
 	; after equal keys so the parts of a figure keep their order)
 	ld a,(spr_n)
@@ -344,23 +356,166 @@ sprites_draw:
 	ld (top_lim),hl
 	xor a
 	ld (top_hit),a
+	call stamps_draw
 	ld a,(spr_n)			; spr_order is kept sorted by sprites_add_z
 	or a
-	ret z
-	ld a,(spr_n)
+	jr z,.end
 	ld b,a
 	ld hl,spr_order
 .draw:	push bc
 	push hl
 	ld a,(hl)
 	call spr_entry			; IX = entry
-	call sprite_one
+	ld a,(ix+SE_STAMP)
+	or a
+	call z,sprite_one
 	pop hl
 	pop bc
 	inc hl
 	djnz .draw
-	RAM RAM_C0
+.end:	RAM RAM_C0
 	ret
+
+; The stamps, if this buffer needs them drawn (see the top).
+stamps_draw:
+	ld hl,0				; signature of the stamps in draw order
+	ld (st_sig),hl
+	ld a,(spr_n)
+	or a
+	jr z,.sig
+	ld b,a
+	ld hl,spr_order
+.s:	push bc
+	push hl
+	ld a,(hl)
+	call spr_entry
+	ld a,(ix+SE_STAMP)
+	or a
+	jr z,.sn
+	push ix
+	pop hl
+	ld b,SE_STAMP/2			; frame, x, y, z, f2, f3 words
+	ld de,(st_sig)
+.w:	ld a,(hl)			; sig = sig * 2 + word (rotating)
+	inc hl
+	sla e
+	rl d
+	jr nc,.nc
+	inc e
+.nc:	add a,e
+	ld e,a
+	ld a,(hl)
+	inc hl
+	adc a,d
+	ld d,a
+	djnz .w
+	inc de				; (count too)
+	ld (st_sig),de
+.sn:	pop hl
+	pop bc
+	inc hl
+	djnz .s
+.sig:	call st_buf			; IY = this buffer's record
+	ld hl,(st_sig)
+	ld a,(iy+0)
+	cp l
+	jr nz,.chg
+	ld a,(iy+1)
+	cp h
+	jr nz,.chg
+	call buffer_drew		; same stamps: only after new tiles
+	ret z
+	jr .draw
+.chg:	ld (iy+0),l			; erase the old ones: their tiles again
+	ld (iy+1),h
+	ld b,(iy+2)
+	ld a,b
+	or a
+	jr z,.draw
+	push iy
+	pop hl
+	inc hl
+	inc hl
+	inc hl
+.er:	push bc
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld c,(hl)
+	inc hl
+	ld b,(hl)
+	inc hl
+	push hl
+	call redraw_tiles		; DE = x, BC = y
+	pop hl
+	pop bc
+	djnz .er
+	RAM RAM_C5			; (redraw_tiles maps bank 5)
+.draw:	call st_buf			; draw them, remember where they are
+	ld (iy+2),0
+	push iy
+	pop hl
+	inc hl
+	inc hl
+	inc hl
+	ld (st_rp),hl
+	ld a,(spr_n)
+	or a
+	ret z
+	ld b,a
+	ld hl,spr_order
+.d:	push bc
+	push hl
+	ld a,(hl)
+	call spr_entry
+	ld a,(ix+SE_STAMP)
+	or a
+	jr z,.dn
+	call st_buf
+	ld a,(iy+2)
+	cp STAMP_MAX
+	jr nc,.dn
+	inc (iy+2)
+	ld hl,(st_rp)
+	ld a,(ix+SE_X)
+	ld (hl),a
+	inc hl
+	ld a,(ix+SE_X+1)
+	ld (hl),a
+	inc hl
+	ld a,(ix+SE_Y)
+	ld (hl),a
+	inc hl
+	ld a,(ix+SE_Y+1)
+	ld (hl),a
+	inc hl
+	ld (st_rp),hl
+	call sprite_one
+.dn:	pop hl
+	pop bc
+	inc hl
+	djnz .d
+	call save_count_ptr		; no save-under for them: drop the records
+	ld (hl),0
+	ld a,(back)
+	or a
+	ld hl,SAVE_AREA0
+	jr z,.s0
+	ld hl,SAVE_AREA1
+.s0:	ld (save_ptr),hl
+	ret
+
+; IY = stamp record of the back buffer: signature, count, (x, y) words
+st_buf:
+	ld iy,st_rec
+	ld a,(back)
+	or a
+	ret z
+	ld iy,st_rec+STAMP_REC
+	ret
+
+STAMP_REC		equ 3+STAMP_MAX*4
 
 ; A = index -> IX = entry
 spr_entry:
@@ -368,10 +523,8 @@ spr_entry:
 	ld h,0
 	add hl,hl
 	add hl,hl
-	ld d,h
-	ld e,l
 	add hl,hl
-	add hl,de			; *12
+	add hl,hl			; *16
 	ld de,spr_list
 	add hl,de
 	push hl
@@ -927,6 +1080,10 @@ spr_z:		dw 0
 spr_f2:		dw 0
 spr_f3:		dw 0
 spr_list:	ds SPR_MAX*SE_SIZE,0
+spr_stamp:	db 0		; next sprites_add_z: a stamp
+st_sig:		dw 0
+st_rp:		dw 0
+st_rec:		ds 2*STAMP_REC,0	; per buffer: signature, count, rectangles
 spr_order:	ds SPR_MAX,0	; draw order (indices), sorted by depth
 spr_keys:	ds SPR_MAX*2,0	; their depth keys
 save_n:		ds 2,0

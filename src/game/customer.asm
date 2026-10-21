@@ -180,6 +180,8 @@ cust_sprites:
 	ld e,a
 	ld d,(ix+CU_X+1)
 	ld bc,(cust_y)
+	ld a,(ix+CU_SIT)		; sitting: a stamp (sprite.asm)
+	ld (spr_stamp),a
 	push de
 	call sprites_add_z
 	pop de

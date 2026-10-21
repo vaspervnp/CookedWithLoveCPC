@@ -113,125 +113,11 @@ FRAME_VBL	equ 4		; the game: a frame every 4 VBLs = 12.5 fps
 	jp next_row			; &0103: new char row for compiled sprites
 	assert $==#0106
 
-; Bank files loaded with the firmware before it is switched off: name,
-; RAM config (the file is loaded at &4000 in that bank).
 	include "spr.asm"		; frame descriptors (code in banks 4, 6, 7)
 
-bank_files:				; length, name, RAM config, address
-	if SPR_BANKS&#10
-	db 8,"SPR4.DAT",RAM_C4 : dw #4000
-	endif
-	if SPR_BANKS&#40
-	db 8,"SPR6.DAT",RAM_C6 : dw #4000
-	endif
-	if SPR_FIXED_B5
-	db 6,"B5.SPR",RAM_C5 : dw SPR_FIXED_B5_BASE	; top of bank 5 (the rest: mem_relocate)
-	endif
-	if SPR_AREAS
-	db 11,"KITCHEN.SPR",RAM_C7 : dw #4000	; the first area (others: src/game/area.asm)
-	endif
-	db 0
-CAS_IN_OPEN	equ #BC77
-CAS_IN_DIRECT	equ #BC83
-CAS_IN_CLOSE	equ #BC7A
-CAS_BUFFER	equ #3000		; 2K, free until the game starts
-
-KL_INIT_BACK	equ #BCCE
-
-load_banks:
-	; a binary started with RUN" runs with the cassette vectors: initialise
-	; AMSDOS (ROM 7) again so that CAS IN reads from the disc
-	ld c,7
-	ld de,#0040
-	ld hl,#ABFF
-	call KL_INIT_BACK
-	ld hl,bank_files
-.next:	ld a,(hl)			; name length
-	or a
-	ret z
-	inc hl
-	push hl
-	ld e,a
-	ld d,0
-	add hl,de
-	ld c,(hl)			; RAM config
-	ld b,GA_PORT
-	out (c),c
-	inc hl
-	ld e,(hl)			; load address
-	inc hl
-	ld d,(hl)
-	inc hl
-	ld (lb_addr),de
-	ex (sp),hl			; (sp) = next entry, HL = name
-	ld b,a
-	ld de,CAS_BUFFER
-	call CAS_IN_OPEN
-	ld hl,(lb_addr)
-	call CAS_IN_DIRECT
-	call CAS_IN_CLOSE
-	ld bc,GA_PORT*256+RAM_C0
-	out (c),c
-	pop hl
-	jr .next
-
-start:
-	call load_banks			; firmware still active
-	di
-	ld sp,STACK_TOP
-	im 1
-	ld bc,GA_PORT*256+GA_RMR_MODE0
-	out (c),c			; mode 0, ROMs off (firmware no longer used)
-
-	call mem_relocate		; data into banks 4/5, clear &4000-&FFFF
-	call wait_vsync
-	ld hl,palette_hw
-	call set_palette
-
-	if SERVICE			; the game's HUD (texts: game/service.asm)
-	call hud_clear
-	else
-	ld de,0				; test pattern in the HUD sets: (phase 0,
-	ld a,1				; buffer 0/1), (phase 1, ...)
-	call hud_fill
-	ld de,512
-	ld a,1
-	call hud_fill
-	ld de,1024
-	ld a,1+HUD_SHIFT1
-	call hud_fill
-	ld de,1536
-	ld a,1+HUD_SHIFT1
-	call hud_fill
-	endif
-
-	if TESTMODE
-	if TEST_PATH==1 || TEST_PATH==3
-	xor a
-	ld hl,0
-	elseif TEST_PATH==2
-	ld a,MAX_SX
-	ld hl,MAX_SY
-	else
-	ld a,TEST_X
-	ld hl,TEST_Y
-	endif
-	call scroll_set
-	else
-	RAM RAM_C5			; (game code in bank 5)
-	if SERVICE
-	call service_init
-	endif
-	call actor_init
-	xor a
-	ld hl,0
-	call scroll_set
-	xor a
-	call actor_tick			; place the camera
-	RAM RAM_C0
-	endif
-
-	call view_restart
+; End of the boot, in the common code (the area loader uses the first save
+; area as its directory buffer).
+boot_done:
 	if TEST_AREA			; test: load an area at once
 	ld a,TEST_AREA-1
 	call area_load
@@ -640,6 +526,164 @@ prof_t:		ds 4,0
 
 HUD_SHIFT1	equ 1		; HUD pattern shift (bytes) for R3 phase 1
 
+input:		db 0
+dbg_frame:	db 0		; Bill's frame (debug band; set in game/actor.asm)
+lb_addr:	dw 0
+render_n:	db 0
+ticks:		db 0
+last_frame:	db 0
+hf_src:		db 0
+; Scroll steps per frame in test builds: 1 = fine (2 px / 1 line), 2 / 8 =
+; CRTC fallback.
+scroll_step_x:	db 2-FINE_X
+scroll_step_y:	db 8-7*FINE_Y
+
+	include "engine/hw.asm"
+	include "engine/input.asm"
+	include "engine/crtc.asm"
+	include "engine/scroll.asm"
+	include "engine/sprite.asm"
+	include "engine/hud.asm"
+	include "game/area.asm"
+	include "engine/fdc.asm"
+	include "palette.asm"
+
+
+
+
+	if LANG_EN
+	; language-specific data will go here (text, font)
+	endif
+	if LANG_GR
+	endif
+
+; --- boot: runs once before the game, in the second save-under area after
+; the cassette buffer (the sprites overwrite it later; the binary covers it
+; anyway, bank 5 is staged at &4000). Not the first one: the boot's first
+; frame (view_restart) is drawn into buffer 0, saving under into it ---
+code_resume = $
+	org SAVE_AREA1+#800		; (CAS_BUFFER = SAVE_AREA1, 2K)
+boot_start:
+
+; Bank files loaded with the firmware before it is switched off: name,
+; RAM config, load address.
+bank_files:				; length, name, RAM config, address
+	if SPR_BANKS&#10
+	db 8,"SPR4.DAT",RAM_C4 : dw #4000
+	endif
+	if SPR_BANKS&#40
+	db 8,"SPR6.DAT",RAM_C6 : dw #4000
+	endif
+	if SPR_FIXED_B5
+	db 6,"B5.SPR",RAM_C5 : dw SPR_FIXED_B5_BASE	; top of bank 5 (the rest: mem_relocate)
+	endif
+	if SPR_AREAS
+	db 11,"KITCHEN.SPR",RAM_C7 : dw #4000	; the first area (others: src/game/area.asm)
+	endif
+	db 0
+CAS_IN_OPEN	equ #BC77
+CAS_IN_DIRECT	equ #BC83
+CAS_IN_CLOSE	equ #BC7A
+CAS_BUFFER	equ #3000		; 2K, free until the game starts
+
+KL_INIT_BACK	equ #BCCE
+
+load_banks:
+	; a binary started with RUN" runs with the cassette vectors: initialise
+	; AMSDOS (ROM 7) again so that CAS IN reads from the disc
+	ld c,7
+	ld de,#0040
+	ld hl,#ABFF
+	call KL_INIT_BACK
+	ld hl,bank_files
+.next:	ld a,(hl)			; name length
+	or a
+	ret z
+	inc hl
+	push hl
+	ld e,a
+	ld d,0
+	add hl,de
+	ld c,(hl)			; RAM config
+	ld b,GA_PORT
+	out (c),c
+	inc hl
+	ld e,(hl)			; load address
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld (lb_addr),de
+	ex (sp),hl			; (sp) = next entry, HL = name
+	ld b,a
+	ld de,CAS_BUFFER
+	call CAS_IN_OPEN
+	ld hl,(lb_addr)
+	call CAS_IN_DIRECT
+	call CAS_IN_CLOSE
+	ld bc,GA_PORT*256+RAM_C0
+	out (c),c
+	pop hl
+	jr .next
+
+start:
+	call load_banks			; firmware still active
+	di
+	ld sp,STACK_TOP
+	im 1
+	ld bc,GA_PORT*256+GA_RMR_MODE0
+	out (c),c			; mode 0, ROMs off (firmware no longer used)
+
+	call mem_relocate		; data into banks 4/5, clear &4000-&FFFF
+	call wait_vsync
+	ld hl,palette_hw
+	call set_palette
+
+	if SERVICE			; the game's HUD (texts: game/service.asm)
+	call hud_clear
+	else
+	ld de,0				; test pattern in the HUD sets: (phase 0,
+	ld a,1				; buffer 0/1), (phase 1, ...)
+	call hud_fill
+	ld de,512
+	ld a,1
+	call hud_fill
+	ld de,1024
+	ld a,1+HUD_SHIFT1
+	call hud_fill
+	ld de,1536
+	ld a,1+HUD_SHIFT1
+	call hud_fill
+	endif
+
+	if TESTMODE
+	if TEST_PATH==1 || TEST_PATH==3
+	xor a
+	ld hl,0
+	elseif TEST_PATH==2
+	ld a,MAX_SX
+	ld hl,MAX_SY
+	else
+	ld a,TEST_X
+	ld hl,TEST_Y
+	endif
+	call scroll_set
+	else
+	RAM RAM_C5			; (game code in bank 5)
+	if SERVICE
+	call service_init
+	endif
+	call actor_init
+	xor a
+	ld hl,0
+	call scroll_set
+	xor a
+	call actor_tick			; place the camera
+	RAM RAM_C0
+	endif
+
+	call view_restart
+	jp boot_done
+
 ; Fill the 4 HUD rows at byte offset DE of the base &4000 page from the test
 ; pattern starting at hud_pattern + A. Line 0 of every row is black.
 hud_fill:
@@ -697,38 +741,53 @@ hud_fill:
 	jr nz,.line
 	ret
 
-input:		db 0
-dbg_frame:	db 0		; Bill's frame (debug band; set in game/actor.asm)
-lb_addr:	dw 0
-render_n:	db 0
-ticks:		db 0
-last_frame:	db 0
-hf_src:		db 0
-; Scroll steps per frame in test builds: 1 = fine (2 px / 1 line), 2 / 8 =
-; CRTC fallback.
-scroll_step_x:	db 2-FINE_X
-scroll_step_y:	db 8-7*FINE_Y
-
-	include "engine/hw.asm"
-	include "engine/mem.asm"
-	include "engine/input.asm"
-	include "engine/crtc.asm"
-	include "engine/scroll.asm"
-	include "engine/sprite.asm"
-	include "engine/hud.asm"
-	include "game/area.asm"
-	include "engine/fdc.asm"
-	include "palette.asm"
-
 hud_pattern:
 	incbin "testhud.bin"
+; The game's HUD: all four sets in the background colour, a line under it.
+; Needs RAM_C0.
+hud_clear:
+	ld hl,#4000			; line l of the sets: &4000 + l*&800, 2K
+	ld b,8
+.l:	push bc
+	push hl
+	ld d,h
+	ld e,l
+	inc de
+	ld (hl),0			; (HUD_BG = pen 0)
+	ld bc,#7FF
+	ldir
+	pop hl
+	pop bc
+	ld a,b
+	dec a
+	jr nz,.n
+	push hl				; last line: row 3 of every set
+	ld de,3*80
+	add hl,de
+	ld c,4
+.s:	push hl
+	ld b,80
+.b:	ld (hl),(HUD_LINE&1)*#C0 | ((HUD_LINE>>1)&1)*#0C | ((HUD_LINE>>2)&1)*#30 | ((HUD_LINE>>3)&1)*#03
+	inc hl
+	djnz .b
+	pop hl
+	ld de,512
+	add hl,de
+	dec c
+	jr nz,.s
+	pop hl
+	ret				; (that was the last line)
+.n:	ld a,h
+	add a,8
+	ld h,a
+	djnz .l
+	ret
 
-
-	if LANG_EN
-	; language-specific data will go here (text, font)
-	endif
-	if LANG_GR
-	endif
+	include "engine/mem.asm"
+boot_end:
+	assert boot_end<=#4000,"boot code too big"
+	print "boot code end: ",{hex}boot_end
+	org code_resume
 
 code_end:
 	assert code_end<=CL_BUF,"code overlaps the sprite buffers"
@@ -760,6 +819,7 @@ map_data:
 
 	; game logic that runs with bank 5 mapped (game ticks: the map for
 	; collisions; adding sprites in render, after buffer_sync)
+	include "game/hudtext.asm"
 	include "game/actor.asm"
 	include "game/customer.asm"
 	include "game/staff.asm"

@@ -133,6 +133,7 @@ scroll_select:
 BS_CX		equ 0
 BS_CY		equ 1
 BS_OK		equ 2
+BS_DREW		equ 3		; buffer_sync drew tiles (stamps: sprite.asm)
 
 buffer_sync:
 	ld a,(back)
@@ -145,6 +146,14 @@ buffer_sync:
 	ld a,(ix+BS_OK)
 	or a
 	jp z,.full
+	ld a,(scr_cx)			; new tiles to draw? (for the stamps)
+	cp (ix+BS_CX)
+	jr nz,.dr
+	ld a,(scr_cy)
+	cp (ix+BS_CY)
+	jr z,.nd
+.dr:	ld (ix+BS_DREW),1
+.nd:
 
 	; columns, for the rows the ring holds now (bcy..bcy+21)
 	ld a,(ix+BS_CY)
@@ -204,7 +213,8 @@ buffer_sync:
 	ld (ix+BS_CY),a
 	ret
 
-.full:	ld a,(scr_cx)
+.full:	ld (ix+BS_DREW),1
+	ld a,(scr_cx)
 	ld (ix+BS_CX),a
 	ld a,(scr_cy)
 	ld (ix+BS_CY),a
@@ -416,6 +426,97 @@ tc_hit:		db 0,0		; per buffer: a sprite was in the partial top row
 tc_sx:		db #FF,#FF	; per buffer: scroll at the last copy_top
 tc_sy:		dw #FFFF,#FFFF
 
+; NZ if buffer_sync drew tiles into the back buffer since the last call.
+buffer_drew:
+	ld a,(back)
+	add a,a
+	add a,a
+	ld hl,buf_state+BS_DREW
+	add a,l
+	ld l,a
+	ld a,h
+	adc a,0
+	ld h,a
+	ld a,(hl)
+	ld (hl),0
+	or a
+	ret
+
+; Redraw the tiles under a figure (32 x 52 from x = DE, y = BC, map
+; pixels/lines) in the back buffer, inside the view. Maps bank 5.
+redraw_tiles:
+	push bc
+	RAM RAM_C5			; (uses BC)
+	pop bc
+	srl d				; char columns x/4 .. (x+31)/4
+	rr e
+	srl d
+	rr e
+	ld a,e
+	ld (rt_x0),a
+	srl b				; char rows y/8 .. (y+51)/8
+	rr c
+	srl b
+	rr c
+	srl b
+	rr c
+	ld a,c
+	ld (rt_y),a
+	ld a,(scr_cy)			; rows: from max(y0, cy)
+	ld d,a
+	ld a,c
+	cp d
+	jr nc,.y0
+	ld a,d
+.y0:	ld (rt_y),a
+	ld a,c				; to min(y0+7, cy+21, map)
+	add a,7
+	ld e,a
+	ld a,d
+	add a,VIEW_ROWS-1
+	cp e
+	jr nc,.y1
+	ld e,a
+.y1:	ld a,e
+	cp MAP_H
+	jr c,.y2
+	ld e,MAP_H-1
+.y2:	ld a,e
+	ld (rt_y1),a
+.row:	ld a,(rt_y)
+	ld b,a
+	ld a,(rt_y1)
+	cp b
+	ret c
+	ld a,(rt_x0)
+	ld c,a
+	ld b,9				; 9 char columns
+.col:	push bc
+	ld a,(scr_cx)			; inside the view's columns?
+	ld e,a
+	ld a,c
+	sub e
+	jr c,.cn
+	cp VIEW_CW
+	jr nc,.cn
+	ld a,c
+	cp MAP_CW
+	jr nc,.cn
+	ld (ca_x),a
+	ld a,(rt_y)
+	call char_addr
+	call map_char
+.cn:	pop bc
+	inc c
+	djnz .col
+	ld hl,rt_y
+	inc (hl)
+	jr .row
+
+rt_x0:	db 0
+rt_y:	db 0
+rt_y1:	db 0
+
 ; ---------------------------------------------------------------------------
 ; Draw map char row Y (A) for X = cx..cx+39. Needs RAM_C5.
 draw_row:
@@ -618,7 +719,7 @@ scr_fy:		db 0
 scr_base:	dw 0
 scr_page:	db #80		; high byte of the back buffer (&80 / &C0)
 back:		db 0		; back buffer 0/1
-buf_state:	ds 8,0		; per buffer: BS_CX, BS_CY, BS_OK, pad
+buf_state:	ds 8,0		; per buffer: BS_CX, BS_CY, BS_OK, BS_DREW
 ca_x:		db 0
 ca_plane:	db 0
 dc_y0:		db 0

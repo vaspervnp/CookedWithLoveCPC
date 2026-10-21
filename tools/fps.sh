@@ -1,12 +1,16 @@
 #!/bin/bash
 # Frame rate on CPCEC: builds with the debug band showing the render count
-# (DBGFPS) and reads it 200 VBLs apart. Extra defines as arguments, e.g.
+# (DBGFPS) and reads it 200 VBLs apart, from VBL $FPS_AT (default 1000).
+# Extra defines as arguments, e.g.
 #   tools/fps.sh -DCLONES=3
+#   FPS_AT=3000 tools/fps.sh -DDEMO=1
 # Leaves a normal build behind.
 make -s en EXTRA="-DDEBUG=1 -DDBGPOS=1 -DDBGFPS=1 $*" >/dev/null 2>&1 || exit 1
 rm -f build/cpcec/fps*.bmp
-tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/fps 1000,1200
-python3 - <<'PY'
+A=${FPS_AT:-1000}; B=$((A + 200))
+CPCEC_TIMEOUT=400 tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/fps $A,$B
+FA=$(printf "build/cpcec/fps%05d.bmp" $A) FB=$(printf "build/cpcec/fps%05d.bmp" $B) python3 - <<'PY'
+import os
 from PIL import Image
 def count(f, shift):
     px = Image.open(f).convert("RGB").load()
@@ -18,8 +22,8 @@ def read(f):
         sx, n, prof = count(f, shift)
         if sx % 2 == shift:
             return n, prof
-a, pa = read("build/cpcec/fps01000.bmp")
-b, pb = read("build/cpcec/fps01200.bmp")
+a, pa = read(os.environ["FA"])
+b, pb = read(os.environ["FB"])
 d = (b - a) % 256
 print(f"{d} renders in 200 VBLs = {d / 4:.1f} fps; stages (restore, sync, draw, build; 1/300 s) {pa[:4]} {pb[:4]}; sprites {pb[4]}, clipped path {pb[5]}")
 PY
