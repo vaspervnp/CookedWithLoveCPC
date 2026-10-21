@@ -26,7 +26,7 @@
 ; for the food a plate, eating a heart, wants to pay a coin; a plate over
 ; the pass when an order is ready.
 
-G_MAX		equ 9		; groups at the same time (one per table)
+; (G_MAX, GR_SIZE, TRAIL_N and the big tables: src/game/vars.asm)
 QUEUE_SLOTS	equ 2		; groups waiting at the entrance
 WALK_MAX	equ 5		; customers walking at the same time (+ Bill = 6
 				; moving figures; the others wait, still ones are
@@ -55,7 +55,6 @@ GR_P		equ 6		; patience
 GR_PT		equ 7		; ticks to the next point lost
 GR_MOOD		equ 8		; bubble of the state (angry: shown instead)
 GR_SLOT		equ 9		; place in the queue (0 = front)
-GR_SIZE		equ 16
 
 ; entrance (level 1: the mats at metatiles 8-9 of the bottom row)
 DOOR_X		equ 128		; customer sprite left/top
@@ -73,7 +72,6 @@ SPAWN_TICKS	equ 60
 SPAWN_TICKS	equ 300		; a new group at most every 6 s
 	endif
 
-TRAIL_N		equ 32		; Bill's feet, recorded every 4 ticks he walks
 FOLLOW_GAP	equ 5		; trail entries between the followers
 NEAR_X		equ 28		; fire reaches this far (feet to feet)
 NEAR_Y		equ 24
@@ -87,14 +85,11 @@ PAT_RATE	equ 12
 PAT_REFILL	equ 96
 PAT_ANGRY	equ 64
 
-groups:		ds G_MAX*GR_SIZE,0
-tb_busy:	ds TABLE_COUNT,0	; group + 1 at the table, 0 = free
 sv_prev:	db 0		; input of the last tick (fire edge)
 sv_follow:	db 0		; group + 1 following Bill
 sv_spawn_t:	dw 50
 sv_tick:	db 0
 sv_seed:	dw #ACE1
-trail:		ds TRAIL_N*4,0	; x, y words
 trail_head:	db 0
 bill_carry:	db 0		; group + 1 whose plates Bill carries
 sv_bub_t:	db 0

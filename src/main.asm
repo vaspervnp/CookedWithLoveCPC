@@ -95,10 +95,12 @@ FINE_Y	equ 1
 	endif
 
 	include "engine/defs.asm"
-	if MAP_TEST			; SOLID_FIRST of the map
+	if MAP_TEST			; SOLID_FIRST of the map, META_N
 	include "test.asm"
+	include "test_meta.asm"
 	else
 	include "lvl1.asm"
+	include "lvl1_meta.asm"
 	endif
 
 STACK_TOP	equ #0100
@@ -803,9 +805,21 @@ tile_data:				; (aligned: draw_char)
 	incbin "test_tiles.bin"
 map_data:
 	incbin "test_map.bin"
+VARS_BLK = 0				; the big tables (game/vars.asm), after it
+	repeat 4
+	include "game/vars.asm"
+VARS_BLK = VARS_BLK+1
+	rend
 	else
-meta_data:
-	incbin "lvl1_meta.bin"
+meta_data:				; level 1: each plane uses META_N bytes,
+VARS_BLK = 0				; the rest of it holds a block of the big
+	repeat 4			; tables (game/vars.asm)
+	incbin "lvl1_meta.bin",VARS_BLK*256,META_N
+	include "game/vars.asm"
+	assert $<=meta_data+(VARS_BLK+1)*256,"no room for the tables in a metatile plane"
+	ds meta_data+(VARS_BLK+1)*256-$,0
+VARS_BLK = VARS_BLK+1
+	rend
 tile_data:
 	incbin "lvl1_tiles.bin"
 map_data:

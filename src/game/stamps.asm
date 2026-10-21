@@ -10,14 +10,8 @@
 
 SD_W		equ 32		; a stamp's rectangle (figure, sitting drop)
 SD_H		equ 52
-SD_ENT		equ 6		; x, y, hash
-SDR_SIZE		equ 1+STAMP_MAX*SD_ENT
-SDC_SIZE		equ 8		; x, y, hash, entry index, flags
-
-sd_rec:		ds 2*SDR_SIZE,0	; per buffer: count, stamps
-sd_erase:	ds STAMP_MAX*4,0	; rectangles (x, y) to erase
+; (SD_ENT, SDR_SIZE, SDC_SIZE, sd_rec, sd_erase, sd_cur: src/game/vars.asm)
 sd_nerase:	db 0
-sd_cur:		ds STAMP_MAX*SDC_SIZE,0
 sd_ncur:	db 0
 sd_drew:	db 0
 sd_chg:		db 0
