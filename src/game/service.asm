@@ -99,11 +99,18 @@ bill_carry:	db 0		; group + 1 whose plates Bill carries
 sv_bub_t:	db 0
 sv_dirty:	db 0		; Bill carries dirty plates
 TB_DIRTY	equ #80		; tb_busy: plates left (+ their number, 1-3)
-sv_money:	dw 0
+START_MONEY	equ 150		; the economy (portions: src/ovl/prep.asm)
+DAY_COST	equ 50		; rent and wages, at the end of each day
+sv_money:	dw START_MONEY
 sv_served:	dw 0		; customers who paid today
 sv_lost:	dw 0		; customers who left angry today
-sv_day:		db 1
-sv_phase:	db 0		; 0 open, 1 closed (no more arrivals), 2 over
+sv_day:		db TEST_FILL	; (the preparation counts the day on)
+sv_phase:	db 0		; SP_*: open, closed (no more arrivals), over, ...
+SP_OPEN		equ 0
+SP_CLOSED	equ 1
+SP_OVER		equ 2		; everybody gone: the summary (src/ovl/prep.asm)
+SP_PREP		equ 3		; the morning: portions of each dish
+SP_BROKE	equ 4		; the money did not cover the day: game over
 sv_money0:	dw 0		; money when the day started
 	ifndef DAY_MIN			; length of the day (game minutes; tests: shorter)
 DAY_MIN		equ 180
@@ -128,8 +135,20 @@ MINUTE_TICKS	equ 50		; a game minute every second
 ; ---------------------------------------------------------------------------
 ; Start of the day: the HUD.
 service_init:
+	if TEST_FILL			; test: 9 portions of each, open
+	ld hl,sv_stock
+	ld b,DISH_N
+.st:	ld (hl),9
+	inc hl
+	djnz .st
 	xor a
 	call sv_status
+	else
+	ld a,SP_PREP			; the first morning: the overlay
+	ld (sv_phase),a
+	ld a,1
+	ld (ovl_req),a
+	endif
 	ld a,8				; icons
 	ld b,HUD_BG
 	call hud_colors
@@ -241,79 +260,8 @@ sv_hud_lost:
 	ld bc,(HUD_LOST<<8)+HUD_ROW
 	jp hud_number
 
-; The end of the day: stars and earnings. 3 stars: nobody lost; 2: served
-; at least 3 times the lost; 1: at least as many; else none.
-sv_summary:
-	ld hl,(sv_lost)
-	ld de,(sv_served)
-	ld c,0
-	ld a,d				; nobody came: no stars
-	or e
-	jr z,.st
-	ld a,h
-	or l
-	ld c,3
-	jr z,.st
-	ld c,0
-	ex de,hl			; HL = served, DE = lost
-	or a
-	sbc hl,de
-	jr c,.st			; fewer served than lost
-	inc c
-	or a
-	sbc hl,de
-	jr c,.st
-	or a
-	sbc hl,de
-	jr c,.st			; served < 3 lost
-	inc c
-.st:	ld a,c
-	ld (sm_stars),a
-	ld a,8
-	ld b,HUD_BG
-	call hud_colors
-	ld b,HUD_STARS			; three stars, the first C full
-	ld c,0
-.sl:	push bc
-	ld a,(sm_stars)
-	cp c
-	ld a,G_STAR0_L
-	jr z,.e
-	jr c,.e
-	ld a,G_STAR_L
-.e:	push af
-	ld c,HUD_ROW2
-	call hud_char
-	pop af
-	pop bc
-	push bc
-	inc a
-	inc b
-	ld c,HUD_ROW2
-	call hud_char
-	pop bc
-	inc b
-	inc b
-	inc b
-	inc c
-	ld a,c
-	cp 3
-	jr nz,.sl
-	ld a,G_COIN_L			; earnings
-	ld bc,((HUD_EARN-3)<<8)+HUD_ROW2
-	call hud_char
-	ld a,G_COIN_R
-	ld bc,((HUD_EARN-2)<<8)+HUD_ROW2
-	call hud_char
-	ld hl,(sv_money)
-	ld de,(sv_money0)
-	or a
-	sbc hl,de
-	ld d,5
-	ld bc,(HUD_EARN<<8)+HUD_ROW2
-	jp hud_number
-
-; The status line (HUD row 3) of phase A: open, closed, the day over.
+; The status line (HUD row 3) of phase A: open or closed (the others:
+; src/ovl/prep.asm).
 sv_status:
 	push af
 	ld a,HUD_BG
@@ -329,8 +277,6 @@ sv_status:
 	jr z,.one
 	ld hl,txt_closed
 	ld c,4				; closed: red
-	dec a
-	jr nz,.end
 .one:	push hl
 	ld a,c
 	ld b,HUD_BG
@@ -338,52 +284,18 @@ sv_status:
 	pop hl
 	ld bc,(1<<8)+HUD_ROW3
 	jp hud_text
-.end:	ld a,13				; the day over, fire: the next one
-	ld b,HUD_BG
-	call hud_colors
-	ld hl,txt_day_end
-	ld bc,(1<<8)+HUD_ROW3
-	call hud_text
-	ld a,8
-	ld b,HUD_BG
-	call hud_colors
-	ld hl,txt_next
-	ld bc,((39-TXT_NEXT_LEN)<<8)+HUD_ROW3
-	jp hud_text
-
-; Fire after the end of the day: the next one.
-sv_new_day:
-	ld hl,sv_day
-	inc (hl)
-	ld hl,12*60
-	ld (sv_min),hl
-	ld hl,0
-	ld (sv_served),hl
-	ld (sv_lost),hl
-	ld hl,(sv_money)
-	ld (sv_money0),hl
-	ld hl,50
-	ld (sv_spawn_t),hl
-	xor a
-	ld (sv_phase),a
-	call sv_status
-	ld a,HUD_BG			; clear the stars and earnings
-	ld b,a
-	call hud_colors
-	ld bc,(HUD_STARS<<8)+HUD_ROW2
-	ld e,HUD_EARN+5
-	call hud_spaces
-	call sv_hud_day
-	jp sv_hud_time
-
-sm_stars:	db 0
 
 ; ---------------------------------------------------------------------------
 ; One game tick (bank 5).
 service_tick:
-	ld a,(sv_phase)			; the clock (stops when the day is over)
-	cp 2
-	jr z,.ck
+	ld a,(sv_phase)			; between the days: the overlay
+	cp SP_OVER
+	jr c,.day
+	ld a,(ovl_req)			; (once loaded)
+	or a
+	ret nz
+	jp OVL_TICK
+.day:
 	ld hl,sv_sec
 	inc (hl)
 	ld a,(hl)
@@ -447,10 +359,10 @@ service_tick:
 	ld de,GR_SIZE
 	add ix,de
 	djnz .f
-	ld a,2
-	ld (sv_phase),a
-	call sv_status
-	call sv_summary
+	ld a,SP_OVER			; the summary and the next morning: the
+	ld (sv_phase),a			; overlay, loaded now that only Bill
+	ld a,1				; is on screen (src/game/area.asm)
+	ld (ovl_req),a
 .nw:	call sv_talk
 	ld a,(cust_anim)		; walking: a step every other tick
 	rrca
@@ -1231,8 +1143,9 @@ sv_table:
 	add hl,de
 	ret
 
-; The order of group IX: each customer chooses a dish of the menu; the
-; kitchen needs the time of the slowest.
+; The order of group IX: each customer chooses a dish of the menu (with
+; portions left: there are enough for all); the kitchen needs the time of
+; the slowest.
 sv_choose:
 	push ix
 	pop iy
@@ -1241,7 +1154,20 @@ sv_choose:
 .c:	push bc
 	push hl
 	call sv_rand
-	and 7				; (DISH_N = 8)
+	and 7				; (DISH_N = 8): this one or the next
+.f:	ld e,a				; with portions left
+	ld d,0
+	ld hl,sv_stock
+	add hl,de
+	ld a,(hl)
+	or a
+	jr nz,.got
+	ld a,e
+	inc a
+	and 7
+	jr .f
+.got:	dec (hl)
+	ld a,e
 	ld (iy+GR_DISH),a
 	add a,a
 	ld e,a
@@ -1397,9 +1323,6 @@ sv_at_table:
 ; ---------------------------------------------------------------------------
 ; Fire: what is next to Bill.
 sv_fire:
-	ld a,(sv_phase)
-	cp 2
-	jp z,sv_new_day
 	ld a,(sv_follow)
 	or a
 	jp nz,.seat
@@ -1502,6 +1425,14 @@ sv_fire:
 	ld a,(ix+GR_STATE)
 	cp GS_SEATED
 	jr nz,.serve
+	ld hl,sv_stock			; portions left for all of them?
+	ld b,DISH_N
+	xor a
+.stk:	add a,(hl)
+	inc hl
+	djnz .stk
+	cp (ix+GR_N)
+	jp c,sv_angry			; no: they leave
 	ld (ix+GR_STATE),GS_ORDERED	; the order: to the kitchen
 	call sv_choose
 	ld a,MOOD_ORDER

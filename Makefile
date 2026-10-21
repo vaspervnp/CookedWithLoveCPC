@@ -20,6 +20,8 @@ RASMFLAGS += $(EXTRA)
 
 FORCE:
 
+.SECONDARY: $(BUILD)/prep_en.bin $(BUILD)/prep_gr.bin
+
 .PHONY: FORCE parts staff items tiles all en gr run-en run-gr shot-en shot-gr palette clean
 
 all: en gr
@@ -113,18 +115,26 @@ staff:
 	$(PYTHON) tools/charsheet.py blossom $(BUILD)/render/blossom assets/sprites
 
 $(BUILD)/cwl_en.bin: $(SRC) $(GEN) FORCE
-	$(RASM) src/main.asm -Isrc -I$(BUILD) -DLANG_EN=1 $(RASMFLAGS) -ob $@ -os $(BUILD)/cwl_en.sym -s
+	$(RASM) src/main.asm -Isrc -I$(BUILD) -DLANG_EN=1 $(RASMFLAGS) -ob $@ -os $(BUILD)/cwl_en.sym -s -sq
 
 $(BUILD)/cwl_gr.bin: $(SRC) $(GEN) FORCE
-	$(RASM) src/main.asm -Isrc -I$(BUILD) -DLANG_GR=1 $(RASMFLAGS) -ob $@ -os $(BUILD)/cwl_gr.sym -s
+	$(RASM) src/main.asm -Isrc -I$(BUILD) -DLANG_GR=1 $(RASMFLAGS) -ob $@ -os $(BUILD)/cwl_gr.sym -s -sq
+
+# The overlay between the days (src/ovl/prep.asm), with the symbols of the
+# game of the same language
+$(BUILD)/prep_%.bin: src/ovl/prep.asm $(BUILD)/cwl_%.bin
+	awk '$$1 !~ /\./ && $$1 !~ /^(BUILDCPC|SYNCHRO|RASM_VERSION)$$/ {print $$1 "\tequ " $$2}' $(BUILD)/cwl_$*.sym > $(BUILD)/syms_$*.asm
+	$(RASM) src/ovl/prep.asm -Isrc -I$(BUILD) -DOVERLAY=1 -DLANG_$(shell echo $* | tr a-z A-Z)=1 -ob $@
 
 # Disk name on the CPC is always CWL.BIN -> RUN"CWL
-$(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin
+$(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin $(BUILD)/prep_%.bin
 	rm -f $@ $(BUILD)/CWL.BIN
 	cp $< $(BUILD)/CWL.BIN
 	$(IDSK) $@ -n
 	$(IDSK) $@ -i $(BUILD)/CWL.BIN -t 1 -c $(LOAD) -e $(EXEC)
 	rm -f $(BUILD)/CWL.BIN
+	cp $(BUILD)/prep_$*.bin $(BUILD)/PREP.OVL
+	cd $(BUILD) && $(IDSK) $(notdir $@) -i PREP.OVL -t 1 -c 3800 -s >/dev/null && rm -f PREP.OVL
 	cd $(BUILD) && for f in spr_?.dat; do b=$${f#spr_}; b=$${b%.dat}; cp $$f SPR$$b.DAT; $(IDSK) $(notdir $@) -i SPR$$b.DAT -t 1 -c 4000 -s >/dev/null; rm -f SPR$$b.DAT; done
 	cd $(BUILD) && for f in spr_??*.dat; do a=$${f#spr_}; a=$${a%.dat}; n=$$(echo $$a | tr a-z A-Z | cut -c1-8).SPR; cp $$f $$n; $(IDSK) $(notdir $@) -i $$n -t 1 -c 4000 -s >/dev/null; rm -f $$n; done
 

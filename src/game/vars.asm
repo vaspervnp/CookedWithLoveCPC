@@ -24,6 +24,7 @@ sd_rec:		ds 2*SDR_SIZE,0	; per buffer: count, stamps
 	if VARS_BLK==2
 	if SERVICE
 trail:		ds TRAIL_N*4,0	; x, y words
+sv_stock:	ds 8,0		; portions of each dish (DISH_N) left today
 	endif
 	endif
 	if VARS_BLK==3

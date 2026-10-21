@@ -66,3 +66,35 @@ area_load:
 	jr .try
 .ok:	RAM RAM_C0
 	jp view_restart
+
+; The overlay between the days (src/ovl/prep.asm, PREP.OVL on the disc):
+; the summary, the costs, the morning preparation. The service asks for it
+; (ovl_req) when the room is empty: only Bill's figures are drawn then,
+; whose save-unders stay below OVL_BASE in the second save area, so the
+; overlay lives there until the service opens again.
+OVL_BASE	equ SAVE_AREA1+#800	; (where the boot code ran: 2K)
+OVL_INIT	equ OVL_BASE		; jump table: init (phase SP_OVER/SP_PREP)
+OVL_TICK	equ OVL_BASE+3		; a tick between the days (bank 5 mapped)
+ovl_req:	db 0
+ovl_name:	db "PREP    OVL"
+
+; Load the overlay, restart the view, call its init (main loop, base RAM).
+ovl_load:
+	xor a
+	ld (ovl_req),a
+	di
+	call crtc_plain
+.try:	ld hl,ovl_name
+	ld de,OVL_BASE-AREA_HDR
+	call fdc_load
+	jr nc,.ok
+	ld bc,GA_PORT*256+GA_PEN_BORDER	; read error: red border, again
+	out (c),c
+	ld a,#4C
+	out (c),a
+	jr .try
+.ok:	call view_restart
+	RAM RAM_C5
+	call OVL_INIT
+	RAM RAM_C0
+	ret
