@@ -83,6 +83,7 @@ SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 	cust_sit:assets/sprites/cust_sit.png:14:1:0::34 \
 	tray:assets/sprites/tray.png:12:6:3:::b5 \
 	bubble:assets/sprites/bubble.png:14:::::b5 \
+	mouth:assets/sprites/mouth.png:20:1:0:::b5 \
 	liberty:assets/sprites/liberty.png:48:9:6:::kitchen \
 	liberty_act:assets/sprites/liberty_act.png:48:6:0:::kitchen \
 	blossom:assets/sprites/blossom.png:48:9:6:::storage \

@@ -6,6 +6,9 @@ own depth key), so the figures need no extra poses.
   assets/sprites/tray.png    32x12 frames: 1, 2, 3 plates seen from the front
                              (Bill facing down), then from the side (facing
                              right; left = mirror)
+  assets/sprites/mouth.png   32x20: an open mouth over a customer's head in
+                             profile (facing right; left = mirror): the
+                             sitting customers talk (drawn over their stamp)
   assets/sprites/bubble.png  32x14 frames: heart (happy), angry, waiting
                              (...), wants food (plate), wants to pay (coin); Bill
                              taking an order (notepad)
@@ -122,6 +125,16 @@ def bubble(icon):
     return outline(c)
 
 
+def mouth():
+    """Open mouth, head lines 17-18 at the front of the face (profile)."""
+    c = canvas(32, 20)
+    put(c, 18, 17, BLACK)
+    put(c, 19, 17, BLACK)
+    put(c, 18, 18, RED)
+    put(c, 19, 18, BLACK)
+    return c
+
+
 def save(frames, w, h, path, rgb):
     im = Image.new("RGBA", (w * len(frames), h), (0, 0, 0, 0))
     for i, f in enumerate(frames):
@@ -144,6 +157,7 @@ def main():
              os.path.join(args.out, "tray.png"), rgb)
     b = save([bubble(i) for i in ("heart", "angry", "wait", "food", "pay", "order")], 32, 14,
              os.path.join(args.out, "bubble.png"), rgb)
+    save([mouth()], 32, 20, os.path.join(args.out, "mouth.png"), rgb)
     if args.preview:
         pv = Image.new("RGBA", (max(a.width, b.width), a.height + b.height + 2), (60, 60, 70, 255))
         pv.alpha_composite(a, (0, 0))

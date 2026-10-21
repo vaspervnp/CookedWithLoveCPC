@@ -27,6 +27,7 @@ CU_ON		equ 13		; 0: not in the restaurant (not drawn)
 CU_TX		equ 14		; service: where it walks to (src/game/service.asm)
 CU_TY		equ 16
 CU_STILL	equ 18		; 1: standing still (queue): drawn as a stamp
+CU_TALK		equ 19		; sitting: ticks of talking left (service.asm)
 CU_SIZE		equ 20
 
 SIT_DROP	equ 4		; sitting: the figure is drawn this much lower
@@ -191,6 +192,32 @@ cust_sprites:
 	pop de
 	ld bc,(cust_y)
 	call bubble_sprite
+	ld a,(ix+CU_TALK)		; talking: the open mouth now and then
+	or a
+	jr z,.skip
+	ld a,(cust_anim)
+	and 8
+	jr z,.skip
+	ld hl,mouth_frames		; right, left (mirror)
+	ld a,(ix+CU_DIR)
+	cp DIR_LEFT
+	jr nz,.mr
+	inc hl
+	inc hl
+.mr:	ld a,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,a
+	push hl
+	ld hl,#7FFE			; over its stamp
+	ld (spr_z),hl
+	pop hl
+	ld a,(ix+CU_X)
+	and #FE
+	ld e,a
+	ld d,(ix+CU_X+1)
+	ld bc,(cust_y)
+	call sprites_add_z
 .skip:	ld de,CU_SIZE
 	add ix,de
 	pop bc

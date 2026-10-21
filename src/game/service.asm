@@ -81,6 +81,8 @@ KITCHEN_T	equ 500		; cooking: 10 s
 EAT_T		equ 600		; eating: 12 s
 PRICE		equ 12		; per customer
 BUBBLE_T	equ 50		; Bill's notepad bubble after taking an order
+TALK_MAX	equ 3		; sitting customers talking at the same time
+TALK_CHANCE	equ 6		; out of 256 per tick: someone starts talking
 PAT_RATE	equ 12
 PAT_REFILL	equ 96
 PAT_ANGRY	equ 64
@@ -411,10 +413,52 @@ service_tick:
 	ld a,2
 	ld (sv_phase),a
 	call sv_summary
-.nw:	ld a,(cust_anim)		; walking: a step every other tick
+.nw:	call sv_talk
+	ld a,(cust_anim)		; walking: a step every other tick
 	rrca
 	ret c
 	jp sv_walk
+
+; The sitting customers chat: a few at a time, chosen at random, for 1-2.5 s.
+sv_talk:
+	ld iy,cust_list			; time runs out; count the talking ones
+	ld b,CU_COUNT
+	ld c,0
+.l:	ld a,(iy+CU_TALK)
+	or a
+	jr z,.n
+	inc c
+	ld a,(iy+CU_SIT)		; (got up meanwhile: stops)
+	or a
+	jr z,.st
+	dec (iy+CU_TALK)
+	jr .n
+.st:	ld (iy+CU_TALK),0
+.n:	ld de,CU_SIZE
+	add iy,de
+	djnz .l
+	ld a,c
+	cp TALK_MAX
+	ret nc
+	call sv_rand			; now and then someone else
+	cp TALK_CHANCE
+	ret nc
+	call sv_rand			; who: a random customer, if sitting
+	and 31
+	cp CU_COUNT
+	ret nc
+	call sv_cust
+	ld a,(iy+CU_ON)
+	and (iy+CU_SIT)
+	ret z
+	ld a,(iy+CU_TALK)
+	or a
+	ret nz
+	call sv_rand			; 50-113 ticks
+	and 63
+	add a,50
+	ld (iy+CU_TALK),a
+	ret
 
 ; ---------------------------------------------------------------------------
 ; HL = customer A of the pool, IY too
