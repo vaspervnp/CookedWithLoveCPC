@@ -60,6 +60,7 @@ GR_P		equ 6		; patience
 GR_PT		equ 7		; ticks to the next point lost
 GR_MOOD		equ 8		; bubble of the state (angry: shown instead)
 GR_SLOT		equ 9		; place in the queue (0 = front)
+GR_DISH		equ 10		; the dish of each customer (4 bytes)
 
 ; entrance (level 1: the mats at metatiles 8-9 of the bottom row)
 DOOR_X		equ 128		; customer sprite left/top
@@ -80,9 +81,7 @@ SPAWN_TICKS	equ 300		; a new group at most every 6 s
 FOLLOW_GAP	equ 5		; trail entries between the followers
 NEAR_X		equ 28		; fire reaches this far (feet to feet)
 NEAR_Y		equ 24
-KITCHEN_T	equ 500		; cooking: 10 s
 EAT_T		equ 600		; eating: 12 s
-PRICE		equ 12		; per customer
 BUBBLE_T	equ 50		; Bill's notepad bubble after taking an order
 TALK_MAX	equ 3		; sitting customers talking at the same time
 TALK_CHANCE	equ 6		; out of 256 per tick: someone starts talking
@@ -812,6 +811,9 @@ sv_group:
 .cook:	call sv_dect
 	ret nz
 	ld (ix+GR_STATE),GS_READY
+	push ix
+	call sv_hud_tickets
+	pop ix
 	ret
 .eat:	call sv_dect
 	ret nz
@@ -933,7 +935,16 @@ sv_angry:
 	push ix
 	call sv_hud_lost
 	pop ix
-	ld a,MOOD_ANGRY
+	ld a,(ix+GR_STATE)		; their order is dropped
+	cp GS_ORDERED
+	jr c,.nk
+	cp GS_CARRIED
+	jr nc,.nk
+	ld (ix+GR_STATE),GS_SEATED	; (no ticket any more)
+	push ix
+	call sv_hud_tickets
+	pop ix
+.nk:	ld a,MOOD_ANGRY
 	; fall through
 
 ; The group leaves (mood A on the way): the table is free again, the
@@ -1183,6 +1194,132 @@ sv_table:
 	add hl,de
 	ret
 
+; The order of group IX: each customer chooses a dish of the menu; the
+; kitchen needs the time of the slowest.
+sv_choose:
+	push ix
+	pop iy
+	ld b,(ix+GR_N)
+	ld hl,0				; the longest time
+.c:	push bc
+	push hl
+	call sv_rand
+	and 7				; (DISH_N = 8)
+	ld (iy+GR_DISH),a
+	add a,a
+	ld e,a
+	ld d,0
+	ld hl,dish_ticks
+	add hl,de
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	pop hl
+	push hl
+	or a
+	sbc hl,de
+	pop hl
+	jr nc,.n
+	ex de,hl
+.n:	inc iy
+	pop bc
+	djnz .c
+	ld (ix+GR_T),l
+	ld (ix+GR_T+1),h
+	push ix
+	call sv_hud_tickets
+	pop ix
+	ret
+	assert DISH_N==8
+
+; HUD row 2 from column HUD_TICKETS: a ticket per order in the kitchen
+; (grey icons) or on the pass (in their colours), the icons of its dishes.
+HUD_TICKETS	equ 8
+sv_hud_tickets:
+	ld a,HUD_BG			; clear the row
+	ld b,a
+	call hud_colors
+	ld b,HUD_TICKETS
+.cl:	push bc
+	ld a,G_SPACE
+	ld c,HUD_ROW2
+	call hud_char
+	pop bc
+	inc b
+	ld a,b
+	cp 40
+	jr nz,.cl
+	ld a,HUD_TICKETS
+	ld (st_col),a
+	ld ix,groups
+	ld b,G_MAX
+.g:	push bc
+	ld a,(ix+GR_STATE)
+	cp GS_ORDERED
+	jr z,.t
+	cp GS_READY
+	jr nz,.gn
+.t:	ld a,(ix+GR_N)			; room for it?
+	add a,a
+	ld c,a
+	ld a,(st_col)
+	add a,c
+	cp 41
+	jr nc,.gn
+	push ix
+	pop iy
+	ld b,(ix+GR_N)
+.d:	push bc
+	ld a,(iy+GR_DISH)
+	ld c,a
+	ld a,(ix+GR_STATE)		; ready: the dish's colour, cooking: grey
+	cp GS_READY
+	ld a,12
+	jr nz,.ink
+	ld hl,dish_ink
+	ld a,l
+	add a,c
+	ld l,a
+	ld a,h
+	adc a,0
+	ld h,a
+	ld a,(hl)
+.ink:	push bc
+	ld b,HUD_BG
+	call hud_colors
+	pop bc
+	ld a,c
+	add a,a
+	add a,G_DISH0
+	push af
+	ld a,(st_col)
+	ld b,a
+	ld c,HUD_ROW2
+	pop af
+	push af
+	call hud_char
+	pop af
+	inc a
+	ld hl,st_col
+	ld b,(hl)
+	inc b
+	inc (hl)
+	inc (hl)
+	ld c,HUD_ROW2
+	call hud_char
+	inc iy
+	pop bc
+	djnz .d
+	ld hl,st_col			; a gap
+	inc (hl)
+.gn:	ld de,GR_SIZE
+	add ix,de
+	pop bc
+	djnz .g
+	ret
+
+st_col:	db 0
+
 ; Count down the group's timer: Z at 0.
 sv_dect:
 	ld l,(ix+GR_T)
@@ -1266,6 +1403,11 @@ sv_fire:
 	djnz .p
 	jr .tables
 .pick:	ld (ix+GR_STATE),GS_CARRIED
+	push bc
+	push ix
+	call sv_hud_tickets
+	pop ix
+	pop bc
 	ld a,G_MAX			; group + 1
 	sub b
 	inc a
@@ -1331,8 +1473,7 @@ sv_fire:
 	cp GS_SEATED
 	jr nz,.serve
 	ld (ix+GR_STATE),GS_ORDERED	; the order: to the kitchen
-	ld (ix+GR_T),KITCHEN_T&255
-	ld (ix+GR_T+1),KITCHEN_T>>8
+	call sv_choose
 	ld a,MOOD_ORDER
 	ld (bill_bubble),a
 	ld a,BUBBLE_T
@@ -1358,11 +1499,24 @@ sv_fire:
 	ld a,MOOD_HAPPY
 	call sv_mood
 	jp sv_refill
-.pay:	ld b,(ix+GR_N)			; money and tip, the table is free, out
-	ld hl,(sv_money)
-	ld de,PRICE
-.pm:	add hl,de
+.pay:	ld b,(ix+GR_N)			; money (their dishes) and tip, the table
+	ld hl,(sv_money)		; is free, out
+	push ix
+.pm:	ld a,(ix+GR_DISH)
+	push hl
+	ld hl,dish_price
+	add a,l
+	ld l,a
+	ld a,h
+	adc a,0
+	ld h,a
+	ld e,(hl)
+	ld d,0
+	pop hl
+	add hl,de
+	inc ix
 	djnz .pm
+	pop ix
 	ld a,(ix+GR_P)
 	rlca
 	rlca

@@ -7,7 +7,7 @@ PYTHON ?= python3
 
 BUILD  := build
 SRC    := $(shell find src -name '*.asm')
-GEN    := $(BUILD)/palette.asm $(BUILD)/hudfont.asm $(BUILD)/testtiles.bin $(BUILD)/test_map.bin $(BUILD)/lvl1_map.bin $(BUILD)/spr.asm
+GEN    := $(BUILD)/palette.asm $(BUILD)/hudfont.asm $(BUILD)/recipes.asm $(BUILD)/testtiles.bin $(BUILD)/test_map.bin $(BUILD)/lvl1_map.bin $(BUILD)/spr.asm
 
 LOAD   := 0100
 EXEC   := 0100
@@ -36,6 +36,9 @@ $(BUILD)/palette.asm: data/palette.txt tools/palette.py tools/cpc.py | $(BUILD)
 
 $(BUILD)/hudfont.asm: tools/mkfont.py tools/cpc.py | $(BUILD)
 	$(PYTHON) tools/mkfont.py $@
+
+$(BUILD)/recipes.asm: data/recipes/recipes.tsv tools/recipes2asm.py | $(BUILD)
+	$(PYTHON) tools/recipes2asm.py $< $@
 
 $(BUILD)/testtiles.bin: tools/mktestmap.py tools/cpc.py | $(BUILD)
 	$(PYTHON) tools/mktestmap.py $@ $(BUILD)/testmap.bin $(BUILD)/testhud.bin --asm $(BUILD)/test.asm
