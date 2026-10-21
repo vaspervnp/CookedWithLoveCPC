@@ -861,7 +861,7 @@ sv_group:
 .sl:	ld a,(iy+CU_SIT)
 	or a
 	jr nz,.sat
-	call sv_at
+	call sv_done
 	jr nz,.nx
 	ld (iy+CU_SIT),1
 	ld (iy+CU_DX),0
@@ -935,6 +935,10 @@ sv_leave:
 	call sv_mood
 	ld a,(ix+GR_STATE)
 	cp GS_SEATING
+	sbc a,a				; FF: no table (from the queue)
+	ld (sl_notab),a
+	ld a,(ix+GR_STATE)
+	cp GS_SEATING
 	jr c,.nt
 	ld hl,tb_busy
 	ld e,(ix+GR_TABLE)
@@ -968,11 +972,24 @@ sv_leave:
 .nq:	call sv_members
 .lv:	ld (iy+CU_SIT),0
 	ld (iy+CU_STILL),0
-	ld (iy+CU_TX),DOOR_X&255
+	ld (iy+CU_TALK),0
+	ld (iy+CU_TX),DOOR_X&255	; from the queue: straight to the door
 	ld (iy+CU_TX+1),DOOR_X>>8
 	ld (iy+CU_TY),DOOR_Y&255
 	ld (iy+CU_TY+1),DOOR_Y>>8
-	ld de,CU_SIZE
+	ld (iy+CU_ROUTE),0
+	ld a,(sl_notab)
+	or a
+	jr nz,.lq
+	ld a,(ix+GR_TABLE)		; from a table: around the tables
+	add a,a
+	add a,a
+	ld (iy+CU_RTAB),a
+	ld (iy+CU_ROUTE),R_DOOR<<4
+	push bc
+	call sv_route_next
+	pop bc
+.lq:	ld de,CU_SIZE
 	add iy,de
 	djnz .lv
 	ret
@@ -992,10 +1009,125 @@ sv_at:
 	cp (iy+CU_TY+1)
 	ret
 
+; Z if customer IY is at its target at the end of its route
+sv_done:
+	call sv_at
+	ret nz
+	ld a,(iy+CU_ROUTE)
+	or a
+	ret
+
+; Routes around the tables (no path finding: points from the table's data).
+; To a seat: to Bill's spot below the table (the group follows him there:
+; it is close), along its row (always free) to the chair's column, into
+; the chair. To the door: down
+; to that row, along it to the trunk (a free column to the entrance,
+; TRUNK_X from tools/buildmap.py), down it to the door's row, to the door.
+R_SEAT		equ 1
+R_DOOR		equ 2
+
+; Customer IY reached a point of its route: the next one (NZ), or Z when
+; it has no route (any more).
+sv_route_next:
+	ld a,(iy+CU_ROUTE)
+	or a
+	ret z
+	ld c,a				; kind << 4 + step
+	inc a
+	ld (iy+CU_ROUTE),a
+	ld a,(iy+CU_RTAB)
+	rrca
+	rrca
+	and #3F
+	push bc
+	call sv_table
+	pop bc
+	push hl
+	ld de,TB_BY			; the row below the table: Bill's feet - 47
+	add hl,de
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	ld hl,-47
+	add hl,de
+	ld (rn_row),hl
+	pop hl
+	push hl				; Bill's spot as a sprite left: x - 16
+	inc hl				; (TB_BX)
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	ld hl,-16
+	add hl,de
+	ld (rn_spot),hl
+	pop hl
+	ld a,c
+	and #0F
+	ld b,a				; B = step
+	ld a,c
+	and #F0
+	cp R_SEAT<<4
+	jr nz,.door
+	ld a,(iy+CU_RTAB)		; seat k: x, y
+	and 3
+	ld e,a
+	add a,a
+	add a,a
+	add a,e
+	add a,TB_SEAT0
+	ld e,a
+	ld d,0
+	add hl,de
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld (rn_x),de
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	ld (rn_y),de
+	ld a,b
+	or a
+	ld hl,(rn_spot)
+	jr z,.rowx			; 0: to Bill's spot
+	dec a
+	ld hl,(rn_x)
+	jr z,.rowx			; 1: along its row to the chair's column
+	ld de,(rn_y)			; 2: into the chair, the end
+	jr .last
+.door:	ld a,b
+	or a
+	jr z,.row			; 0: to the row
+	dec a
+	ld hl,TRUNK_X
+	jr z,.rowx			; 1: along it to the trunk
+	dec a
+	ld de,DOOR_Y
+	jr z,.set			; 2: down the trunk
+	ld hl,DOOR_X			; 3: to the door, the end
+.last:	ld (iy+CU_ROUTE),0
+.set:	ld (iy+CU_TX),l
+	ld (iy+CU_TX+1),h
+	ld (iy+CU_TY),e
+	ld (iy+CU_TY+1),d
+	or 1				; NZ: a new target
+	ret
+.row:	ld l,(iy+CU_X)			; straight down/up from here
+	ld h,(iy+CU_X+1)
+.rowx:	ld de,(rn_row)
+	jr .set
+
+sl_notab:	db 0
+rn_row:	dw 0
+rn_spot:	dw 0
+rn_x:	dw 0
+rn_y:	dw 0
+
 ; Z if all of group IX are at their targets
 sv_arrived:
 	call sv_members
-.l:	call sv_at
+.l:	call sv_done
 	ret nz
 	ld de,CU_SIZE
 	add iy,de
@@ -1265,22 +1397,16 @@ sv_sit:
 	add hl,de
 	ld (hl),a
 	ld (ix+GR_STATE),GS_SEATING
-	call sv_members			; member k to seat k
+	call sv_members			; member k: a route to seat k
 	ld c,0
 .m:	push bc
-	ld a,c
-	call sv_seat
-	ld a,(hl)
-	ld (iy+CU_TX),a
-	inc hl
-	ld a,(hl)
-	ld (iy+CU_TX+1),a
-	inc hl
-	ld a,(hl)
-	ld (iy+CU_TY),a
-	inc hl
-	ld a,(hl)
-	ld (iy+CU_TY+1),a
+	ld a,(ix+GR_TABLE)
+	add a,a
+	add a,a
+	add a,c
+	ld (iy+CU_RTAB),a
+	ld (iy+CU_ROUTE),R_SEAT<<4
+	call sv_route_next
 	ld de,CU_SIZE
 	add iy,de
 	pop bc
@@ -1349,8 +1475,13 @@ sv_walk:
 	ld a,(sw_pass)
 	cp (iy+CU_DX)
 	jp nz,.next
-	call sv_at			; there: stands
+	call sv_at			; there: the next point of its route,
+	jr nz,.go			; or it stands
+	push bc
+	call sv_route_next
+	pop bc
 	jp z,.stop
+.go:
 	ld a,(sw_n)
 	cp WALK_MAX
 	jp nc,.stop			; too many walking: waits

@@ -21,6 +21,8 @@ CU_DIR		equ 7		; DIR_*
 CU_DX		equ 8		; walking: pixels per tick (signed, 0 = standing)
 CU_MIN		equ 9		; walking range (x / 2)
 CU_MAX		equ 10
+CU_ROUTE	equ 9		; service (no walking range): route kind << 4 + step
+CU_RTAB		equ 10		; its table * 4 + seat
 CU_MOOD		equ 11		; MOOD_* (src/game/items.asm)
 CU_SIT		equ 12		; 1: sitting (on a chair of the background)
 CU_ON		equ 13		; 0: not in the restaurant (not drawn)
