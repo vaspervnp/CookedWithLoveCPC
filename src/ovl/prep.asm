@@ -156,6 +156,16 @@ ov_keys:
 	ld (sv_phase),a			; SP_OPEN
 	ld hl,50
 	ld (sv_spawn_t),hl
+	ld a,HUD_BG			; row 3: status, queue, portions
+	ld b,a
+	call hud_colors
+	ld bc,(1<<8)+HUD_ROW3
+	ld e,40
+	call hud_spaces
+	ld a,#FF
+	ld (sv_qlast),a
+	call sv_hud_stock
+	xor a				; SP_OPEN
 	call sv_status
 	call sv_hud_tickets		; (row 2 cleared)
 	jp sv_hud_time

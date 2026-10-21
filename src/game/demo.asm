@@ -27,10 +27,10 @@ D	equ 1<<KEY_DOWN
 U	equ 1<<KEY_UP
 F	equ 1<<KEY_FIRE
 demo_script:
-	if MAP_TEST==0			; level 1: the morning (3 portions of each),
+	if MAP_TEST==0			; level 1: the morning (a portion of each),
 	db 0,8				; then the first group, all the service
 	repeat 8
-	db U,1, 0,1, U,1, 0,1, U,1, 0,1, R,1, 0,1
+	db U,1, 0,1, R,1, 0,1
 	rend
 	db 0,20, F,1
 	db 0,30, L,4, 0,6, F,1, 0,4, U,22, R,20, 0,8, F,1, 0,120	; to a table for 4

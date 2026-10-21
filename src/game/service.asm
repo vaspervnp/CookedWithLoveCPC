@@ -69,9 +69,6 @@ QUEUE_X		equ 128		; first in the queue; the others to its left
 QUEUE_Y		equ 583
 QUEUE_DX	equ 14
 QUEUE_DY	equ 24		; the next group: a row behind (above)
-	ifndef TEST_FILL		; test: groups sit down by themselves
-TEST_FILL	equ 0
-	endif
 	if TEST_FILL
 SPAWN_TICKS	equ 60
 	else
@@ -129,69 +126,11 @@ HUD_ROW2	equ 2		; day, at the end of the day stars and earnings
 HUD_DAY		equ 4
 HUD_STARS	equ 15
 HUD_EARN	equ 29
-HUD_ROW3	equ 3		; the status: open, closed, the day over
+HUD_ROW3	equ 3		; the status: open, closed, the day over;
+HUD_QUEUE	equ 9		; waiting at the entrance (icon, digit)
+HUD_STOCK	equ 16		; portions left: dish d at HUD_STOCK + 3 d
 MINUTE_TICKS	equ 50		; a game minute every second
 
-; ---------------------------------------------------------------------------
-; Start of the day: the HUD.
-service_init:
-	if TEST_FILL			; test: 9 portions of each, open
-	ld hl,sv_stock
-	ld b,DISH_N
-.st:	ld (hl),9
-	inc hl
-	djnz .st
-	xor a
-	call sv_status
-	else
-	ld a,SP_PREP			; the first morning: the overlay
-	ld (sv_phase),a
-	ld a,1
-	ld (ovl_req),a
-	endif
-	ld a,8				; icons
-	ld b,HUD_BG
-	call hud_colors
-	ld a,G_COIN_L
-	ld bc,(1<<8)+HUD_ROW
-	call hud_char
-	ld a,G_COIN_R
-	ld bc,(2<<8)+HUD_ROW
-	call hud_char
-	ld a,13
-	ld b,HUD_BG
-	call hud_colors
-	ld a,G_CLOCK_L
-	ld bc,((HUD_TIME-3)<<8)+HUD_ROW
-	call hud_char
-	ld a,G_CLOCK_R
-	ld bc,((HUD_TIME-2)<<8)+HUD_ROW
-	call hud_char
-	ld a,G_PERSON_L
-	ld bc,((HUD_SERVED-3)<<8)+HUD_ROW
-	call hud_char
-	ld a,G_PERSON_R
-	ld bc,((HUD_SERVED-2)<<8)+HUD_ROW
-	call hud_char
-	ld a,4				; angry: red
-	ld b,HUD_BG
-	call hud_colors
-	ld a,G_ANGRY_L
-	ld bc,((HUD_LOST-3)<<8)+HUD_ROW
-	call hud_char
-	ld a,G_ANGRY_R
-	ld bc,((HUD_LOST-2)<<8)+HUD_ROW
-	call hud_char
-	ld a,5				; day: orange
-	ld b,HUD_BG
-	call hud_colors
-	ld a,G_SUN_L
-	ld bc,(1<<8)+HUD_ROW2
-	call hud_char
-	ld a,G_SUN_R
-	ld bc,(2<<8)+HUD_ROW2
-	call hud_char
-	call sv_hud_money
 sv_hud_day:				; the counters of the day
 	ld a,5
 	ld b,HUD_BG
@@ -260,15 +199,15 @@ sv_hud_lost:
 	ld bc,(HUD_LOST<<8)+HUD_ROW
 	jp hud_number
 
-; The status line (HUD row 3) of phase A: open or closed (the others:
-; src/ovl/prep.asm).
+; The status (HUD row 3, columns 1-7) of phase A: open or closed (the
+; others: src/ovl/prep.asm).
 sv_status:
 	push af
 	ld a,HUD_BG
 	ld b,a
 	call hud_colors
 	ld bc,(1<<8)+HUD_ROW3
-	ld e,40
+	ld e,HUD_QUEUE
 	call hud_spaces
 	pop af
 	ld hl,txt_open
@@ -348,6 +287,7 @@ service_tick:
 	add ix,de
 	pop bc
 	djnz .g
+	call sv_hud_queue
 	ld a,(sv_phase)			; closed and everybody gone: the day is over
 	dec a
 	jr nz,.nw
@@ -1276,6 +1216,104 @@ sv_hud_tickets:
 
 st_col:	db 0
 
+; HUD row 3: the customers waiting at the entrance (arriving, in the
+; queue), drawn when the number changes.
+sv_hud_queue:
+	ld ix,groups
+	ld b,G_MAX
+	ld c,0
+.g:	ld a,(ix+GR_STATE)
+	dec a				; GS_ARRIVE, GS_QUEUE
+	cp 2
+	jr nc,.n
+	ld a,c
+	add a,(ix+GR_N)
+	ld c,a
+.n:	ld de,GR_SIZE
+	add ix,de
+	djnz .g
+	ld hl,sv_qlast
+	ld a,(hl)
+	cp c
+	ret z
+	ld (hl),c
+	push bc
+	ld a,13
+	ld b,HUD_BG
+	call hud_colors
+	ld a,G_PERSON_L
+	ld bc,(HUD_QUEUE<<8)+HUD_ROW3
+	call hud_char
+	ld a,G_PERSON_R
+	ld bc,((HUD_QUEUE+1)<<8)+HUD_ROW3
+	call hud_char
+	pop hl
+	ld h,0
+	ld d,1
+	ld bc,((HUD_QUEUE+2)<<8)+HUD_ROW3
+	jp hud_number
+
+sv_qlast:	db #FF		; (#FF: draw it again)
+
+; HUD row 3: the portions left of each dish (sold out: grey).
+sv_hud_stock:
+	push ix
+	ld c,0
+.d:	push bc
+	ld b,0
+	ld hl,sv_stock
+	add hl,bc
+	ld e,(hl)			; portions
+	ld hl,dish_ink
+	add hl,bc
+	ld a,(hl)
+	inc e
+	dec e
+	jr nz,.ink
+	ld a,12
+.ink:	push de
+	ld b,HUD_BG
+	call hud_colors
+	pop de
+	pop bc
+	push bc
+	push de
+	ld a,c				; column: HUD_STOCK + 3 d
+	ld b,a
+	add a,a
+	add a,b
+	add a,HUD_STOCK
+	ld b,a
+	ld a,c
+	add a,a
+	add a,G_DISH0
+	push bc
+	push af
+	ld c,HUD_ROW3
+	call hud_char
+	pop af
+	pop bc
+	inc a
+	inc b
+	push bc
+	ld c,HUD_ROW3
+	call hud_char
+	pop bc
+	inc b
+	pop de
+	ld l,e
+	ld h,0
+	ld d,1
+	ld c,HUD_ROW3
+	call hud_number
+	pop bc
+	inc c
+	ld a,c
+	cp DISH_N
+	jr nz,.d
+	pop ix
+	ret
+
 ; Count down the group's timer: Z at 0.
 sv_dect:
 	ld l,(ix+GR_T)
@@ -1435,6 +1473,7 @@ sv_fire:
 	jp c,sv_angry			; no: they leave
 	ld (ix+GR_STATE),GS_ORDERED	; the order: to the kitchen
 	call sv_choose
+	call sv_hud_stock
 	ld a,MOOD_ORDER
 	ld (bill_bubble),a
 	ld a,BUBBLE_T

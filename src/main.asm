@@ -83,6 +83,9 @@ CUSTOMERS	equ 1
 	ifndef CUST_BENCH		; frame rate test: 5 walking customers
 CUST_BENCH	equ 0
 	endif
+	ifndef TEST_FILL		; test: groups sit down by themselves
+TEST_FILL	equ 0			; (game/service.asm)
+	endif
 SERVICE	equ CUSTOMERS && MAP_TEST==0 && CUST_BENCH==0	; customer groups (game/service.asm)
 	ifndef CLONES			; stress test: extra copies of Bill
 CLONES	equ 0
@@ -758,6 +761,9 @@ hud_clear:
 	ret
 
 	include "engine/mem.asm"
+	if SERVICE
+	include "game/svinit.asm"
+	endif
 boot_end:
 	assert boot_end<=#4000,"boot code too big"
 	print "boot code end: ",{hex}boot_end
