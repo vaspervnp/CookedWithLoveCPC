@@ -26,7 +26,8 @@ CU_SIT		equ 12		; 1: sitting (on a chair of the background)
 CU_ON		equ 13		; 0: not in the restaurant (not drawn)
 CU_TX		equ 14		; service: where it walks to (src/game/service.asm)
 CU_TY		equ 16
-CU_SIZE		equ 18
+CU_STILL	equ 18		; 1: standing still (queue): drawn as a stamp
+CU_SIZE		equ 20
 
 SIT_DROP	equ 4		; sitting: the figure is drawn this much lower
 
@@ -36,13 +37,13 @@ SIT_DROP	equ 4		; sitting: the figure is drawn this much lower
 CU_COUNT	equ 5
 cust_list:
 	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit on, target
-	dw 10,0 : db 0,1,2,DIR_RIGHT,   1, 5, 60, 0, 0, 1 : dw 0,0
-	dw 120,30 : db 1,2,0,DIR_LEFT, -1, 5, 60, 0, 0, 1 : dw 0,0
-	dw 40,70 : db 2,0,1,DIR_RIGHT,  1, 5, 60, 0, 0, 1 : dw 0,0
-	dw 90,100 : db 1,1,1,DIR_LEFT, -1, 5, 60, 0, 0, 1 : dw 0,0
-	dw 60,120 : db 2,2,2,DIR_RIGHT, 1, 5, 60, 0, 0, 1 : dw 0,0
+	dw 10,0 : db 0,1,2,DIR_RIGHT,   1, 5, 60, 0, 0, 1 : dw 0,0 : db 0,0
+	dw 120,30 : db 1,2,0,DIR_LEFT, -1, 5, 60, 0, 0, 1 : dw 0,0 : db 0,0
+	dw 40,70 : db 2,0,1,DIR_RIGHT,  1, 5, 60, 0, 0, 1 : dw 0,0 : db 0,0
+	dw 90,100 : db 1,1,1,DIR_LEFT, -1, 5, 60, 0, 0, 1 : dw 0,0 : db 0,0
+	dw 60,120 : db 2,2,2,DIR_RIGHT, 1, 5, 60, 0, 0, 1 : dw 0,0 : db 0,0
 	elseif SERVICE			; the game: a pool (src/game/service.asm)
-CU_COUNT	equ 8
+CU_COUNT	equ 24		; a full dining room
 cust_list:
 	ds CU_COUNT*CU_SIZE,0
 	elseif MAP_TEST==0		; level 1: at the tables of the dining room
@@ -50,18 +51,18 @@ CU_COUNT	equ 4
 cust_list:
 	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit on, target
 	; seats of the level's tables (build/lvl1_objs.asm)
-	dw TB0_S0_X,TB0_S0_Y : db 0,1,2,TB0_S0_DIR, 0, 0, 0, MOOD_HAPPY, 1, 1 : dw 0,0
-	dw TB0_S1_X,TB0_S1_Y : db 1,2,1,TB0_S1_DIR, 0, 0, 0, MOOD_WAIT, 1, 1 : dw 0,0
-	dw TB5_S0_X,TB5_S0_Y : db 2,0,1,TB5_S0_DIR, 0, 0, 0, MOOD_FOOD, 1, 1 : dw 0,0
-	dw 40,352 : db 2,2,0,DIR_RIGHT, 1, 20, 130, 0, 0, 1 : dw 0,0	; walking the aisle (row 24)
+	dw TB0_S0_X,TB0_S0_Y : db 0,1,2,TB0_S0_DIR, 0, 0, 0, MOOD_HAPPY, 1, 1 : dw 0,0 : db 0,0
+	dw TB0_S1_X,TB0_S1_Y : db 1,2,1,TB0_S1_DIR, 0, 0, 0, MOOD_WAIT, 1, 1 : dw 0,0 : db 0,0
+	dw TB5_S0_X,TB5_S0_Y : db 2,0,1,TB5_S0_DIR, 0, 0, 0, MOOD_FOOD, 1, 1 : dw 0,0 : db 0,0
+	dw 40,352 : db 2,2,0,DIR_RIGHT, 1, 20, 130, 0, 0, 1 : dw 0,0 : db 0,0	; walking the aisle (row 24)
 	else
 CU_COUNT	equ 4
 cust_list:
 	;  x,  y       head body legs dir        dx  min/2 max/2 mood sit on, target
-	dw 100,10 : db 0,1,2,DIR_DOWN,  0, 0, 0, MOOD_HAPPY, 1, 1 : dw 0,0
-	dw 20,60 : db 1,2,0,DIR_RIGHT,  1, 10, 75, 0, 0, 1 : dw 0,0
-	dw 30,104 : db 2,0,1,DIR_RIGHT, 0, 0, 0, MOOD_FOOD, 1, 1 : dw 0,0
-	dw 140,112 : db 2,2,0,DIR_LEFT, -1, 50, 70, MOOD_WAIT, 0, 1 : dw 0,0
+	dw 100,10 : db 0,1,2,DIR_DOWN,  0, 0, 0, MOOD_HAPPY, 1, 1 : dw 0,0 : db 0,0
+	dw 20,60 : db 1,2,0,DIR_RIGHT,  1, 10, 75, 0, 0, 1 : dw 0,0 : db 0,0
+	dw 30,104 : db 2,0,1,DIR_RIGHT, 0, 0, 0, MOOD_FOOD, 1, 1 : dw 0,0 : db 0,0
+	dw 140,112 : db 2,2,0,DIR_LEFT, -1, 50, 70, MOOD_WAIT, 0, 1 : dw 0,0 : db 0,0
 	endif
 
 cust_anim:	db 0
@@ -111,6 +112,8 @@ cust_sprites:
 	ld a,(ix+CU_ON)
 	or a
 	jp z,.skip
+	call cust_visible		; outside the view: not in the sprite list
+	jp nc,.skip
 	ld a,(ix+CU_DIR)		; frame = dir*3 + pose
 	ld c,a
 	add a,a
@@ -180,7 +183,8 @@ cust_sprites:
 	ld e,a
 	ld d,(ix+CU_X+1)
 	ld bc,(cust_y)
-	ld a,(ix+CU_SIT)		; sitting: a stamp (sprite.asm)
+	ld a,(ix+CU_SIT)		; sitting or standing still: a stamp
+	or (ix+CU_STILL)		; (sprite.asm)
 	ld (spr_stamp),a
 	push de
 	call sprites_add_z
@@ -218,3 +222,37 @@ cust_sprites:
 
 cust_f:		db 0
 cust_y:		dw 0
+
+; Carry if customer IX (with its bubble above) may be in the view:
+; x - 2*sx in -32..159, y - sy in -66..167.
+cust_visible:
+	ld a,(scr_sx)
+	ld l,a
+	ld h,0
+	add hl,hl
+	ex de,hl
+	ld l,(ix+CU_X)
+	ld h,(ix+CU_X+1)
+	or a
+	sbc hl,de
+	ld de,32
+	add hl,de			; 0..191
+	ld a,h
+	or a
+	ret nz
+	ld a,l
+	cp 192
+	ret nc
+	ld l,(ix+CU_Y)
+	ld h,(ix+CU_Y+1)
+	ld de,(scr_sy)
+	or a
+	sbc hl,de
+	ld de,66
+	add hl,de			; 0..233
+	ld a,h
+	or a
+	ret nz
+	ld a,l
+	cp 234
+	ret

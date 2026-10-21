@@ -820,6 +820,7 @@ map_data:
 	; game logic that runs with bank 5 mapped (game ticks: the map for
 	; collisions; adding sprites in render, after buffer_sync)
 	include "game/hudtext.asm"
+	include "game/stamps.asm"
 	include "game/actor.asm"
 	include "game/customer.asm"
 	include "game/staff.asm"

@@ -26,7 +26,11 @@
 ; for the food a plate, eating a heart, wants to pay a coin; a plate over
 ; the pass when an order is ready.
 
-G_MAX		equ 4		; groups at the same time
+G_MAX		equ 9		; groups at the same time (one per table)
+QUEUE_SLOTS	equ 2		; groups waiting at the entrance
+WALK_MAX	equ 5		; customers walking at the same time (+ Bill = 6
+				; moving figures; the others wait, still ones are
+				; stamps)
 
 GS_FREE		equ 0
 GS_ARRIVE	equ 1		; walking from the door to the queue
@@ -50,6 +54,7 @@ GR_T		equ 4		; timer (ticks)
 GR_P		equ 6		; patience
 GR_PT		equ 7		; ticks to the next point lost
 GR_MOOD		equ 8		; bubble of the state (angry: shown instead)
+GR_SLOT		equ 9		; place in the queue (0 = front)
 GR_SIZE		equ 16
 
 ; entrance (level 1: the mats at metatiles 8-9 of the bottom row)
@@ -58,7 +63,15 @@ DOOR_Y		equ 623
 QUEUE_X		equ 128		; first in the queue; the others to its left
 QUEUE_Y		equ 583
 QUEUE_DX	equ 14
+QUEUE_DY	equ 24		; the next group: a row behind (above)
+	ifndef TEST_FILL		; test: groups sit down by themselves
+TEST_FILL	equ 0
+	endif
+	if TEST_FILL
+SPAWN_TICKS	equ 60
+	else
 SPAWN_TICKS	equ 300		; a new group at most every 6 s
+	endif
 
 TRAIL_N		equ 32		; Bill's feet, recorded every 4 ticks he walks
 FOLLOW_GAP	equ 5		; trail entries between the followers
@@ -406,12 +419,12 @@ service_tick:
 ; ---------------------------------------------------------------------------
 ; HL = customer A of the pool, IY too
 sv_cust:
-	ld l,a				; A*18 = A*16 + A*2
+	ld l,a				; A*20 = A*16 + A*4
 	ld h,0
+	add hl,hl
 	add hl,hl
 	ld d,h
 	ld e,l
-	add hl,hl
 	add hl,hl
 	add hl,hl
 	add hl,de
@@ -521,15 +534,17 @@ sv_spawn:
 	ret nz
 	ld hl,SPAWN_TICKS
 	ld (sv_spawn_t),hl
-	ld ix,groups			; queue busy or no free group: later
+	ld ix,groups			; queue full or no free group: later
 	ld b,G_MAX
 	ld iy,0
+	ld c,0				; groups at the entrance
 .f:	ld a,(ix+GR_STATE)
 	cp GS_ARRIVE
-	ret z
+	jr z,.q
 	cp GS_QUEUE
-	ret z
-	or a
+	jr nz,.nq
+.q:	inc c
+.nq:	or a
 	jr nz,.n
 	ld a,iyh
 	or iyl
@@ -539,11 +554,15 @@ sv_spawn:
 .n:	ld de,GR_SIZE
 	add ix,de
 	djnz .f
+	ld a,c
+	cp QUEUE_SLOTS
+	ret nc
 	ld a,iyh
 	or iyl
 	ret z
 	push iy
 	pop ix
+	ld (ix+GR_SLOT),c
 	call sv_rand			; size 1-4
 	and 3
 	inc a
@@ -571,21 +590,16 @@ sv_spawn:
 	ld (ix+GR_P),255		; full patience
 	ld (ix+GR_PT),PAT_RATE
 	ld (ix+GR_MOOD),0
-	call sv_members			; in at the door, to the queue
-	ld hl,QUEUE_X
+	call sv_members			; in at the door
 .m:	push bc
-	push hl
 	ld (iy+CU_ON),1
 	ld (iy+CU_X),DOOR_X&255
 	ld (iy+CU_X+1),DOOR_X>>8
 	ld (iy+CU_Y),DOOR_Y&255
 	ld (iy+CU_Y+1),DOOR_Y>>8
-	ld (iy+CU_TX),l
-	ld (iy+CU_TX+1),h
-	ld (iy+CU_TY),QUEUE_Y&255
-	ld (iy+CU_TY+1),QUEUE_Y>>8
 	ld (iy+CU_DIR),DIR_UP
 	xor a
+	ld (iy+CU_STILL),a
 	ld (iy+CU_SIT),a
 	ld (iy+CU_MOOD),a
 	ld (iy+CU_DX),a
@@ -595,14 +609,11 @@ sv_spawn:
 	ld (iy+CU_BODY),a
 	call .style
 	ld (iy+CU_LEGS),a
-	pop hl
-	ld de,-QUEUE_DX
-	add hl,de
 	ld de,CU_SIZE
 	add iy,de
 	pop bc
 	djnz .m
-	ret
+	jp sv_to_queue
 .busy:	inc c
 	jp .try
 .style:	call sv_rand			; 0-2
@@ -611,9 +622,107 @@ sv_spawn:
 	jr z,.style
 	ret
 
+; Group IX walks to its place in the queue (slot GR_SLOT): member k at
+; QUEUE_X - k*QUEUE_DX, a row of QUEUE_DY lines per slot.
+sv_to_queue:
+	ld (ix+GR_STATE),GS_ARRIVE
+	ld hl,QUEUE_Y
+	ld de,-QUEUE_DY
+	ld b,(ix+GR_SLOT)
+	inc b
+	jr .s
+.sl:	add hl,de
+.s:	djnz .sl
+	ld (tq_y),hl
+	call sv_members
+	ld hl,QUEUE_X
+.m:	ld (iy+CU_STILL),0
+	ld (iy+CU_TX),l
+	ld (iy+CU_TX+1),h
+	ld de,(tq_y)
+	ld (iy+CU_TY),e
+	ld (iy+CU_TY+1),d
+	ld de,-QUEUE_DX
+	add hl,de
+	ld de,CU_SIZE
+	add iy,de
+	djnz .m
+	ret
+
+; A group left the queue: the ones behind it move up.
+sv_queue_up:
+	ld ix,groups
+	ld b,G_MAX
+.g:	push bc
+	ld a,(ix+GR_STATE)
+	cp GS_ARRIVE
+	jr z,.q
+	cp GS_QUEUE
+	jr nz,.n
+.q:	ld a,(ix+GR_SLOT)
+	or a
+	jr z,.n
+	dec (ix+GR_SLOT)
+	call sv_to_queue
+.n:	ld de,GR_SIZE
+	add ix,de
+	pop bc
+	djnz .g
+	ret
+
+tq_y:	dw 0
+
 ; ---------------------------------------------------------------------------
 ; State of group IX.
 sv_group:
+	if TEST_FILL			; test: the queue sits down by itself
+	ld a,(ix+GR_STATE)
+	cp GS_QUEUE
+	jr nz,.state
+	ld c,0
+.ft:	ld a,c
+	cp TABLE_COUNT
+	jr nc,.state
+	ld hl,tb_busy
+	ld e,c
+	ld d,0
+	add hl,de
+	ld a,(hl)
+	or a
+	jr nz,.fn
+	push bc
+	ld a,c
+	call sv_table
+	pop bc
+	ld a,(hl)
+	cp (ix+GR_N)
+	jr nc,.fs
+.fn:	inc c
+	jr .ft
+.fs:	xor a
+	ld (ix+GR_MOOD),a
+	push bc
+	call sv_members
+.fm:	ld (iy+CU_STILL),0
+	ld (iy+CU_MOOD),0
+	ld de,CU_SIZE
+	add iy,de
+	djnz .fm
+	pop bc
+	push ix				; index + 1 = (IX - groups) / 16 + 1
+	pop hl
+	ld de,groups
+	or a
+	sbc hl,de
+	ld a,l
+	rrca
+	rrca
+	rrca
+	rrca
+	inc a
+	call sv_sit
+	jp sv_queue_up
+	else
 	ld a,(ix+GR_STATE)		; waiting for Bill: patience goes
 	cp GS_QUEUE
 	jr z,.wait
@@ -631,6 +740,7 @@ sv_group:
 	ld a,(ix+GR_P)
 	cp PAT_ANGRY-1
 	call z,sv_show_mood
+	endif
 .state:	ld a,(ix+GR_STATE)
 	cp GS_ARRIVE
 	jr z,.arrive
@@ -668,6 +778,7 @@ sv_group:
 	ld (ix+GR_STATE),GS_QUEUE
 	call sv_members
 .q:	ld (iy+CU_DIR),DIR_DOWN
+	ld (iy+CU_STILL),1
 	ld de,CU_SIZE
 	add iy,de
 	djnz .q
@@ -808,9 +919,16 @@ sv_leave:
 	xor a
 	ld (hl),a
 	ld (bill_plates),a
-.nc:	ld (ix+GR_STATE),GS_LEAVING
-	call sv_members
+.nc:	ld a,(ix+GR_STATE)
+	ld (ix+GR_STATE),GS_LEAVING
+	cp GS_QUEUE
+	jr nz,.nq
+	push ix
+	call sv_queue_up
+	pop ix
+.nq:	call sv_members
 .lv:	ld (iy+CU_SIT),0
+	ld (iy+CU_STILL),0
 	ld (iy+CU_TX),DOOR_X&255
 	ld (iy+CU_TX+1),DOOR_X>>8
 	ld (iy+CU_TY),DOOR_Y&255
@@ -1060,7 +1178,13 @@ sv_fire:
 	ld (sv_follow),a
 	xor a
 	call sv_mood
-	jp sv_trail_fill
+	call sv_members
+.ns:	ld (iy+CU_STILL),0
+	ld de,CU_SIZE
+	add iy,de
+	djnz .ns
+	call sv_trail_fill
+	jp sv_queue_up
 .seat:	dec a				; IX = the following group
 	call sv_group_a
 	ld c,0				; tables
@@ -1086,15 +1210,21 @@ sv_fire:
 	jr c,.sit
 .sn:	inc c
 	jr .st
-.sit:	ld (ix+GR_TABLE),c		; the table is theirs
+.sit:	ld a,(sv_follow)
+	push af
+	xor a
+	ld (sv_follow),a
+	pop af
+	; fall through
+
+; Group IX (A = its index + 1) takes table C: they walk to their chairs.
+sv_sit:
+	ld (ix+GR_TABLE),c		; the table is theirs
 	ld hl,tb_busy
 	ld e,c
 	ld d,0
 	add hl,de
-	ld a,(sv_follow)
 	ld (hl),a
-	xor a
-	ld (sv_follow),a
 	ld (ix+GR_STATE),GS_SEATING
 	call sv_members			; member k to seat k
 	ld c,0
@@ -1159,8 +1289,15 @@ service_sprites:
 
 ; ---------------------------------------------------------------------------
 ; Every customer one step to its target: 1 pixel and 2 lines, facing the
-; longer way (a pixel is two lines wide).
+; longer way (a pixel is two lines wide). At most WALK_MAX walk at once:
+; those that walked last time go on first, the others wait.
 sv_walk:
+	xor a
+	ld (sw_n),a
+	inc a				; first those that walked last time,
+	call .pass
+	xor a				; then the others, WALK_MAX in all
+.pass:	ld (sw_pass),a
 	ld iy,cust_list
 	ld b,CU_COUNT
 .l:	push bc
@@ -1170,6 +1307,16 @@ sv_walk:
 	ld a,(iy+CU_SIT)
 	or a
 	jp nz,.next
+	ld a,(sw_pass)
+	cp (iy+CU_DX)
+	jp nz,.next
+	call sv_at			; there: stands
+	jp z,.stop
+	ld a,(sw_n)
+	cp WALK_MAX
+	jp nc,.stop			; too many walking: waits
+	inc a
+	ld (sw_n),a
 	xor a
 	ld (iy+CU_DX),a
 	ld (sw_ax),a
@@ -1246,6 +1393,8 @@ sv_walk:
 	jr nc,.d
 	ld a,(sw_dy)
 .d:	ld (iy+CU_DIR),a
+	jr .next
+.stop:	ld (iy+CU_DX),0
 .next:	ld de,CU_SIZE
 	add iy,de
 	pop bc
@@ -1253,6 +1402,8 @@ sv_walk:
 	jp nz,.l
 	ret
 
+sw_n:	db 0
+sw_pass:	db 0
 sw_ax:	dw 0
 sw_ay:	dw 0
 sw_dx:	db 0

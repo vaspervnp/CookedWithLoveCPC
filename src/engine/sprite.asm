@@ -41,7 +41,7 @@
 ; without changes costs nothing for them.
 
 SPR_W		equ 16		; bytes
-SPR_MAX		equ 16
+SPR_MAX		equ 24
 SAVE_AREA0	equ #2000	; save-under records, base RAM (4K per buffer)
 SAVE_AREA1	equ #3000
 CL_BUF		equ #1FF0	; line copy of the clipped path, below the save areas
@@ -56,7 +56,7 @@ SE_F2		equ 8		; 2nd and 3rd part of a figure (0 = none): descriptors
 SE_F3		equ 10		; whose dy counts from the figure's top line
 SE_STAMP	equ 12		; 1: a stamp (see above)
 SE_SIZE		equ 16
-STAMP_MAX	equ 12
+STAMP_MAX	equ 16		; (src/game/stamps.asm)
 
 ; frame descriptor (tools/spritec.py)
 DS_BANK		equ 0		; RAM config of the compiled code
@@ -376,67 +376,17 @@ sprites_draw:
 .end:	RAM RAM_C0
 	ret
 
-; The stamps, if this buffer needs them drawn (see the top).
+; The stamps, if this buffer needs them drawn (see the top). Which ones:
+; stamp_diff (src/game/stamps.asm, bank 5, mapped here) marks them
+; (SE_STAMP = 2) and lists the rectangles to erase.
 stamps_draw:
-	ld hl,0				; signature of the stamps in draw order
-	ld (st_sig),hl
-	ld a,(spr_n)
-	or a
-	jr z,.sig
-	ld b,a
-	ld hl,spr_order
-.s:	push bc
-	push hl
-	ld a,(hl)
-	call spr_entry
-	ld a,(ix+SE_STAMP)
-	or a
-	jr z,.sn
-	push ix
-	pop hl
-	ld b,SE_STAMP/2			; frame, x, y, z, f2, f3 words
-	ld de,(st_sig)
-.w:	ld a,(hl)			; sig = sig * 2 + word (rotating)
-	inc hl
-	sla e
-	rl d
-	jr nc,.nc
-	inc e
-.nc:	add a,e
-	ld e,a
-	ld a,(hl)
-	inc hl
-	adc a,d
-	ld d,a
-	djnz .w
-	inc de				; (count too)
-	ld (st_sig),de
-.sn:	pop hl
-	pop bc
-	inc hl
-	djnz .s
-.sig:	call st_buf			; IY = this buffer's record
-	ld hl,(st_sig)
-	ld a,(iy+0)
-	cp l
-	jr nz,.chg
-	ld a,(iy+1)
-	cp h
-	jr nz,.chg
-	call buffer_drew		; same stamps: only after new tiles
-	ret z
-	jr .draw
-.chg:	ld (iy+0),l			; erase the old ones: their tiles again
-	ld (iy+1),h
-	ld b,(iy+2)
-	ld a,b
+	call stamp_diff
+	ret z				; nothing to do
+	ld a,(sd_nerase)		; erase: the tiles again
 	or a
 	jr z,.draw
-	push iy
-	pop hl
-	inc hl
-	inc hl
-	inc hl
+	ld b,a
+	ld hl,sd_erase
 .er:	push bc
 	ld e,(hl)
 	inc hl
@@ -447,22 +397,13 @@ stamps_draw:
 	ld b,(hl)
 	inc hl
 	push hl
-	call redraw_tiles		; DE = x, BC = y
+	call redraw_tiles		; DE = x, BC = y (keeps bank 5)
 	pop hl
 	pop bc
 	djnz .er
-	RAM RAM_C5			; (redraw_tiles maps bank 5)
-.draw:	call st_buf			; draw them, remember where they are
-	ld (iy+2),0
-	push iy
-	pop hl
-	inc hl
-	inc hl
-	inc hl
-	ld (st_rp),hl
-	ld a,(spr_n)
+.draw:	ld a,(spr_n)			; the marked ones, in depth order
 	or a
-	ret z
+	jr z,.nd
 	ld b,a
 	ld hl,spr_order
 .d:	push bc
@@ -470,32 +411,13 @@ stamps_draw:
 	ld a,(hl)
 	call spr_entry
 	ld a,(ix+SE_STAMP)
-	or a
-	jr z,.dn
-	call st_buf
-	ld a,(iy+2)
-	cp STAMP_MAX
-	jr nc,.dn
-	inc (iy+2)
-	ld hl,(st_rp)
-	ld a,(ix+SE_X)
-	ld (hl),a
-	inc hl
-	ld a,(ix+SE_X+1)
-	ld (hl),a
-	inc hl
-	ld a,(ix+SE_Y)
-	ld (hl),a
-	inc hl
-	ld a,(ix+SE_Y+1)
-	ld (hl),a
-	inc hl
-	ld (st_rp),hl
-	call sprite_one
-.dn:	pop hl
+	cp 2
+	call z,sprite_one
+	pop hl
 	pop bc
 	inc hl
 	djnz .d
+.nd:	RAM RAM_C5			; (stamp_diff's data)
 	call save_count_ptr		; no save-under for them: drop the records
 	ld (hl),0
 	ld a,(back)
@@ -505,17 +427,6 @@ stamps_draw:
 	ld hl,SAVE_AREA1
 .s0:	ld (save_ptr),hl
 	ret
-
-; IY = stamp record of the back buffer: signature, count, (x, y) words
-st_buf:
-	ld iy,st_rec
-	ld a,(back)
-	or a
-	ret z
-	ld iy,st_rec+STAMP_REC
-	ret
-
-STAMP_REC		equ 3+STAMP_MAX*4
 
 ; A = index -> IX = entry
 spr_entry:
@@ -1081,9 +992,6 @@ spr_f2:		dw 0
 spr_f3:		dw 0
 spr_list:	ds SPR_MAX*SE_SIZE,0
 spr_stamp:	db 0		; next sprites_add_z: a stamp
-st_sig:		dw 0
-st_rp:		dw 0
-st_rec:		ds 2*STAMP_REC,0	; per buffer: signature, count, rectangles
 spr_order:	ds SPR_MAX,0	; draw order (indices), sorted by depth
 spr_keys:	ds SPR_MAX*2,0	; their depth keys
 save_n:		ds 2,0
