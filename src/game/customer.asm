@@ -252,33 +252,43 @@ cust_sprites:
 cust_f:		db 0
 cust_y:		dw 0
 
-; Carry if customer IX (with its bubble above) may be in the view:
-; x - 2*sx in -32..159, y - sy in -66..167.
+; Carry if customer IX (with its bubble above) may be in the view.
 cust_visible:
+	ld e,(ix+CU_X)
+	ld d,(ix+CU_X+1)
+	ld c,(ix+CU_Y)
+	ld b,(ix+CU_Y+1)
+	; fall through
+
+; Carry if a sprite at x DE, y BC may be in the view: x - 2*sx in
+; -32..159, y - sy in -66..167. Keeps DE, BC.
+spr_visible:
+	push de
 	ld a,(scr_sx)
 	ld l,a
 	ld h,0
 	add hl,hl
 	ex de,hl
-	ld l,(ix+CU_X)
-	ld h,(ix+CU_X+1)
 	or a
 	sbc hl,de
 	ld de,32
 	add hl,de			; 0..191
+	pop de
 	ld a,h
 	or a
 	ret nz
 	ld a,l
 	cp 192
 	ret nc
-	ld l,(ix+CU_Y)
-	ld h,(ix+CU_Y+1)
+	push de
+	ld h,b
+	ld l,c
 	ld de,(scr_sy)
 	or a
 	sbc hl,de
 	ld de,66
 	add hl,de			; 0..233
+	pop de
 	ld a,h
 	or a
 	ret nz

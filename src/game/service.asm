@@ -22,6 +22,11 @@
 ; GR_N consecutive records from GR_FIRST. A customer walks to (CU_TX, CU_TY)
 ; (sprite left/top), CU_DX = 1 while walking (walk animation).
 ;
+; Tables: a group that ate leaves its plates (drawn with the tray sprite, a
+; stamp); the table is taken again only when Bill has cleared it: fire at
+; its spot with empty hands takes the plates on the tray, fire at the pass
+; leaves them there.
+;
 ; Bubbles: in the queue "...", seated (wants to order) the notepad, waiting
 ; for the food a plate, eating a heart, wants to pay a coin; a plate over
 ; the pass when an order is ready.
@@ -93,6 +98,8 @@ sv_seed:	dw #ACE1
 trail_head:	db 0
 bill_carry:	db 0		; group + 1 whose plates Bill carries
 sv_bub_t:	db 0
+sv_dirty:	db 0		; Bill carries dirty plates
+TB_DIRTY	equ #80		; tb_busy: plates left (+ their number, 1-3)
 sv_money:	dw 0
 sv_served:	dw 0		; customers who paid today
 sv_lost:	dw 0		; customers who left angry today
@@ -940,11 +947,20 @@ sv_leave:
 	ld a,(ix+GR_STATE)
 	cp GS_SEATING
 	jr c,.nt
-	ld hl,tb_busy
+	ld hl,tb_busy			; the table: free, or their plates on it
 	ld e,(ix+GR_TABLE)
 	ld d,0
 	add hl,de
-	ld (hl),0
+	ld c,0
+	cp GS_EATING
+	jr c,.fr
+	ld a,(ix+GR_N)
+	cp 4
+	jr c,.d3
+	ld a,3
+.d3:	or TB_DIRTY
+	ld c,a
+.fr:	ld (hl),c
 .nt:	push ix				; group + 1 = (IX - groups) / 16 + 1
 	pop hl
 	ld de,groups
@@ -1230,7 +1246,14 @@ sv_fire:
 	ld c,NEAR_Y
 	call sv_near
 	jr nc,.tables
-	ld a,(bill_carry)
+	ld a,(sv_dirty)			; dirty plates: left at the pass
+	or a
+	jr z,.pf
+	xor a
+	ld (sv_dirty),a
+	ld (bill_plates),a
+	ret
+.pf:	ld a,(bill_plates)		; empty hands: the plates of a ready order
 	or a
 	jr nz,.tables
 	ld ix,groups
@@ -1253,7 +1276,38 @@ sv_fire:
 	ld a,3
 .p3:	ld (bill_plates),a
 	ret
-.tables:				; at a group's table: order, serve, pay
+.tables:				; a table with plates left: clear it
+	ld a,(bill_plates)
+	or a
+	jr nz,.tg
+	ld c,0
+.dt:	ld a,c
+	cp TABLE_COUNT
+	jr nc,.tg
+	ld hl,tb_busy
+	ld e,c
+	ld d,0
+	add hl,de
+	ld a,(hl)
+	and TB_DIRTY
+	jr z,.dn
+	push hl
+	push bc
+	ld a,c
+	call sv_at_table
+	pop bc
+	pop hl
+	jr nc,.dn
+	ld a,(hl)			; on the tray, the table is free
+	and 3
+	ld (bill_plates),a
+	ld (hl),0
+	ld a,1
+	ld (sv_dirty),a
+	ret
+.dn:	inc c
+	jr .dt
+.tg:					; at a group's table: order, serve, pay
 	ld ix,groups
 	ld b,G_MAX
 .t:	push bc
@@ -1438,7 +1492,57 @@ sv_bill_near:
 
 ; A plate over the pass while an order waits there (render, bank 5).
 service_sprites:
-	ld ix,groups
+	ld c,0				; plates left on tables (the tray sprite,
+.t:	ld a,c				; a stamp)
+	cp TABLE_COUNT
+	jr nc,.pass
+	ld hl,tb_busy
+	ld e,c
+	ld d,0
+	add hl,de
+	ld a,(hl)
+	bit 7,a
+	jr z,.tn
+	and 3
+	dec a
+	add a,a
+	ld e,a
+	ld d,0
+	push bc
+	ld hl,tray_frames
+	add hl,de
+	ld a,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,a
+	push hl
+	ld a,c				; above Bill's spot: x - 16, y - 34
+	call sv_table
+	inc hl
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld c,(hl)
+	inc hl
+	ld b,(hl)
+	ld hl,-16
+	add hl,de
+	ex de,hl
+	ld hl,-34
+	add hl,bc
+	ld b,h
+	ld c,l
+	call spr_visible		; (in the view only)
+	pop hl
+	jr nc,.tv
+	ld a,1
+	ld (spr_stamp),a
+	call sprites_add
+.tv:	pop bc
+.tn:	inc c
+	jr .t
+.pass:	ld ix,groups
 	ld b,G_MAX
 .l:	ld a,(ix+GR_STATE)
 	cp GS_READY
