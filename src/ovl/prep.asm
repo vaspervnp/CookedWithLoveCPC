@@ -24,7 +24,7 @@
 	jp ov_init
 	jp ov_tick
 
-	include "recipes.asm"		; dish_cost, dish_prep (OVERLAY)
+	include "recipes.asm"		; dish_prep (OVERLAY)
 
 PREP_START	equ 10*60	; the morning
 PREP_MIN	equ 120
@@ -102,8 +102,11 @@ ov_morning:
 	xor a
 	ld (ov_cur),a
 	ld (ov_used),a
-	ld hl,sv_stock
-	ld b,DISH_N
+	ld (sv_menu),a
+	ld hl,0
+	ld (sv_cook_t),hl
+	ld hl,sv_stock			; and sv_cook (portions cooking)
+	ld b,DISH_N*2
 .z:	ld (hl),a
 	inc hl
 	djnz .z

@@ -211,16 +211,23 @@ main_loop:
 	endif
 	ld (input),a
 	RAM RAM_C5
-.tick:	ld a,(input)
-	if SERVICE			; Bill stays still in the morning
+.tick:
+	if SERVICE			; Bill stays still in the morning and
+	ld a,(sv_menu)			; while the menu at the pass is open
 	ld hl,sv_phase
 	ld b,(hl)
 	dec b
 	dec b
 	dec b
-	jr nz,.ti
+	jr nz,.t1
+	inc a
+.t1:	or a
+	ld a,(input)
+	jr z,.ti
 	xor a
 .ti:
+	else
+	ld a,(input)
 	endif
 	call actor_tick
 	if SERVICE
@@ -255,7 +262,7 @@ main_loop:
 	ld a,#54
 	out (c),a
 	endif
-	jr main_loop
+	jp main_loop
 
 ; Draw a complete frame into buffer A and flag it for display.
 render:

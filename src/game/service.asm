@@ -263,8 +263,14 @@ service_tick:
 	ld c,a
 	ld a,b
 	ld (sv_prev),a
-	bit KEY_FIRE,c
+	ld a,(sv_menu)			; the menu at the pass: its keys
+	or a
+	jr z,.nm
+	call sv_menu_keys
+	jr .mk
+.nm:	bit KEY_FIRE,c
 	call nz,sv_fire
+.mk:	call sv_cook_tick
 	ld hl,sv_tick
 	inc (hl)
 	ld a,(hl)
@@ -1216,46 +1222,9 @@ sv_hud_tickets:
 
 st_col:	db 0
 
-; HUD row 3: the customers waiting at the entrance (arriving, in the
-; queue), drawn when the number changes.
-sv_hud_queue:
-	ld ix,groups
-	ld b,G_MAX
-	ld c,0
-.g:	ld a,(ix+GR_STATE)
-	dec a				; GS_ARRIVE, GS_QUEUE
-	cp 2
-	jr nc,.n
-	ld a,c
-	add a,(ix+GR_N)
-	ld c,a
-.n:	ld de,GR_SIZE
-	add ix,de
-	djnz .g
-	ld hl,sv_qlast
-	ld a,(hl)
-	cp c
-	ret z
-	ld (hl),c
-	push bc
-	ld a,13
-	ld b,HUD_BG
-	call hud_colors
-	ld a,G_PERSON_L
-	ld bc,(HUD_QUEUE<<8)+HUD_ROW3
-	call hud_char
-	ld a,G_PERSON_R
-	ld bc,((HUD_QUEUE+1)<<8)+HUD_ROW3
-	call hud_char
-	pop hl
-	ld h,0
-	ld d,1
-	ld bc,((HUD_QUEUE+2)<<8)+HUD_ROW3
-	jp hud_number
-
-sv_qlast:	db #FF		; (#FF: draw it again)
-
-; HUD row 3: the portions left of each dish (sold out: grey).
+; HUD row 3: the portions left of each dish (sold out: grey). The menu at
+; the pass open: the chosen one in its colour, the others grey, and the
+; portions with the ones cooking.
 sv_hud_stock:
 	push ix
 	ld c,0
@@ -1266,11 +1235,25 @@ sv_hud_stock:
 	ld e,(hl)			; portions
 	ld hl,dish_ink
 	add hl,bc
+	ld a,(sv_menu)
+	or a
 	ld a,(hl)
-	inc e
+	jr z,.nm
+	ld hl,sv_cook
+	add hl,bc
+	ld b,a
+	ld a,e
+	add a,(hl)
+	ld e,a
+	ld a,(sv_mcur)
+	cp c
+	ld a,b
+	jr z,.ink
+	jr .gr
+.nm:	inc e
 	dec e
 	jr nz,.ink
-	ld a,12
+.gr:	ld a,12
 .ink:	push de
 	ld b,HUD_BG
 	call hud_colors
@@ -1313,6 +1296,61 @@ sv_hud_stock:
 	jr nz,.d
 	pop ix
 	ret
+
+; The menu at the pass (keys pressed this tick in C): left/right the dish,
+; up a portion more (its ingredients paid, cooked in the kitchen's turn:
+; sv_cook_tick), fire or down: closed. Up to 9 of a dish with the cooking.
+sv_menu_keys:
+	ld hl,sv_mcur
+	bit KEY_LEFT,c
+	jr z,.r
+	dec (hl)
+	jr .w
+.r:	bit KEY_RIGHT,c
+	jr z,.u
+	inc (hl)
+.w:	ld a,(hl)
+	and DISH_N-1
+	ld (hl),a
+	jp sv_hud_stock
+.u:	bit KEY_UP,c
+	jr nz,.more
+	ld a,c
+	and (1<<KEY_FIRE)|(1<<KEY_DOWN)
+	ret z
+	xor a
+	ld (sv_menu),a
+	jp sv_hud_stock
+.more:	ld e,(hl)
+	ld d,0
+	ld hl,sv_stock
+	add hl,de
+	ld a,(hl)
+	ld hl,sv_cook
+	add hl,de
+	add a,(hl)
+	cp 9
+	ret nc
+	push hl
+	ld hl,dish_cost
+	add hl,de
+	ld c,(hl)
+	ld b,0
+	ld hl,(sv_money)
+	or a
+	sbc hl,bc
+	pop de
+	ret c				; (no money)
+	ld (sv_money),hl
+	ex de,hl
+	inc (hl)
+	call sv_hud_money
+	jp sv_hud_stock
+
+sv_menu:	db 0		; the menu at the pass is open
+sv_mcur:	db 0		; its dish
+sv_cook_t:	dw 0		; the kitchen: ticks left of the portion cooking
+sv_cook_d:	db 0		; (its dish)
 
 ; Count down the group's timer: Z at 0.
 sv_dect:
@@ -1392,7 +1430,9 @@ sv_fire:
 	ld de,GR_SIZE
 	add ix,de
 	djnz .p
-	jr .tables
+	ld a,1				; nothing ready: the menu (more portions)
+	ld (sv_menu),a
+	jp sv_hud_stock
 .pick:	ld (ix+GR_STATE),GS_CARRIED
 	push bc
 	push ix
