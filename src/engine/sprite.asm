@@ -44,6 +44,10 @@ SPR_W		equ 16		; bytes
 SPR_MAX		equ 24
 SAVE_AREA0	equ #2000	; save-under records, base RAM (4K per buffer)
 SAVE_AREA1	equ #3000
+SAVE_RESERVE	equ 48*(3+SPR_W)+1	; one sprite's save-under at most
+	ifndef SAVE_CHECK
+SAVE_CHECK	equ 0
+	endif
 CL_BUF		equ #1FF0	; line copy of the clipped path, below the save areas
 	assert ((CL_BUF>>8)&#38)!=#38	; STEP (IXH + 8) must not reach a new char row
 
@@ -342,12 +346,7 @@ save_count_ptr:
 ; ---------------------------------------------------------------------------
 ; Draw the sprite list into the back buffer (sorted by y, saving under).
 sprites_draw:
-	ld a,(back)			; save area of this buffer
-	or a
-	ld hl,SAVE_AREA0
-	jr z,.s0
-	ld hl,SAVE_AREA1
-.s0:	ld (save_ptr),hl
+	call save_base
 	ld hl,(scr_sy)			; first line below the partial top row
 	ld a,l
 	or 7
@@ -374,6 +373,23 @@ sprites_draw:
 	inc hl
 	djnz .draw
 .end:	RAM RAM_C0
+	if SAVE_CHECK			; test: the save-unders past their 4K?
+	ld hl,(save_ptr)		; red border, stop
+	ld a,(back)
+	or a
+	ld de,SAVE_AREA0+#1000
+	jr z,.ck
+	ld de,SAVE_AREA1+#1000
+.ck:	or a
+	sbc hl,de
+	ret c
+	di
+	ld bc,GA_PORT*256+GA_PEN_BORDER
+	out (c),c
+	ld a,#4C
+	out (c),a
+	halt
+	endif
 	ret
 
 ; The stamps, if this buffer needs them drawn (see the top). Which ones:
@@ -412,20 +428,30 @@ stamps_draw:
 	call spr_entry
 	ld a,(ix+SE_STAMP)
 	cp 2
-	call z,sprite_one
-	pop hl
+	jr nz,.dn
+	call save_base			; (their save-unders are dropped: each
+	call sprite_one			; from the start of the area)
+.dn:	pop hl
 	pop bc
 	inc hl
 	djnz .d
 .nd:	RAM RAM_C5			; (stamp_diff's data)
 	call save_count_ptr		; no save-under for them: drop the records
 	ld (hl),0
+	; fall through
+
+; save_ptr = the start of the back buffer's save area; save_lim: where a
+; sprite may still start (SAVE_RESERVE: the most one can save).
+save_base:
 	ld a,(back)
 	or a
 	ld hl,SAVE_AREA0
 	jr z,.s0
 	ld hl,SAVE_AREA1
 .s0:	ld (save_ptr),hl
+	ld de,#1000-SAVE_RESERVE
+	add hl,de
+	ld (save_lim),hl
 	ret
 
 ; A = index -> IX = entry
@@ -445,6 +471,11 @@ spr_entry:
 ; ---------------------------------------------------------------------------
 ; Clip, save under and draw the sprite at IX (its 1 or 3 parts).
 sprite_one:
+	ld hl,(save_ptr)		; the save area nearly full: not this one
+	ld de,(save_lim)		; (this frame; seldom: a full room)
+	or a
+	sbc hl,de
+	ret nc
 	; bx = x / 2 (signed: a sprite can stick out at the left map edge)
 	ld l,(ix+SE_X)
 	ld h,(ix+SE_X+1)
@@ -997,6 +1028,7 @@ spr_keys:	ds SPR_MAX*2,0	; their depth keys
 save_n:		ds 2,0
 save_ptrs:	ds SPR_MAX*2*2,0
 save_ptr:	dw 0
+save_lim:	dw 0
 sp_bx:		dw 0
 sp_2cx:		dw 0
 sp_cl:		db 0
