@@ -278,7 +278,7 @@ solid_at:
 	add a,hi(meta_data)
 	ld d,a
 	ld a,(de)			; the tile
-	cp SOLID_FIRST
+	cp SOLID_T
 	ld a,0
 	jr c,.free
 	inc a

@@ -105,6 +105,17 @@ FINE_Y	equ 1
 	include "lvl1.asm"
 	include "lvl1_meta.asm"
 	endif
+	if SOLID_FIRST<72		; its number (tools/maps2asm.py tile_number)
+SOLID_R	equ SOLID_FIRST-floor(SOLID_FIRST/9)*9	; (rasm divides in floats)
+SOLID_T	equ floor(SOLID_FIRST/9)*16+(1+floor(SOLID_R/3))*4+SOLID_R-floor(SOLID_R/3)*3
+	else
+SOLID_T	equ 128+SOLID_FIRST-72
+	endif
+	if TILE_N<72
+TILE_N_HUD	equ TILE_N
+	else
+TILE_N_HUD	equ 72
+	endif
 
 STACK_TOP	equ #0100
 MAX_TICKS	equ 4		; game ticks run per drawn frame at most (test modes)
@@ -638,6 +649,7 @@ start:
 	ld a,1+HUD_SHIFT1
 	call hud_fill
 	endif
+	call tiles_place		; (after the HUD clear: in its page)
 
 	if TESTMODE
 	if TEST_PATH==1 || TEST_PATH==3
@@ -729,6 +741,44 @@ hud_pattern:
 	incbin "testhud.bin"
 ; The game's HUD: all four sets in the background colour, a line under it.
 ; Needs RAM_C0.
+; The tiles of the HUD page (copied to SAVE_AREA0 by mem_relocate) to
+; their places (src/engine/scroll.asm draw_char): numbers line*16 + set*4 +
+; j, sets 1-3, j < 3.
+tiles_place:
+	ld hl,SAVE_AREA0
+	ld b,TILE_N_HUD
+	ld c,4				; line 0, set 1, j 0
+.t:	ld a,c
+	srl a
+	and #7E
+	add a,#40+(TILE_LO>>8)
+	ld d,a
+	ld a,c
+	and 3
+	rrca
+	rrca
+	rrca
+	add a,TILE_LO&255
+	ld e,a
+	push bc
+	ld bc,32
+	ldir
+	pop bc
+	inc c				; next number: skip j = 3 and set 0
+	ld a,c
+	and 3
+	cp 3
+	jr nz,.n
+	inc c
+	ld a,c
+	and 12
+	jr nz,.n
+	ld a,c
+	add a,4
+	ld c,a
+.n:	djnz .t
+	ret
+
 hud_clear:
 	ld hl,#4000			; line l of the sets: &4000 + l*&800, 2K
 	ld b,8
@@ -786,8 +836,6 @@ bank5_start:
 	if MAP_TEST
 meta_data:				; 4 planes of 256 (tools/maps2asm.py), 1K
 	incbin "test_meta.bin"		; aligned: the plane is picked with xor
-tile_data:				; (aligned: draw_char)
-	incbin "test_tiles.bin"
 map_data:
 	incbin "test_map.bin"
 VARS_BLK = 0				; the big tables (game/vars.asm), after it
@@ -805,10 +853,19 @@ VARS_BLK = 0				; the rest of it holds a block of the big
 	ds meta_data+(VARS_BLK+1)*256-$,0
 VARS_BLK = VARS_BLK+1
 	rend
-tile_data:
-	incbin "lvl1_tiles.bin"
 map_data:
 	incbin "lvl1_map.bin"
+	endif
+	if TILE_N>TILE_HUD		; the tiles after the HUD page's (draw_char)
+	align 32
+tiles_b5:
+	if MAP_TEST
+	incbin "test_tiles.bin",TILE_HUD*32
+	else
+	incbin "lvl1_tiles.bin",TILE_HUD*32
+	endif
+	else
+tiles_b5	equ 0
 	endif
 	assert (meta_data&#3FF)==0
 
@@ -836,3 +893,11 @@ bank5_end:
 	assert bank5_end<=#8000,"bank 5 full"
 	assert bank5_end-bank5_start<=#4000,"bank 5 staging too big"
 	print "bank 5 used: ",{hex}bank5_end-#4000
+tiles_src:				; the HUD page's tiles: staged after bank
+	if MAP_TEST			; 5, moved by mem_relocate / tiles_place
+	incbin "test_tiles.bin",0,TILE_N_HUD*32	; (src/engine/scroll.asm)
+	else
+	incbin "lvl1_tiles.bin",0,TILE_N_HUD*32
+	endif
+tiles_end:
+	assert tiles_end<=#8000,"no room for the staged tiles"

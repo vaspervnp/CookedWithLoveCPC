@@ -16,6 +16,10 @@ mem_relocate:
 	ld bc,bank5_end-bank5_start
 	ldir
 	RAM RAM_C0
+	ld hl,tiles_src			; the tiles: to SAVE_AREA0 for tiles_place
+	ld de,SAVE_AREA0
+	ld bc,TILE_N_HUD*32
+	ldir
 	ld hl,#4000			; clear base &4000-&FFFF (HUD page, screens)
 	ld de,#4001
 	ld bc,#BFFF

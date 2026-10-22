@@ -667,31 +667,59 @@ char_addr:
 	ret
 
 ; Draw the char of the metatile at IX, quadrant plane (ca_plane), half C.
+; Called with RAM_C5 (the map); the tiles of the HUD page: RAM_C0 for the
+; drawing (C is kept: out (c),a).
 map_char:
 	ld l,(ix+0)
 	ld a,(ca_plane)
 	ld h,a
 	ld a,(hl)
-	; fall through
-; Draw one char (2 bytes x 8 lines) of a tile.
+	cp TILE_SPILL
+	jr nc,draw_char			; (in bank 5)
+	ld l,a
+	ld b,GA_PORT
+	ld a,RAM_C0
+	out (c),a
+	ld a,l
+	call draw_char
+	ld b,GA_PORT
+	ld a,RAM_C5
+	out (c),a
+	ret
+
+; Tiles (tools/maps2asm.py tile_number): tile t < TILE_SPILL is in the free
+; end of a HUD page set (bytes TILE_LO.. of sets 1-3, 3 tiles of 32: the top
+; buffer ends at 399, the next set's phase-1 HUD starts at its 511; set 0's
+; bytes 400.. are B_MA, the black row below the playfield): t = line*16 +
+; set*4 + j (j < 3), at &4000 + line*&800 + set*512 + TILE_LO + 32 j. The
+; others in bank 5: tiles_b5 + 32 (t - TILE_SPILL). Placed by tiles_place
+; at the boot.
+TILE_LO		equ 400		; (the low byte stays below 256 for 3 tiles)
+TILE_SPILL	equ 128
+TILE_HUD	equ 72		; tiles in the HUD page
+	assert (TILE_LO&255)+96<=256 && TILE_LO>=400 && TILE_LO+96<=511
+
+; Draw one char (2 bytes x 8 lines) of a tile. Needs RAM_C0 (HUD page
+; tiles) or RAM_C5 (the others).
 ; In: A = tile, C = half*2, DE = screen address. Out: DE preserved.
 ; Destroys: A, B, HL
 draw_char:
-	ld l,a
-	rrca
-	rrca
-	rrca
-	and #1F
-	add a,hi(tile_data)
+	cp TILE_SPILL
+	jr nc,.sp
+	ld l,a				; H = &40 + TILE_LO/256 + line*8 + set*2
+	srl a
+	and #7E
+	add a,#40+(TILE_LO>>8)
 	ld h,a
-	ld a,l
-	and 7
+	ld a,l				; L = TILE_LO + 32 j + half*2
+	and 3
 	rrca
 	rrca
 	rrca
+	add a,TILE_LO&255
 	add a,c
 	ld l,a
-	ld b,8
+.go:	ld b,8
 .lp:	ld a,(hl)
 	ld (de),a
 	inc l
@@ -710,6 +738,22 @@ draw_char:
 	sub #40
 	ld d,a
 	ret
+.sp:	sub TILE_SPILL			; in bank 5 (aligned to 32)
+	ld l,a
+	ld h,0
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	ld a,l
+	add a,c
+	add a,tiles_b5&255
+	ld l,a
+	ld a,h
+	adc a,tiles_b5>>8
+	ld h,a
+	jr .go
 
 scr_sx:		db 0
 scr_sy:		dw 0
