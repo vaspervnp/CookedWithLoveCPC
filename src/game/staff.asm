@@ -57,6 +57,39 @@ blo_script:
 	db ST_WALK, DIR_DOWN, 0, 16	; (turns to the viewer)
 	db #FF
 
+lib_taken:	db 0		; Liberty is the player's (lib_rec) since a swap
+
+; Swap the player between Bill and Liberty (the service, fire 2 / space).
+; The first time Liberty leaves her script where she is.
+staff_swap:
+	xor a				; neither walks on by himself
+	ld (bill_moving),a
+	ld (lib_rec+AC_MOV),a
+	ld a,(lib_taken)
+	or a
+	jr nz,.sw
+	inc a
+	ld (lib_taken),a
+	ld hl,(staff_list+SR_X)		; her sprite's left/top -> feet point
+	ld de,16
+	add hl,de
+	ld (lib_rec+AC_X),hl
+	ld hl,(staff_list+SR_Y)
+	ld de,47
+	add hl,de
+	ld (lib_rec+AC_Y),hl
+	ld a,DIR_DOWN
+	ld (lib_rec+AC_DIR),a
+.sw:	ld hl,ctl_who
+	ld a,(hl)
+	xor 1
+	ld (hl),a
+	ld hl,bill_x
+	jr z,.b
+	ld hl,lib_rec
+.b:	ld (ctl_rec),hl
+	ret
+
 ; One game tick for every staff member.
 staff_tick:
 	ld ix,staff_list
@@ -69,7 +102,16 @@ staff_tick:
 	djnz .lp
 	ret
 
-.one:	inc (ix+SR_ANIM)
+.one:	ld a,(lib_taken)		; Liberty under the player since the
+	or a				; first swap (src/game/actor.asm lib_rec)
+	jr z,.scr
+	push ix
+	pop hl
+	ld de,staff_list
+	or a
+	sbc hl,de
+	ret z
+.scr:	inc (ix+SR_ANIM)
 	dec (ix+SR_T)
 	jr nz,.run
 	ld l,(ix+SR_STEP)		; next step
@@ -124,7 +166,23 @@ staff_sprites:
 	djnz .lp
 	ret
 
-.one:	ld l,(ix+SR_STEP)
+.one:	ld a,(lib_taken)		; Liberty taken over: from lib_rec
+	or a
+	jr z,.scr
+	push ix
+	pop hl
+	ld de,staff_list
+	or a
+	sbc hl,de
+	jr nz,.scr
+	push ix
+	ld ix,lib_rec
+	ld hl,liberty_frames
+	call ac_frame
+	call sprites_add
+	pop ix
+	ret
+.scr:	ld l,(ix+SR_STEP)
 	ld h,(ix+SR_STEP+1)
 	ld a,(hl)			; kind
 	inc hl

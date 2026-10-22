@@ -672,8 +672,15 @@ start:
 	xor a
 	ld hl,0
 	call scroll_set
+	ld bc,512			; place the camera on Bill (1 column and
+.cam:	push bc				; 2 lines a tick)
 	xor a
-	call actor_tick			; place the camera
+	call actor_tick
+	pop bc
+	dec bc
+	ld a,b
+	or c
+	jr nz,.cam
 	RAM RAM_C0
 	endif
 

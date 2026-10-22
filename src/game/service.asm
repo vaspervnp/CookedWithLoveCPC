@@ -269,7 +269,12 @@ service_tick:
 	jr z,.nm
 	call sv_menu_keys
 	jr .mk
-.nm:	bit KEY_FIRE,c
+.nm:	bit KEY_SWAP,c			; the other character
+	call nz,staff_swap
+	ld a,(ctl_who)			; fire: Bill's actions (Liberty's: M7)
+	or a
+	jr nz,.mk
+	bit KEY_FIRE,c
 	call nz,sv_fire
 .mk:	call sv_cook_tick
 	ld hl,sv_tick

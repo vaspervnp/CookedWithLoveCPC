@@ -5,6 +5,7 @@ KEY_DOWN	equ 1
 KEY_LEFT	equ 2
 KEY_RIGHT	equ 3
 KEY_FIRE	equ 4
+KEY_SWAP	equ 5		; SPACE or fire 2: the other character
 
 ; Read one keyboard matrix line.
 ; In: A = line (0..9). Out: A = bits, 0 = pressed. Destroys BC.
@@ -51,10 +52,15 @@ read_input:
 	bit 0,a
 	jr z,$+4
 	set KEY_LEFT,e
-	ld a,9				; joystick 0: up, down, left, right, fire1
+	ld a,5				; space (7)
 	call read_key_line
+	bit 7,a
+	jr nz,$+4
+	set KEY_SWAP,e
+	ld a,9				; joystick 0: up, down, left, right,
+	call read_key_line		; fire 1, fire 2
 	cpl
-	and #1F
+	and #3F
 	ld d,a
 	bit 0,d
 	jr z,$+4
@@ -71,5 +77,8 @@ read_input:
 	bit 4,d
 	jr z,$+4
 	set KEY_FIRE,e
+	bit 5,d
+	jr z,$+4
+	set KEY_SWAP,e
 	ld a,e
 	ret

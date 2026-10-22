@@ -75,7 +75,7 @@ ov_tick:
 	ld (sv_prev),a
 	ld a,(sv_phase)
 	cp SP_PREP
-	jr z,ov_keys
+	jp z,ov_keys
 	bit KEY_FIRE,c
 	ret z
 	cp SP_BROKE
@@ -102,6 +102,9 @@ ov_morning:
 	xor a
 	ld (ov_cur),a
 	ld (ov_used),a
+	ld (ctl_who),a			; the day starts with Bill
+	ld hl,bill_x
+	ld (ctl_rec),hl
 	ld (sv_menu),a
 	ld hl,0
 	ld (sv_cook_t),hl
