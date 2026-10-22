@@ -61,6 +61,7 @@ GR_P		equ 6		; patience
 GR_PT		equ 7		; ticks to the next point lost
 GR_MOOD		equ 8		; bubble of the state (angry: shown instead)
 GR_SLOT		equ 9		; place in the queue (0 = front)
+GR_BURNT	equ GR_SLOT	; Medium, once seated: burnt dishes of the order
 GR_DISH		equ 10		; the dish of each customer (4 bytes)
 GR_KIT		equ 14		; Medium: bits 0-3 dish started, 4-7 at the pass
 GR_ORD		equ 15		; Medium: order number (src/game/kitchen.asm)
@@ -102,7 +103,11 @@ TB_DIRTY	equ #80		; tb_busy: plates left (+ their number, 1-3)
 TB_LOCKED	equ #40		; tb_busy: in the expansion, not bought yet
 EXP_COST	equ 300		; the expansion (src/ovl/prep.asm)
 sv_exp:		db 0		; bought
+	ifdef TEST_MONEY		; (tests: more)
+START_MONEY	equ TEST_MONEY
+	else
 START_MONEY	equ 150		; the economy (portions: src/ovl/prep.asm)
+	endif
 DAY_COST	equ 50		; rent and wages, at the end of each day
 sv_money:	dw START_MONEY
 sv_served:	dw 0		; customers who paid today
@@ -1609,6 +1614,7 @@ sv_fire:
 	jp c,sv_angry			; no: they leave
 	ld (ix+GR_STATE),GS_ORDERED	; the order: to the kitchen
 	ld (ix+GR_KIT),0
+	ld (ix+GR_BURNT),0
 	ld hl,sv_ordseq
 	ld a,(hl)
 	ld (ix+GR_ORD),a
@@ -1643,7 +1649,21 @@ sv_fire:
 	call sfx_play
 	ld a,MOOD_HAPPY
 	call sv_mood
-	jp sv_refill
+	call sv_refill
+	ld a,(ix+GR_BURNT)		; burnt dishes: patience (the tip) down,
+	or a				; after the refill
+	ret z
+	ld b,a
+	ld a,(ix+GR_P)
+.bt:	sub 64
+	jr nc,.bk
+	xor a
+.bk:	djnz .bt
+	or a
+	jr nz,.bp
+	inc a
+.bp:	ld (ix+GR_P),a
+	jp sv_show_mood
 .pay:	ld b,(ix+GR_N)			; money (their dishes) and tip, the table
 	ld hl,(sv_money)		; is free, out
 	push ix

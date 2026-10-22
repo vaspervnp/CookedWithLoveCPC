@@ -7,7 +7,7 @@
 ;     then it burns);
 ;   at a done (or burnt) one: she takes the plate (a plate bubble on her);
 ;   at the pass: she leaves it; an order whose dishes are all there is
-;     ready for Bill. A burnt dish costs the group patience (the tip).
+;     ready for Bill. A burnt dish costs the group patience (the tip) when served.
 ; Over each busy station a bubble: ... cooking, the plate when done,
 ; angry when burnt. In Easy the kitchen stays automatic (service.asm).
 
@@ -22,7 +22,7 @@ BURN_T		equ 500		; done: 10 s before it burns
 KNEAR_X		equ 20		; Liberty's feet to a station's centre
 KNEAR_Y		equ 26
 
-sv_mode:	db 0		; 0 Easy, 1 Medium (the first morning)
+sv_mode:	db TEST_MODE	; 0 Easy, 1 Medium, 2 Hard (the first morning)
 sv_ordseq:	db 0		; order numbers (GR_ORD)
 ks_slots:	ds KS_SIZE,0
 lib_carry:	db 0		; group + 1 of the plate Liberty carries
@@ -274,15 +274,10 @@ lib_place:
 .pl:	ld a,(ix+GR_KIT)
 	or e
 	ld (ix+GR_KIT),a
-	ld a,(lib_cburnt)		; burnt: patience (the tip) down
-	or a
+	ld a,(lib_cburnt)		; burnt: patience (the tip) down when
+	or a				; served (GR_BURNT, src/game/service.asm)
 	jr z,.ok
-	ld a,(ix+GR_P)
-	sub 64
-	jr z,.p1
-	jr nc,.p
-.p1:	ld a,1
-.p:	ld (ix+GR_P),a
+	inc (ix+GR_BURNT)
 .ok:	ld b,(ix+GR_N)			; all placed?
 	xor a
 .b:	scf

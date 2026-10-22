@@ -83,6 +83,9 @@ CUSTOMERS	equ 1
 	ifndef CUST_BENCH		; frame rate test: 5 walking customers
 CUST_BENCH	equ 0
 	endif
+	ifndef TEST_MODE		; test: start in Medium (1) / Hard (2)
+TEST_MODE	equ 0
+	endif
 	ifndef TEST_FILL		; test: groups sit down by themselves
 TEST_FILL	equ 0			; (game/service.asm)
 	endif
