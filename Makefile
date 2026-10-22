@@ -21,7 +21,7 @@ RASMFLAGS += $(EXTRA)
 
 FORCE:
 
-.SECONDARY: $(BUILD)/prep_en.bin $(BUILD)/prep_gr.bin
+.SECONDARY: $(BUILD)/prep_en.bin $(BUILD)/prep_gr.bin $(BUILD)/title_en.scr $(BUILD)/title_gr.scr
 
 .PHONY: FORCE parts staff items tiles all en gr run-en run-gr shot-en shot-gr palette clean
 
@@ -125,10 +125,14 @@ $(BUILD)/cwl_gr.bin: $(SRC) $(GEN) FORCE
 # game of the same language
 $(BUILD)/prep_%.bin: src/ovl/prep.asm $(BUILD)/cwl_%.bin
 	awk '$$1 !~ /\./ && $$1 !~ /^(BUILDCPC|SYNCHRO|RASM_VERSION)$$/ {print $$1 "\tequ " $$2}' $(BUILD)/cwl_$*.sym > $(BUILD)/syms_$*.asm
-	$(RASM) src/ovl/prep.asm -Isrc -I$(BUILD) -DOVERLAY=1 -DLANG_$(shell echo $* | tr a-z A-Z)=1 $(OVLEXTRA) -ob $@
+	$(RASM) src/ovl/prep.asm -Isrc -I$(BUILD) -DOVERLAY=1 -DLANG_$(shell echo $* | tr a-z A-Z)=1 $(filter -DDEMO=%,$(EXTRA)) $(OVLEXTRA) -ob $@
+
+# The title screen of each language (a Mode 0 screen, loaded at &C000)
+$(BUILD)/title_%.scr: tools/mktitle.py tools/mkfont.py tools/png2cpc.py assets/sprites/bill.png assets/sprites/liberty.png assets/sprites/blossom.png data/palette.txt | $(BUILD)
+	$(PYTHON) tools/mktitle.py $* $@ --png $(BUILD)/title_$*.png
 
 # Disk name on the CPC is always CWL.BIN -> RUN"CWL
-$(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin $(BUILD)/prep_%.bin
+$(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin $(BUILD)/prep_%.bin $(BUILD)/title_%.scr
 	rm -f $@ $(BUILD)/CWL.BIN
 	cp $< $(BUILD)/CWL.BIN
 	$(IDSK) $@ -n
@@ -136,6 +140,8 @@ $(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin $(BUILD)/prep_%.bin
 	rm -f $(BUILD)/CWL.BIN
 	cp $(BUILD)/prep_$*.bin $(BUILD)/PREP.OVL
 	cd $(BUILD) && $(IDSK) $(notdir $@) -i PREP.OVL -t 1 -c 3800 -s >/dev/null && rm -f PREP.OVL
+	cp $(BUILD)/title_$*.scr $(BUILD)/TITLE.SCR
+	cd $(BUILD) && $(IDSK) $(notdir $@) -i TITLE.SCR -t 0 -s >/dev/null && rm -f TITLE.SCR
 	cd $(BUILD) && for f in spr_?.dat; do b=$${f#spr_}; b=$${b%.dat}; cp $$f SPR$$b.DAT; $(IDSK) $(notdir $@) -i SPR$$b.DAT -t 1 -c 4000 -s >/dev/null; rm -f SPR$$b.DAT; done
 	cd $(BUILD) && for f in spr_??*.dat; do a=$${f#spr_}; a=$${a%.dat}; n=$$(echo $$a | tr a-z A-Z | cut -c1-8).SPR; cp $$f $$n; $(IDSK) $(notdir $@) -i $$n -t 1 -c 4000 -s >/dev/null; rm -f $$n; done
 

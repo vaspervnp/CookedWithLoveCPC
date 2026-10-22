@@ -14,12 +14,11 @@ Usage: text2asm.py <strings.tsv> <en|gr> <font.asm> <strings.asm>
 import sys
 import unicodedata
 
-from mkfont import DIGITS, LETTERS, SAME, base_glyphs, glyph, pack
+from mkfont import DIGITS, LETTERS, base_glyphs, glyph, pack, plain_char
 
 
 def plain(ch):
-    ch = unicodedata.normalize("NFD", ch.upper())[0]
-    return SAME.get(ch, ch)
+    return plain_char(ch)
 
 
 def main():

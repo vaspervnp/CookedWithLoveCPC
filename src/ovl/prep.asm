@@ -16,6 +16,9 @@
 	else
 	include "syms_gr.asm"
 	endif
+	ifndef DEMO			; (-DDEMO=1 from the Makefile's EXTRA)
+DEMO	equ 0
+	endif
 
 	org OVL_BASE
 	if SERVICE==0			; (test builds without the service)
@@ -44,7 +47,7 @@ ov_stars:	db 0
 ov_init:
 	ld a,(sv_phase)
 	cp SP_PREP
-	jp z,ov_morning			; (the first day)
+	jp z,ov_first			; (the first day)
 	ld hl,(sv_money)		; the day is over: rent and wages
 	ld de,DAY_COST
 	or a
@@ -159,6 +162,50 @@ ov_patch:
 	inc hl
 	djnz .l
 	ret
+
+; The boot: the title screen (TITLE.SCR, tools/mktitle.py; on the disc
+; without an AMSDOS header, fdc_load reads whole sectors) until fire,
+; then the first morning. (Not in the DEMO builds: no one presses fire.)
+ov_first:
+	if DEMO==0
+	di
+	call crtc_plain			; (black while it loads)
+.try:	ld hl,ov_tname
+	ld de,#C000			; (no header: 32 whole sectors)
+	call fdc_load
+	jr c,.try
+	call wait_vsync
+	ld hl,#3000			; a standard frame of &C000
+	call crtc_set_ma
+	ld bc,#BC09			; R9 = 7
+	out (c),c
+	ld bc,#BD07
+	out (c),c
+	ld hl,palette_hw
+	call set_palette
+	ifdef TITLE_WAIT		; test: TITLE_WAIT VBLs instead of fire
+	ld b,TITLE_WAIT
+.tw:	push bc
+	call wait_vsync
+	pop bc
+	djnz .tw
+	jr .end
+	endif
+.up:	call read_input			; fire: pressed and let go
+	and 1<<KEY_FIRE
+	jr nz,.up
+.dn:	call read_input
+	and 1<<KEY_FIRE
+	jr z,.dn
+.up2:	call read_input
+	and 1<<KEY_FIRE
+	jr nz,.up2
+.end:	call view_restart		; the game's view again (interrupts on)
+	endif
+	jp ov_morning
+	if DEMO==0
+ov_tname:	db "TITLE   SCR"
+	endif
 
 ; A tick: fire (and in the morning the cursor keys) pressed this tick.
 ov_tick:

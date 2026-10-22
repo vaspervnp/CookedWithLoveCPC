@@ -249,6 +249,7 @@ assets/blender/bill_build.py        tools/render2sprite.py          tools/sprite
 - **tools/png2cpc.py**: PNG → Mode 0 bytes (sprites, tiles, γραμματοσειρές), με έλεγχο palette. Για sprites το αδιαφανές μαύρο γίνεται pen 14.
 - **tools/mktileset.py** (`make tiles`): το tileset του εστιατορίου ως pixel art από κώδικα (metatiles 16×16 με το πάτωμά τους από κάτω, στο `assets/tiles/restaurant.png` και `.txt`: χαρακτήρας χάρτη, όνομα, εμπόδιο ανά τεταρτημόριο).
 - **tools/buildmap.py**: tileset + πίστα (`assets/maps/*.txt`) → μοναδικά tiles 8×8 (πρώτα όσα περπατιούνται, μετά τα εμπόδια: `SOLID_FIRST` στο `build/lvl1.asm`) και χάρτης tiles 80×84.
+- **tools/mktitle.py**: η οθόνη τίτλου (Mode 0, 16K, διάταξη &C000) με τα γράμματα του `tools/mkfont.py` σε μεγέθυνση και το frame 0 του Bill, της Ελευθερίας και της Ανθής → `build/title_<lang>.scr` (+ `.png` προεπισκόπηση). Μπαίνει στη δισκέτα ως `TITLE.SCR` χωρίς AMSDOS header (το `fdc_load` διαβάζει ολόκληρα sectors) και τη δείχνει το overlay `PREP.OVL` στην εκκίνηση ως το fire (όχι με `-DDEMO=1`).
 - **tools/maps2asm.py**: χάρτης tiles → metatiles 2×2 (`build/<map>_map.bin`, `_meta.bin`, `_tiles.bin`). Ο χάρτης δοκιμής περνά από το ίδιο εργαλείο.
 - Η συμπίεση θα γίνεται από τον RASM (ZX0) κατά το build.
 
