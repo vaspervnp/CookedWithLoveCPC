@@ -37,7 +37,7 @@ demo_script:
 	db F,1, R,32, U,27, 0,90, F,1	; order, to the pass, take the plates
 	db D,27, L,32, 0,4, F,1, 0,165, F,1	; serve, they eat, pay
 	db 0,60, F,1, R,32, U,27, F,1	; clear the table, plates to the pass
-	db 0,250, 0,250, 0,250, #FF
+	db 0,250, #FF
 	else
 	db R,90, D,70, 0,10, L,120, U,40, R|D,60, L|U,50, D,140, R,200, U,120, L,40, L|D,80, 0,15, U,200, #FF
 	endif

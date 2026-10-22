@@ -20,6 +20,12 @@ sd_erase:	ds STAMP_MAX*4,0	; rectangles (x, y) to erase
 	endif
 	if VARS_BLK==1
 sd_rec:		ds 2*SDR_SIZE,0	; per buffer: count, stamps
+	if SERVICE
+sv_menu:	db 0		; the menu at the pass is open
+sv_mcur:	db 0		; its dish
+sv_cook_t:	dw 0		; the kitchen: ticks left of the portion cooking
+sv_cook_d:	db 0		; (its dish)
+	endif
 	endif
 	if VARS_BLK==2
 	if SERVICE

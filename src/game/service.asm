@@ -32,6 +32,7 @@
 ; the pass when an order is ready.
 
 ; (G_MAX, GR_SIZE, TRAIL_N and the big tables: src/game/vars.asm)
+QUEUE_PEOPLE	equ 6		; customers waiting at the entrance at most
 QUEUE_SLOTS	equ 2		; groups waiting at the entrance
 WALK_MAX	equ 5		; customers walking at the same time (+ Bill = 6
 				; moving figures; the others wait, still ones are
@@ -478,12 +479,17 @@ sv_spawn:
 	ld b,G_MAX
 	ld iy,0
 	ld c,0				; groups at the entrance
+	ld l,c				; and their customers
 .f:	ld a,(ix+GR_STATE)
 	cp GS_ARRIVE
 	jr z,.q
 	cp GS_QUEUE
 	jr nz,.nq
 .q:	inc c
+	ld a,l
+	add a,(ix+GR_N)
+	ld l,a
+	jr .n
 .nq:	or a
 	jr nz,.n
 	ld a,iyh
@@ -500,13 +506,23 @@ sv_spawn:
 	ld a,iyh
 	or iyl
 	ret z
+	ld a,QUEUE_PEOPLE		; room for QUEUE_PEOPLE - L more
+	sub l
+	ret z
+	ret c
 	push iy
 	pop ix
 	ld (ix+GR_SLOT),c
-	call sv_rand			; size 1-4
+	ld c,a
+	push bc
+	call sv_rand			; size 1-4 (at most the room)
+	pop bc
 	and 3
 	inc a
-	ld (ix+GR_N),a
+	cp c
+	jr c,.sz
+	ld a,c
+.sz:	ld (ix+GR_N),a
 	; first fit: GR_N free customers in a row
 	ld c,0				; candidate first
 .try:	ld a,c
@@ -1347,10 +1363,7 @@ sv_menu_keys:
 	call sv_hud_money
 	jp sv_hud_stock
 
-sv_menu:	db 0		; the menu at the pass is open
-sv_mcur:	db 0		; its dish
-sv_cook_t:	dw 0		; the kitchen: ticks left of the portion cooking
-sv_cook_d:	db 0		; (its dish)
+; (sv_menu, sv_mcur, sv_cook_t, sv_cook_d: src/game/vars.asm)
 
 ; Count down the group's timer: Z at 0.
 sv_dect:
