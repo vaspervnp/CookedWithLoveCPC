@@ -201,6 +201,8 @@ ov_first:
 	and 1<<KEY_FIRE
 	jr nz,.up2
 .end:	call view_restart		; the game's view again (interrupts on)
+	ld bc,GA_PORT*256+RAM_C5	; (it leaves the base RAM at &4000)
+	out (c),c
 	endif
 	jp ov_morning
 	if DEMO==0
