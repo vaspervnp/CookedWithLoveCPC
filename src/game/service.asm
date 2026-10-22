@@ -702,7 +702,14 @@ sv_group:
 .wait:	dec (ix+GR_PT)
 	jr nz,.state
 	ld (ix+GR_PT),PAT_RATE
-	dec (ix+GR_P)
+	ld a,(sv_mode)			; Medium: waiting for Liberty's kitchen
+	or a				; at half the rate
+	jr z,.pd
+	ld a,(ix+GR_STATE)
+	cp GS_ORDERED
+	jr nz,.pd
+	ld (ix+GR_PT),PAT_RATE*2
+.pd:	dec (ix+GR_P)
 	jp z,sv_angry
 	ld a,(ix+GR_P)
 	cp PAT_ANGRY-1
