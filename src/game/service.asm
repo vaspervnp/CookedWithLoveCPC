@@ -233,6 +233,25 @@ sv_status:
 ; ---------------------------------------------------------------------------
 ; One game tick (bank 5).
 service_tick:
+	ifdef TEST_SFX			; test: the effects in turn, 2 s apart
+	ld hl,.tsfx
+	inc (hl)
+	ld a,(hl)
+	and 31
+	jr nz,.ts
+	ld a,(hl)
+	rrca
+	rrca
+	rrca
+	rrca
+	rrca
+	and 7
+	cp SFX_DONE+1
+	call c,sfx_play
+	jr .ts
+.tsfx:	db 0
+.ts:
+	endif
 	ld a,(sv_phase)			; between the days: the overlay
 	cp SP_OVER
 	jr c,.day
@@ -752,6 +771,8 @@ sv_group:
 	call sv_dect
 	ret nz
 	ld (ix+GR_STATE),GS_READY
+	ld a,SFX_READY
+	call sfx_play
 	push ix
 	call sv_hud_tickets
 	pop ix
@@ -868,6 +889,8 @@ sv_show_mood:
 
 ; Out of patience: they leave without paying.
 sv_angry:
+	ld a,SFX_ANGRY
+	call sfx_play
 	ld e,(ix+GR_N)
 	ld d,0
 	ld hl,(sv_lost)
@@ -1592,6 +1615,8 @@ sv_fire:
 	inc (hl)
 	call sv_choose
 	call sv_hud_stock
+	ld a,SFX_ORDER
+	call sfx_play
 	ld a,MOOD_ORDER
 	ld (bill_bubble),a
 	ld a,BUBBLE_T
@@ -1614,6 +1639,8 @@ sv_fire:
 	ld (ix+GR_STATE),GS_EATING
 	ld (ix+GR_T),EAT_T&255
 	ld (ix+GR_T+1),EAT_T>>8
+	ld a,SFX_SERVE
+	call sfx_play
 	ld a,MOOD_HAPPY
 	call sv_mood
 	jp sv_refill
@@ -1652,6 +1679,8 @@ sv_fire:
 	call sv_hud_money
 	call sv_hud_served
 	pop ix
+	ld a,SFX_COIN
+	call sfx_play
 	xor a
 	jp sv_leave
 .queue:					; next to the queue: they follow

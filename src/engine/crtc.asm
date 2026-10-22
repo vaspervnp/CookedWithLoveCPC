@@ -85,6 +85,7 @@ crtc_init:
 ; A standard full frame (no splits, no interrupts needed) with all pens
 ; black: the display while the CPU is busy with interrupts off (disc).
 crtc_plain:
+	call sfx_off
 	ld bc,GA_PORT*256
 .pal:	out (c),c
 	ld a,#54			; black
@@ -187,6 +188,7 @@ irq_i0:
 	call crtc_write
 	ld hl,frame_count
 	inc (hl)
+	call sfx_tick
 	jp irq_ret
 
 ; I1: last lines of B. Commit, then program H and A.

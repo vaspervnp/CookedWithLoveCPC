@@ -551,6 +551,7 @@ scroll_step_y:	db 8-7*FINE_Y
 	include "engine/scroll.asm"
 	include "engine/sprite.asm"
 	include "engine/hud.asm"
+	include "engine/sound.asm"
 	include "game/area.asm"
 	include "engine/fdc.asm"
 	include "palette.asm"

@@ -56,6 +56,9 @@ kitchen_tick:
 	or l
 	jr nz,.n
 	inc (ix+KQ_ST)			; cooking -> done -> burnt
+	ld a,SFX_DONE+2			; done: SFX_DONE, burnt: SFX_BURN
+	sub (ix+KQ_ST)
+	call sfx_play
 	ld (ix+KQ_T),BURN_T&255
 	ld (ix+KQ_T+1),BURN_T>>8
 .n:	ld de,KQ_SIZE
@@ -295,6 +298,8 @@ lib_place:
 	cp c
 	jp nz,sv_hud_tickets		; (the dish in colour on its ticket)
 	ld (ix+GR_STATE),GS_READY
+	ld a,SFX_READY
+	call sfx_play
 	jp sv_hud_tickets
 
 ; The bubbles over the busy stations.
