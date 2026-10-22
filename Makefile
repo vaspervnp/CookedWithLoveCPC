@@ -16,6 +16,7 @@ ifeq ($(DEBUG),1)
 RASMFLAGS += -DDEBUG=1
 endif
 # extra assembler defines, e.g. make en EXTRA="-DTEST_X=1 -DTEST_Y=7"
+# (the overlay: OVLEXTRA="-DTEST_EXP=1")
 RASMFLAGS += $(EXTRA)
 
 FORCE:
@@ -57,9 +58,9 @@ $(BUILD)/test_map.bin: $(BUILD)/testtiles.bin tools/maps2asm.py
 # Level 1: the map (assets/maps/level1.txt) on the restaurant tileset
 # (assets/tiles/restaurant.png/.txt, drawn by tools/mktileset.py: make tiles),
 # with its objects (tables, stations: build/lvl1_objs.asm)
-$(BUILD)/lvl1_map.bin: assets/maps/level1.txt assets/tiles/restaurant.png assets/tiles/restaurant.txt tools/buildmap.py tools/maps2asm.py | $(BUILD)
-	$(PYTHON) tools/buildmap.py assets/tiles/restaurant.png assets/maps/level1.txt $(BUILD)/lvl1
-	$(PYTHON) tools/maps2asm.py $(BUILD)/lvl1_src_tiles.bin $(BUILD)/lvl1_src_map.bin $(BUILD)/lvl1
+$(BUILD)/lvl1_map.bin: assets/maps/level1.txt assets/maps/level1_open.txt assets/tiles/restaurant.png assets/tiles/restaurant.txt tools/buildmap.py tools/maps2asm.py | $(BUILD)
+	$(PYTHON) tools/buildmap.py assets/tiles/restaurant.png assets/maps/level1.txt $(BUILD)/lvl1 --open assets/maps/level1_open.txt
+	$(PYTHON) tools/maps2asm.py $(BUILD)/lvl1_src_tiles.bin $(BUILD)/lvl1_src_map.bin $(BUILD)/lvl1 $(BUILD)/lvl1_src_open.bin
 
 tiles:
 	$(PYTHON) tools/mktileset.py assets/tiles
@@ -124,7 +125,7 @@ $(BUILD)/cwl_gr.bin: $(SRC) $(GEN) FORCE
 # game of the same language
 $(BUILD)/prep_%.bin: src/ovl/prep.asm $(BUILD)/cwl_%.bin
 	awk '$$1 !~ /\./ && $$1 !~ /^(BUILDCPC|SYNCHRO|RASM_VERSION)$$/ {print $$1 "\tequ " $$2}' $(BUILD)/cwl_$*.sym > $(BUILD)/syms_$*.asm
-	$(RASM) src/ovl/prep.asm -Isrc -I$(BUILD) -DOVERLAY=1 -DLANG_$(shell echo $* | tr a-z A-Z)=1 -ob $@
+	$(RASM) src/ovl/prep.asm -Isrc -I$(BUILD) -DOVERLAY=1 -DLANG_$(shell echo $* | tr a-z A-Z)=1 $(OVLEXTRA) -ob $@
 
 # Disk name on the CPC is always CWL.BIN -> RUN"CWL
 $(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin $(BUILD)/prep_%.bin

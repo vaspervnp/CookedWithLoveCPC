@@ -76,6 +76,7 @@ OVL_BASE	equ SAVE_AREA1+#800	; (where the boot code ran: 2K)
 OVL_INIT	equ OVL_BASE		; jump table: init (phase SP_OVER/SP_PREP)
 OVL_TICK	equ OVL_BASE+3		; a tick between the days (bank 5 mapped)
 ovl_req:	db 0
+view_req:	db 0		; the map changed (the overlay): draw it again
 ovl_name:	db "PREP    OVL"
 
 ; Load the overlay, restart the view, call its init (main loop, base RAM).

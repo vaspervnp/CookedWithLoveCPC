@@ -25,6 +25,7 @@
 	jp ov_tick
 
 	include "recipes.asm"		; dish_prep (OVERLAY)
+	include "lvl1_patch.asm"	; the expansion (tools/maps2asm.py)
 
 PREP_START	equ 10*60	; the morning
 PREP_MIN	equ 120
@@ -61,10 +62,103 @@ ov_init:
 .paid:	ld (sv_money),hl
 	call sv_hud_money
 	call ov_summary
-	ld a,13
+	; fall through
+; Row 3 of the evening: the day over; the expansion on offer if affordable.
+ov_evening:
+	ld a,(sv_exp)
+	or a
+	jr nz,.n
+	ld hl,(sv_money)
+	ld de,EXP_COST
+	or a
+	sbc hl,de
+	jr c,.n
+	ld a,8
+	ld hl,txt_exp
+	ld de,txt_next
+	call ov_line
+	ld hl,EXP_COST
+	ld d,3
+	ld bc,((2+TXT_EXP_LEN)<<8)+HUD_ROW3
+	jp hud_number
+.n:	ld a,13
 	ld hl,txt_day_end
 	ld de,txt_next
 	jp ov_line
+
+; Up in the evening: the expansion bought (its map, its tables).
+ov_buy:
+	ld a,(sv_exp)
+	or a
+	ret nz
+	ld hl,(sv_money)
+	ld de,EXP_COST
+	or a
+	sbc hl,de
+	ret c
+	ld (sv_money),hl
+	call sv_hud_money
+	ld a,1
+	ld (sv_exp),a
+	ld hl,patch_open
+	xor a				; the tables free
+	call ov_patch
+	call ov_evening
+	jr ov_view
+
+; A new game: the expansion closed again.
+ov_unbuy:
+	ld a,(sv_exp)
+	or a
+	ret z
+	xor a
+	ld (sv_exp),a
+	ld hl,patch_close
+	ld a,TB_LOCKED
+	call ov_patch
+ov_view:
+	ld a,1				; (the main loop draws the view again)
+	ld (view_req),a
+	ret
+
+; Apply map patch HL (tools/maps2asm.py) and set the expansion's tables to A.
+ov_patch:
+	push af
+.e:	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld a,d
+	and e
+	inc a
+	jr z,.t
+	push hl
+	ld hl,map_data
+	add hl,de
+	ex de,hl
+	pop hl
+	ld b,(hl)			; metatiles in the row
+	inc hl
+.r:	ld c,(hl)			; runs: count, metatile
+	inc hl
+	ld a,(hl)
+	inc hl
+.f:	ld (de),a
+	inc de
+	dec b
+	dec c
+	jr nz,.f
+	ld a,b
+	or a
+	jr nz,.r
+	jr .e
+.t:	pop af
+	ld hl,tb_busy
+	ld b,TB_LOCK_N
+.l:	ld (hl),a
+	inc hl
+	djnz .l
+	ret
 
 ; A tick: fire (and in the morning the cursor keys) pressed this tick.
 ov_tick:
@@ -82,7 +176,12 @@ ov_tick:
 	ld a,(ov_sup)			; the supplier (Hard, the evening)
 	or a
 	jp nz,ov_sup_keys
-	bit KEY_FIRE,c
+	ld a,(sv_phase)			; up: the expansion
+	cp SP_OVER
+	jr nz,.f
+	bit KEY_UP,c
+	jp nz,ov_buy
+.f:	bit KEY_FIRE,c
 	ret z
 	ld a,(sv_phase)
 	cp SP_BROKE
@@ -91,7 +190,8 @@ ov_tick:
 	cp 2
 	jp z,ov_supplier
 	jr ov_morning
-.new:	ld hl,START_MONEY		; a new game
+.new:	call ov_unbuy
+	ld hl,START_MONEY		; a new game
 	ld (sv_money),hl
 	xor a
 	ld (sv_day),a
@@ -108,6 +208,11 @@ ov_tick:
 
 ; The morning of the next day.
 ov_morning:
+	ifdef TEST_EXP			; test: the expansion bought at once
+	ld hl,9999
+	ld (sv_money),hl
+	call ov_buy
+	endif
 	ld hl,sv_day
 	inc (hl)
 	ld a,SP_PREP

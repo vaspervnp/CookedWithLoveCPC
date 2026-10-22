@@ -262,6 +262,13 @@ main_loop:
 	ld a,(ovl_req)			; between the days: the overlay
 	or a
 	call nz,ovl_load
+	ld a,(view_req)
+	or a
+	jr z,.nv
+	xor a
+	ld (view_req),a
+	call view_restart
+.nv:
 	endif
 	ld a,(back)			; draw the other buffer
 	xor 1

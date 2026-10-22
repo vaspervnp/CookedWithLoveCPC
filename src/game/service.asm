@@ -99,6 +99,9 @@ bill_carry:	db 0		; group + 1 whose plates Bill carries
 sv_bub_t:	db 0
 sv_dirty:	db 0		; Bill carries dirty plates
 TB_DIRTY	equ #80		; tb_busy: plates left (+ their number, 1-3)
+TB_LOCKED	equ #40		; tb_busy: in the expansion, not bought yet
+EXP_COST	equ 300		; the expansion (src/ovl/prep.asm)
+sv_exp:		db 0		; bought
 START_MONEY	equ 150		; the economy (portions: src/ovl/prep.asm)
 DAY_COST	equ 50		; rent and wages, at the end of each day
 sv_money:	dw START_MONEY

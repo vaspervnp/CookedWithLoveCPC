@@ -1,6 +1,13 @@
 ; The HUD of the service at the start (src/game/service.asm): part of the
 ; boot code (runs once, from the boot with bank 5 mapped).
 service_init:
+	if TB_LOCK_N			; the expansion's tables: locked
+	ld hl,tb_busy
+	ld b,TB_LOCK_N
+.lk:	ld (hl),TB_LOCKED
+	inc hl
+	djnz .lk
+	endif
 	if TEST_FILL			; test: 9 portions of each, open
 	ld hl,sv_stock
 	ld b,DISH_N
