@@ -125,6 +125,9 @@ ov_morning:
 	ld (ctl_who),a			; the day starts with Bill
 	ld (lib_carry),a		; the kitchen empty
 	ld (blo_carry),a		; (Hard: what stayed at the door went off)
+	ld a,#FE
+	ld (st_wlast),a			; (the warning drawn again)
+	xor a
 	ld (st_deliv),a
 	ld hl,st_door
 	ld b,ING_N

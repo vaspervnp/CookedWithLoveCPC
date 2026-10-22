@@ -33,11 +33,12 @@ blo_carry:	db 0		; group + 1 of what Blossom carries
 blo_units:	db 0
 st_kind:	db 0		; (blo_fire)
 
-; A tick (Hard): the delivery.
+; A tick (Hard): the delivery, the warning.
 storage_tick:
 	ld a,(sv_mode)
 	cp 2
 	ret nz
+	call st_warn
 	ld a,(st_deliv)
 	or a
 	ret nz
@@ -185,6 +186,54 @@ blo_fire:
 	sub c
 	ld (hl),a
 	jp sv_hud_stock
+
+; HUD row 2, columns 6-7: the first group with less than ST_LOW units on
+; the shelves (drawn when it changes).
+ST_LOW		equ 10
+st_warn:
+	ld hl,st_stock
+	ld b,0
+.g:	ld a,(hl)
+	cp ST_LOW
+	jr c,.w
+	inc hl
+	inc b
+	ld a,b
+	cp ING_N
+	jr nz,.g
+	ld b,#FF			; none
+.w:	ld hl,st_wlast
+	ld a,b
+	cp (hl)
+	ret z
+	ld (hl),a
+	inc a
+	jr z,.clr
+	ld hl,ing_ink
+	ld a,b
+	call st_add
+	ld a,(hl)
+	push bc
+	ld b,HUD_BG
+	call hud_colors
+	pop bc
+	ld a,b
+	add a,a
+	add a,G_ING0
+	push af
+	ld bc,(6<<8)+HUD_ROW2
+	call hud_char
+	pop af
+	inc a
+	ld bc,(7<<8)+HUD_ROW2
+	jp hud_char
+.clr:	ld a,HUD_BG
+	ld b,a
+	call hud_colors
+	ld bc,(6<<8)+HUD_ROW2
+	ld e,8
+	jp hud_spaces
+st_wlast:	db #FF
 
 ; A = group -> A = 1 if it goes into the fridges, else 0
 st_cold:
