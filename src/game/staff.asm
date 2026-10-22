@@ -59,35 +59,83 @@ blo_script:
 
 lib_taken:	db 0		; Liberty is the player's (lib_rec) since a swap
 
-; Swap the player between Bill and Liberty (the service, fire 2 / space).
-; The first time Liberty leaves her script where she is.
+blo_taken:	db 0
+
+	if SERVICE
+; Swap the player (the service, fire 2 / space): Bill -> Liberty -> (Hard:
+; Blossom ->) Bill. The first time each leaves her script where she is.
 staff_swap:
-	xor a				; neither walks on by himself
+	xor a				; none walks on by himself
 	ld (bill_moving),a
 	ld (lib_rec+AC_MOV),a
-	ld a,(lib_taken)
-	or a
-	jr nz,.sw
+	ld (blo_rec+AC_MOV),a
+	ld a,(ctl_who)
 	inc a
-	ld (lib_taken),a
-	ld hl,(staff_list+SR_X)		; her sprite's left/top -> feet point
+	cp 2
+	jr c,.w
+	jr nz,.b0			; (3: back to Bill)
+	ld a,(sv_mode)			; Blossom in Hard only
+	cp 2
+	ld a,2
+	jr z,.w
+.b0:	xor a
+.w:	ld (ctl_who),a
+	ld hl,bill_x
+	or a
+	jr z,.set
+	dec a
+	jr nz,.blo
+	ld hl,lib_taken
+	ld ix,staff_list
+	ld de,lib_rec
+	call .take
+	ld hl,lib_rec
+	jr .set
+.blo:	ld hl,blo_taken
+	ld ix,staff_list+SR_SIZE
+	ld de,blo_rec
+	call .take
+	ld hl,blo_rec
+.set:	ld (ctl_rec),hl
+	jp sv_hud_stock			; (row 3: Blossom's or the portions)
+; flag HL, staff record IX -> actor record DE (sprite left/top -> feet)
+.take:	ld a,(hl)
+	or a
+	ret nz
+	inc (hl)
+	push de
+	pop iy
+	ld l,(ix+SR_X)
+	ld h,(ix+SR_X+1)
 	ld de,16
 	add hl,de
-	ld (lib_rec+AC_X),hl
-	ld hl,(staff_list+SR_Y)
+	ld (iy+AC_X),l
+	ld (iy+AC_X+1),h
+	ld l,(ix+SR_Y)
+	ld h,(ix+SR_Y+1)
 	ld de,47
 	add hl,de
-	ld (lib_rec+AC_Y),hl
-	ld a,DIR_DOWN
-	ld (lib_rec+AC_DIR),a
-.sw:	ld hl,ctl_who
-	ld a,(hl)
-	xor 1
-	ld (hl),a
-	ld hl,bill_x
-	jr z,.b
-	ld hl,lib_rec
-.b:	ld (ctl_rec),hl
+	ld (iy+AC_Y),l
+	ld (iy+AC_Y+1),h
+	ld (iy+AC_DIR),DIR_DOWN
+	ret
+	endif
+
+; NZ if staff record IX is under the player (A: 1 Liberty, 2 Blossom).
+staff_taken:
+	push ix
+	pop hl
+	ld de,staff_list
+	or a
+	sbc hl,de
+	ld a,(lib_taken)
+	jr z,.l
+	ld a,(blo_taken)
+	or a
+	ret z
+	ld a,2
+	ret
+.l:	or a
 	ret
 
 ; One game tick for every staff member.
@@ -102,16 +150,9 @@ staff_tick:
 	djnz .lp
 	ret
 
-.one:	ld a,(lib_taken)		; Liberty under the player since the
-	or a				; first swap (src/game/actor.asm lib_rec)
-	jr z,.scr
-	push ix
-	pop hl
-	ld de,staff_list
-	or a
-	sbc hl,de
-	ret z
-.scr:	inc (ix+SR_ANIM)
+.one:	call staff_taken		; under the player since a swap
+	ret nz
+	inc (ix+SR_ANIM)
 	dec (ix+SR_T)
 	jr nz,.run
 	ld l,(ix+SR_STEP)		; next step
@@ -166,26 +207,46 @@ staff_sprites:
 	djnz .lp
 	ret
 
-.one:	ld a,(lib_taken)		; Liberty taken over: from lib_rec
-	or a
+.one:	call staff_taken		; taken over: from her actor record
 	jr z,.scr
-	push ix
-	pop hl
-	ld de,staff_list
-	or a
-	sbc hl,de
-	jr nz,.scr
 	push ix
 	ld ix,lib_rec
 	ld hl,liberty_frames
+	cp 1
+	jr z,.lf
+	ld ix,blo_rec			; Blossom: carrying (but going up):
+	ld hl,blossom_frames		; her carry frames (down, right, left)
+	if SERVICE
+	ld a,(blo_carry)
+	or a
+	jr z,.lf
+	ld a,(ix+AC_DIR)
+	cp DIR_UP
+	jr z,.lf
+	push af
+	or a
+	jr z,.bd
+	dec a
+.bd:	ld (ix+AC_DIR),a
+	ld hl,blossom_carry_frames
 	call ac_frame
-	push de
+	pop af
+	ld (ix+AC_DIR),a
+	jr .add2
+	endif
+.lf:	call ac_frame
+.add2:	push de
 	push bc
 	call sprites_add
 	pop bc
 	pop de
 	pop ix
 	if SERVICE
+	push ix				; (Blossom: no plate)
+	pop hl
+	ld a,l
+	cp staff_list&255
+	ret nz
 	ld a,(lib_carry)		; a plate (src/game/kitchen.asm)
 	or a
 	ret z

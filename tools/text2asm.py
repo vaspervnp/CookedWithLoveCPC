@@ -28,7 +28,7 @@ def main():
             if l.strip() and not l.startswith("#")]
     col = rows[0].index(lang)
     texts = [(r[0], r[col]) for r in rows[1:]]
-    names, _, _ = base_glyphs()
+    names = base_glyphs()[0]
     base = {k: names.index("G_" + k) for k in DIGITS}
     base[" "] = names.index("G_SPACE")
     base[":"] = names.index("G_COLON")

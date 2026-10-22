@@ -273,16 +273,22 @@ service_tick:
 	jr .mk
 .nm:	bit KEY_SWAP,c			; the other character
 	call nz,staff_swap
-	ld a,(ctl_who)			; fire: Bill's or Liberty's actions
+	ld a,(ctl_who)			; fire: Bill's, Liberty's or Blossom's
 	or a
 	jr z,.fb
 	bit KEY_FIRE,c
-	call nz,lib_fire
+	jr z,.mk
+	dec a
+	call z,lib_fire
+	ld a,(ctl_who)
+	cp 2
+	call z,blo_fire
 	jr .mk
 .fb:	bit KEY_FIRE,c
 	call nz,sv_fire
 .mk:	call sv_cook_tick
 	call kitchen_tick
+	call storage_tick
 	ld hl,sv_tick
 	inc (hl)
 	ld a,(hl)
@@ -1275,6 +1281,9 @@ tk_kit:	db 0
 ; the pass open: the chosen one in its colour, the others grey, and the
 ; portions with the ones cooking.
 sv_hud_stock:
+	ld a,(ctl_who)			; Blossom's: the storage (storage.asm)
+	cp 2
+	jp z,st_hud
 	push ix
 	ld c,0
 .d:	push bc
@@ -1380,7 +1389,22 @@ sv_menu_keys:
 	add a,(hl)
 	cp 9
 	ret nc
+	ld a,(sv_mode)			; Hard: its ingredients from the hatch
+	cp 2
+	jr nz,.cost
 	push hl
+	ld a,e
+	ld hl,st_hatch
+	call st_have
+	pop de
+	ret nz
+	ld a,(sv_mcur)
+	ld hl,st_hatch
+	call st_take
+	ex de,hl
+	inc (hl)
+	jp sv_hud_stock
+.cost:	push hl
 	ld hl,dish_cost
 	add hl,de
 	ld c,(hl)

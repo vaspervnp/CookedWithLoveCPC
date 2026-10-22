@@ -135,6 +135,15 @@ def write_objects(path, src, tables, stations):
         f.write("kitchen_stn:\n")
         for t, mx, my in cook:
             f.write(f"\tdb {t} : dw {16 * mx + 8},{16 * my + 8}\n")
+        # the storage's places for Blossom (Hard): type (0 shelf, 1 fridge or
+        # freezer, 2 delivery door, 3 hatch), centre x, y; right of the kitchen
+        kinds = {"B": 0, "F": 1, "Z": 1, "D": 2, "h": 3}
+        stor = [(kinds[c], mx, my) for c, mx, my, _ in stations if c in kinds and mx >= 29]
+        f.write("; the storage's shelves (0), fridges (1), door (2), hatch (3)\n")
+        f.write(f"SS_N\tequ {len(stor)}\n")
+        f.write("storage_stn:\n")
+        for t, mx, my in stor:
+            f.write(f"\tdb {t} : dw {16 * mx + 8},{16 * my + 8}\n")
         # seats as constants too (test placements)
         for i, (seats, bx, by) in enumerate(tables):
             for k, (x, y, d) in enumerate(seats):

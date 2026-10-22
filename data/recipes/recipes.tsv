@@ -3,20 +3,22 @@
 # on day/level n. course: starter / main / side / sweet. stations: the kitchen steps in
 # the game (design for M7: counter = prepare/chop, stove = pot, pan = fry, oven).
 # time: total minutes on the site (the game scales it).
-id	menu	course	time	ingredients	stations	gr	en	url
-dolmades	0	starter	30	15	counter,stove	Ντολμαδάκια με κιμά	Dolmadakia with minced meat	https://cookedwithlove.gr/recipe/ntolmadakia-me-kima/
-cod	0	starter	15	6	counter,pan	Μπακαλιάρος πανέ	Breaded cod	https://cookedwithlove.gr/recipe/bakaliaros-pane/
-pasta	0	main	20	8	stove,counter	Μακαρόνια με τυρί Φιλαδέλφεια και τόνο	Pasta with Philadelphia cheese and tuna	https://cookedwithlove.gr/recipe/makaronia-me-tyri-filadelfeia-kai-tono/
-lentils	0	main	31	13	counter,stove	Φακές χωρίς σάλτσα ντομάτα	Lentils without tomato sauce	https://cookedwithlove.gr/recipe/fakes-choris-saltsa-ntomata/
-pork	0	main	40	13	counter,stove	Χοιρινό κοκκινιστό με πατάτες και καρότα	Pork in red sauce with potatoes and carrots	https://cookedwithlove.gr/recipe/choirino-kokkinisto-me-patates-kai-karota/
-pumpkinpie	0	main	80	17	counter,oven	Κολοκυθόπιτα με κόκκινη κολοκύθα και φέτα	Pumpkin pie with red pumpkin and feta	https://cookedwithlove.gr/recipe/kolokythopita-me-kokkini-kolokytha-kai-feta/
-potatoes	0	side	45	7	counter,oven	Πατάτες φούρνου	Oven-roasted potatoes	https://cookedwithlove.gr/recipe/patates-fournou/
-cookies	0	sweet	25	6	counter,oven	Ιταλικά κουλουράκια λεμονιού	Italian lemon cookies	https://cookedwithlove.gr/recipe/italika-koulourakia-lemoniou/
-curry	2	main	45	14	counter,stove	Κοτόπουλο με κάρι, πολύχρωμες πιπεριές και ρύζι	Chicken with curry, peppers and rice	https://cookedwithlove.gr/recipe/kotopoulo-me-kari-polychromes-piperies-kai-ryzi/
-swordfish	3	main	40	12	counter,stove	Ξυφίας κοκκινιστός	Swordfish in red sauce	https://cookedwithlove.gr/recipe/xyfias-kokkinistos/
-leekpie	4	starter	50	15	counter,oven	Πρασόπιτα με μανιτάρια	Leek pie with mushrooms	https://cookedwithlove.gr/recipe/prasopita-me-manitaria/
-artichokes	5	main	45	13	counter,stove	Αγκινάρες με μανιτάρια λεμονάτα	Artichokes with mushrooms in lemon sauce	https://cookedwithlove.gr/recipe/agkinares-me-manitaria-lemonata/
-soup	6	starter	47	14	counter,stove	Σούπα με μοσχάρι και σπανάκι	Beef and spinach soup	https://cookedwithlove.gr/recipe/soupa-me-moschari-kai-spanaki/
-veal	7	main	50	12	counter,stove	Μοσχαράκι κοκκινιστό με μανιτάρια	Veal in red sauce with mushrooms	https://cookedwithlove.gr/recipe/moscharaki-kokkinisto-me-manitaria/
-trout	8	main	50	11	counter,oven	Πέστροφες με πατάτες στο φούρνο	Oven-baked trout with potatoes	https://cookedwithlove.gr/recipe/pestrofes-me-patates-sto-fourno/
-squid	9	starter	60	19	counter,stove	Γεμιστά καλαμαράκια με κινόα	Stuffed baby squid with quinoa	https://cookedwithlove.gr/recipe/gemista-kalamarakia-me-kinoa/
+# groups (Hard): ingredient groups from the storage, V veg, M meat/fish, G grain/flour,
+# D dairy, P pulses (M and D in the fridges).
+id	menu	course	time	ingredients	stations	gr	en	url	groups
+dolmades	0	starter	30	15	counter,stove	Ντολμαδάκια με κιμά	Dolmadakia with minced meat	https://cookedwithlove.gr/recipe/ntolmadakia-me-kima/	VMG
+cod	0	starter	15	6	counter,pan	Μπακαλιάρος πανέ	Breaded cod	https://cookedwithlove.gr/recipe/bakaliaros-pane/	MG
+pasta	0	main	20	8	stove,counter	Μακαρόνια με τυρί Φιλαδέλφεια και τόνο	Pasta with Philadelphia cheese and tuna	https://cookedwithlove.gr/recipe/makaronia-me-tyri-filadelfeia-kai-tono/	GDM
+lentils	0	main	31	13	counter,stove	Φακές χωρίς σάλτσα ντομάτα	Lentils without tomato sauce	https://cookedwithlove.gr/recipe/fakes-choris-saltsa-ntomata/	PV
+pork	0	main	40	13	counter,stove	Χοιρινό κοκκινιστό με πατάτες και καρότα	Pork in red sauce with potatoes and carrots	https://cookedwithlove.gr/recipe/choirino-kokkinisto-me-patates-kai-karota/	MV
+pumpkinpie	0	main	80	17	counter,oven	Κολοκυθόπιτα με κόκκινη κολοκύθα και φέτα	Pumpkin pie with red pumpkin and feta	https://cookedwithlove.gr/recipe/kolokythopita-me-kokkini-kolokytha-kai-feta/	VDG
+potatoes	0	side	45	7	counter,oven	Πατάτες φούρνου	Oven-roasted potatoes	https://cookedwithlove.gr/recipe/patates-fournou/	V
+cookies	0	sweet	25	6	counter,oven	Ιταλικά κουλουράκια λεμονιού	Italian lemon cookies	https://cookedwithlove.gr/recipe/italika-koulourakia-lemoniou/	GD
+curry	2	main	45	14	counter,stove	Κοτόπουλο με κάρι, πολύχρωμες πιπεριές και ρύζι	Chicken with curry, peppers and rice	https://cookedwithlove.gr/recipe/kotopoulo-me-kari-polychromes-piperies-kai-ryzi/	MVG
+swordfish	3	main	40	12	counter,stove	Ξυφίας κοκκινιστός	Swordfish in red sauce	https://cookedwithlove.gr/recipe/xyfias-kokkinistos/	MV
+leekpie	4	starter	50	15	counter,oven	Πρασόπιτα με μανιτάρια	Leek pie with mushrooms	https://cookedwithlove.gr/recipe/prasopita-me-manitaria/	VGD
+artichokes	5	main	45	13	counter,stove	Αγκινάρες με μανιτάρια λεμονάτα	Artichokes with mushrooms in lemon sauce	https://cookedwithlove.gr/recipe/agkinares-me-manitaria-lemonata/	V
+soup	6	starter	47	14	counter,stove	Σούπα με μοσχάρι και σπανάκι	Beef and spinach soup	https://cookedwithlove.gr/recipe/soupa-me-moschari-kai-spanaki/	MV
+veal	7	main	50	12	counter,stove	Μοσχαράκι κοκκινιστό με μανιτάρια	Veal in red sauce with mushrooms	https://cookedwithlove.gr/recipe/moscharaki-kokkinisto-me-manitaria/	MV
+trout	8	main	50	11	counter,oven	Πέστροφες με πατάτες στο φούρνο	Oven-baked trout with potatoes	https://cookedwithlove.gr/recipe/pestrofes-me-patates-sto-fourno/	MV
+squid	9	starter	60	19	counter,stove	Γεμιστά καλαμαράκια με κινόα	Stuffed baby squid with quinoa	https://cookedwithlove.gr/recipe/gemista-kalamarakia-me-kinoa/	MGV

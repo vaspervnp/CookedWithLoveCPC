@@ -416,8 +416,9 @@ bill_anim:	db 0
 bill_dist:	db 0
 bill_moving:	db 0
 lib_rec:	ds 10,0		; Liberty, once taken over (src/game/staff.asm)
+blo_rec:	ds 10,0		; Blossom (Hard)
 ctl_rec:	dw bill_x	; under control
-ctl_who:	db 0		; 0 Bill, 1 Liberty
+ctl_who:	db 0		; 0 Bill, 1 Liberty, 2 Blossom
 at_in:		db 0
 bf_x:		dw 0
 bf_y:		dw 0

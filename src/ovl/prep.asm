@@ -34,7 +34,9 @@ OV_COST		equ 2+TXT_COST_LEN	; row 3: cost and price of the dish
 OV_PRICE	equ OV_COST+3+TXT_PRICE_LEN
 
 ov_cur:		db 0		; the dish chosen
-ov_sel:		db 0		; the first morning: Easy or Medium first
+ov_sel:		db 0		; the first morning: Easy, Medium or Hard first
+ov_sup:		db 0		; Hard, the evening: the supplier's order
+ov_scur:	db 0		; its group
 ov_used:	db 0		; minutes of the morning used
 ov_stars:	db 0
 
@@ -77,14 +79,31 @@ ov_tick:
 	ld a,(sv_phase)
 	cp SP_PREP
 	jp z,ov_keys
+	ld a,(ov_sup)			; the supplier (Hard, the evening)
+	or a
+	jp nz,ov_sup_keys
 	bit KEY_FIRE,c
 	ret z
+	ld a,(sv_phase)
 	cp SP_BROKE
-	jr nz,ov_morning
-	ld hl,START_MONEY		; a new game
+	jr z,.new
+	ld a,(sv_mode)
+	cp 2
+	jp z,ov_supplier
+	jr ov_morning
+.new:	ld hl,START_MONEY		; a new game
 	ld (sv_money),hl
 	xor a
 	ld (sv_day),a
+	ld hl,st_stock			; (Hard: the storage as at the start)
+	ld b,ING_N
+.st:	ld (hl),ST_START
+	inc hl
+	djnz .st
+	ld b,ING_N*3			; st_hatch, st_door, st_order
+.sz:	ld (hl),a
+	inc hl
+	djnz .sz
 	; fall through
 
 ; The morning of the next day.
@@ -105,6 +124,13 @@ ov_morning:
 	ld (ov_used),a
 	ld (ctl_who),a			; the day starts with Bill
 	ld (lib_carry),a		; the kitchen empty
+	ld (blo_carry),a		; (Hard: what stayed at the door went off)
+	ld (st_deliv),a
+	ld hl,st_door
+	ld b,ING_N
+.dr:	ld (hl),a
+	inc hl
+	djnz .dr
 	ld hl,bill_x
 	ld (ctl_rec),hl
 	ld hl,ks_slots
@@ -150,38 +176,54 @@ ov_prepline:
 	call hud_text
 	jp ov_draw
 
-; Easy or Medium (row 3): left/right, fire.
+; Easy, Medium or Hard (row 3): left/right, fire.
 ov_mode:
-	ld a,(sv_mode)
-	or a
-	ld a,8
-	jr z,.e
-	ld a,12
-.e:	ld hl,txt_mode_easy
+	ld a,0
+	call .ink
+	ld hl,txt_mode_easy
 	ld de,txt_mode_ok
 	call ov_line
-	ld a,(sv_mode)
-	or a
-	ld a,8
-	jr nz,.m
-	ld a,12
-.m:	ld b,HUD_BG
+	ld a,1
+	call .ink
+	ld b,HUD_BG
 	call hud_colors
 	ld hl,txt_mode_medium
 	ld bc,((2+TXT_MODE_EASY_LEN)<<8)+HUD_ROW3
+	call hud_text
+	ld a,2
+	call .ink
+	ld b,HUD_BG
+	call hud_colors
+	ld hl,txt_mode_hard
+	ld bc,((3+TXT_MODE_EASY_LEN+TXT_MODE_MEDIUM_LEN)<<8)+HUD_ROW3
 	jp hud_text
+.ink:	ld b,a				; A = mode -> A = yellow if chosen, grey
+	ld a,(sv_mode)
+	cp b
+	ld a,8
+	ret z
+	ld a,12
+	ret
 
 ov_keys:
 	ld a,(ov_sel)
 	or a
 	jr z,.prep
-	ld a,c
-	and (1<<KEY_LEFT)|(1<<KEY_RIGHT)
-	jr z,.ok
 	ld a,(sv_mode)
-	xor 1
-	ld (sv_mode),a
-	jr ov_mode
+	bit KEY_RIGHT,c
+	jr z,.l
+	inc a
+	cp 3
+	jr c,.md
+	xor a
+	jr .md
+.l:	bit KEY_LEFT,c
+	jr z,.ok
+	dec a
+	jp p,.md
+	ld a,2
+.md:	ld (sv_mode),a
+	jp ov_mode
 .ok:	bit KEY_FIRE,c
 	ret z
 	xor a
@@ -205,7 +247,7 @@ ov_keys:
 	bit KEY_UP,c
 	jr nz,ov_more
 	bit KEY_DOWN,c
-	jr nz,ov_less
+	jp nz,ov_less
 	bit KEY_FIRE,c
 	ret z
 	; fire: open
@@ -245,7 +287,22 @@ ov_more:				; one portion more of dish DE, if
 	cp PREP_MIN+1
 	ret nc
 	push af
+	ld a,(sv_mode)			; Hard: its ingredients from the storage
+	cp 2
+	jr nz,.money
 	push hl
+	ld a,e
+	ld hl,st_stock
+	call st_have
+	jr nz,.no2
+	ld a,e
+	ld hl,st_stock
+	call st_take
+	pop hl
+	jr .ok
+.no2:	pop hl
+	jr .no
+.money:	push hl
 	ld hl,dish_cost
 	add hl,de
 	ld c,(hl)
@@ -257,7 +314,7 @@ ov_more:				; one portion more of dish DE, if
 	jr c,.no
 	ld (sv_money),hl
 	ex de,hl
-	inc (hl)
+.ok:	inc (hl)
 	pop af
 	ld (ov_used),a
 	jr ov_draw
@@ -276,7 +333,14 @@ ov_less:				; one portion less: time and money back
 	ld a,(ov_used)
 	sub (hl)
 	ld (ov_used),a
-	ld hl,dish_cost
+	ld a,(sv_mode)			; Hard: the ingredients back
+	cp 2
+	jr nz,.money
+	ld a,e
+	ld hl,st_stock
+	call st_back
+	jr ov_draw
+.money:	ld hl,dish_cost
 	add hl,de
 	ld c,(hl)
 	ld b,0
@@ -347,7 +411,11 @@ ov_draw:
 	add hl,de
 	ld l,(hl)
 	ld h,0
-	ld d,1
+	ld a,(sv_mode)			; (Hard: the storage's, no money)
+	cp 2
+	jr nz,.c
+	ld l,h
+.c:	ld d,1
 	ld bc,(OV_COST<<8)+HUD_ROW3
 	call hud_number
 	ld a,(ov_cur)
@@ -368,6 +436,160 @@ ov_draw:
 	add hl,de
 	ld (sv_min),hl
 	jp sv_hud_time
+
+; The supplier (Hard, after the summary): boxes of each group for tomorrow
+; (BOX_UNITS units, BOX_COST each, up to 9). Row 2: each group, its units
+; on the shelves (grey) and the boxes ordered; row 3: the price of a box.
+ov_supplier:
+	ld a,1
+	ld (ov_sup),a
+	xor a
+	ld (ov_scur),a
+	ld a,13
+	ld hl,txt_order
+	ld de,txt_mode_ok
+	call ov_line
+	ld a,8
+	ld b,HUD_BG
+	call hud_colors
+	ld hl,BOX_COST
+	ld d,2
+	ld bc,((2+TXT_ORDER_LEN)<<8)+HUD_ROW3
+	call hud_number
+	; fall through
+ov_sup_draw:
+	ld a,HUD_BG
+	ld b,a
+	call hud_colors
+	ld bc,(OV_COL<<8)+HUD_ROW2
+	ld e,40
+	call hud_spaces
+	ld c,0
+.g:	push bc
+	ld hl,ing_ink			; the chosen one in its colour
+	call st_add_c
+	ld a,(ov_scur)
+	cp c
+	ld a,(hl)
+	jr z,.i
+	ld a,12
+.i:	ld b,HUD_BG
+	call hud_colors
+	pop bc
+	push bc
+	ld a,c				; column OV_COL + 6 g
+	add a,a
+	add a,c
+	add a,a
+	add a,OV_COL
+	ld b,a
+	ld a,c
+	add a,a
+	add a,G_ING0
+	push bc
+	push af
+	ld c,HUD_ROW2
+	call hud_char
+	pop af
+	pop bc
+	inc a
+	inc b
+	push bc
+	ld c,HUD_ROW2
+	call hud_char
+	ld a,12
+	ld b,HUD_BG
+	call hud_colors
+	pop bc
+	inc b
+	push bc
+	ld hl,st_stock
+	call st_add_c
+	ld l,(hl)
+	ld h,0
+	ld d,2
+	ld c,HUD_ROW2
+	call hud_number
+	ld a,8
+	ld b,HUD_BG
+	call hud_colors
+	pop bc
+	inc b
+	inc b
+	ld hl,st_order
+	call st_add_c
+	ld l,(hl)
+	ld h,0
+	ld d,1
+	ld c,HUD_ROW2
+	call hud_number
+	pop bc
+	inc c
+	ld a,c
+	cp ING_N
+	jr nz,.g
+	jp sv_hud_money
+; HL += C (the group)
+st_add_c:
+	ld a,c
+	jp st_add
+
+ov_sup_keys:
+	ld hl,ov_scur
+	bit KEY_LEFT,c
+	jr z,.r
+	ld a,(hl)
+	dec a
+	jp p,.w
+	ld a,ING_N-1
+	jr .w
+.r:	bit KEY_RIGHT,c
+	jr z,.u
+	ld a,(hl)
+	inc a
+	cp ING_N
+	jr c,.w
+	xor a
+.w:	ld (hl),a
+	jp ov_sup_draw
+.u:	ld a,(hl)
+	push bc
+	ld c,a
+	ld hl,st_order
+	call st_add_c
+	pop bc
+	bit KEY_UP,c
+	jr z,.d
+	ld a,(hl)			; a box more, if the money is there
+	cp 9
+	ret nc
+	push hl
+	ld hl,(sv_money)
+	ld de,BOX_COST
+	or a
+	sbc hl,de
+	pop de
+	ret c
+	ld (sv_money),hl
+	ex de,hl
+	inc (hl)
+	jp ov_sup_draw
+.d:	bit KEY_DOWN,c
+	jr z,.f
+	ld a,(hl)
+	or a
+	ret z
+	dec (hl)
+	ld hl,(sv_money)
+	ld de,BOX_COST
+	add hl,de
+	ld (sv_money),hl
+	jp ov_sup_draw
+.f:	bit KEY_FIRE,c
+	ret z
+	xor a
+	ld (ov_sup),a
+	jp ov_morning
 
 ; Row 3: text HL in ink A at column 1, text DE in yellow at the right end.
 ov_line:
