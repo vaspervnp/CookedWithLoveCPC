@@ -179,8 +179,21 @@ staff_sprites:
 	ld ix,lib_rec
 	ld hl,liberty_frames
 	call ac_frame
+	push de
+	push bc
 	call sprites_add
+	pop bc
+	pop de
 	pop ix
+	if SERVICE
+	ld a,(lib_carry)		; a plate (src/game/kitchen.asm)
+	or a
+	ret z
+	ld a,MOOD_FOOD
+	push ix
+	call bubble_a
+	pop ix
+	endif
 	ret
 .scr:	ld l,(ix+SR_STEP)
 	ld h,(ix+SR_STEP+1)

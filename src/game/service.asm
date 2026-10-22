@@ -62,6 +62,8 @@ GR_PT		equ 7		; ticks to the next point lost
 GR_MOOD		equ 8		; bubble of the state (angry: shown instead)
 GR_SLOT		equ 9		; place in the queue (0 = front)
 GR_DISH		equ 10		; the dish of each customer (4 bytes)
+GR_KIT		equ 14		; Medium: bits 0-3 dish started, 4-7 at the pass
+GR_ORD		equ 15		; Medium: order number (src/game/kitchen.asm)
 
 ; entrance (level 1: the mats at metatiles 8-9 of the bottom row)
 DOOR_X		equ 128		; customer sprite left/top
@@ -271,12 +273,16 @@ service_tick:
 	jr .mk
 .nm:	bit KEY_SWAP,c			; the other character
 	call nz,staff_swap
-	ld a,(ctl_who)			; fire: Bill's actions (Liberty's: M7)
+	ld a,(ctl_who)			; fire: Bill's or Liberty's actions
 	or a
-	jr nz,.mk
+	jr z,.fb
 	bit KEY_FIRE,c
+	call nz,lib_fire
+	jr .mk
+.fb:	bit KEY_FIRE,c
 	call nz,sv_fire
 .mk:	call sv_cook_tick
+	call kitchen_tick
 	ld hl,sv_tick
 	inc (hl)
 	ld a,(hl)
@@ -724,7 +730,10 @@ sv_group:
 	djnz .off
 	ld (ix+GR_STATE),GS_FREE
 	ret
-.cook:	call sv_dect
+.cook:	ld a,(sv_mode)			; Medium: Liberty cooks (kitchen.asm)
+	or a
+	ret nz
+	call sv_dect
 	ret nz
 	ld (ix+GR_STATE),GS_READY
 	push ix
@@ -1191,15 +1200,25 @@ sv_hud_tickets:
 	jr nc,.gn
 	push ix
 	pop iy
+	ld a,(ix+GR_KIT)		; (Medium: the dishes at the pass)
+	rrca
+	rrca
+	rrca
+	rrca
+	and #0F
+	ld (tk_kit),a
 	ld b,(ix+GR_N)
 .d:	push bc
 	ld a,(iy+GR_DISH)
 	ld c,a
-	ld a,(ix+GR_STATE)		; ready: the dish's colour, cooking: grey
+	ld hl,tk_kit			; at the pass, or ready: the dish's
+	srl (hl)			; colour, cooking: grey
+	jr c,.col
+	ld a,(ix+GR_STATE)
 	cp GS_READY
 	ld a,12
 	jr nz,.ink
-	ld hl,dish_ink
+.col:	ld hl,dish_ink
 	ld a,l
 	add a,c
 	ld l,a
@@ -1238,10 +1257,12 @@ sv_hud_tickets:
 .gn:	ld de,GR_SIZE
 	add ix,de
 	pop bc
-	djnz .g
+	dec b
+	jp nz,.g
 	ret
 
 st_col:	db 0
+tk_kit:	db 0
 
 ; HUD row 3: the portions left of each dish (sold out: grey). The menu at
 ; the pass open: the chosen one in its colour, the others grey, and the
@@ -1530,6 +1551,11 @@ sv_fire:
 	cp (ix+GR_N)
 	jp c,sv_angry			; no: they leave
 	ld (ix+GR_STATE),GS_ORDERED	; the order: to the kitchen
+	ld (ix+GR_KIT),0
+	ld hl,sv_ordseq
+	ld a,(hl)
+	ld (ix+GR_ORD),a
+	inc (hl)
 	call sv_choose
 	call sv_hud_stock
 	ld a,MOOD_ORDER
@@ -1704,6 +1730,7 @@ sv_bill_near:
 
 ; A plate over the pass while an order waits there (render, bank 5).
 service_sprites:
+	call kitchen_sprites		; (Medium)
 	ld c,0				; plates left on tables (the tray sprite,
 .t:	ld a,c				; a stamp)
 	cp TABLE_COUNT

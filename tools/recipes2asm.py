@@ -7,6 +7,7 @@ Output (asm, bank 5):
                 minute on the site, so 15' is ~4.5 s, 80' ~11 s
   dish_price    price per dish (byte), by course
   dish_cost     the ingredients of a portion (byte): about 40% of the price
+  dish_stn      the station of a dish (Medium): 0 stove (pot or pan), 1 oven
   and for the overlay (src/ovl/prep.asm, assembled with -DOVERLAY=1):
   dish_prep     minutes of the morning preparation per portion (byte): a
                 tenth of the time on the site, at least 2
@@ -41,6 +42,8 @@ def main():
             f.write(f"\tdw {150 + 5 * int(d['time'])}\t; {d['id']}: {d['en']}\n")
         f.write("dish_price:\n\tdb " + ",".join(str(PRICE[d["course"]]) for d in order) + "\n")
         f.write("dish_cost:\n\tdb " + ",".join(str(COST[d["course"]]) for d in order) + "\n")
+        f.write("dish_stn:\t; where Liberty cooks it (Medium): 0 stove (pot, pan), 1 oven\n\tdb "
+                + ",".join("1" if "oven" in d["stations"] else "0" for d in order) + "\n")
         f.write("\telse\n")
         f.write("dish_prep:\n\tdb " + ",".join(str(max(2, (int(d["time"]) + 5) // 10)) for d in order) + "\n")
         f.write("\tendif\n")

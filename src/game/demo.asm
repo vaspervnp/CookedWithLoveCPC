@@ -27,8 +27,8 @@ D	equ 1<<KEY_DOWN
 U	equ 1<<KEY_UP
 F	equ 1<<KEY_FIRE
 demo_script:
-	if MAP_TEST==0			; level 1: the morning (a portion of the
-	db 0,8				; first 4), then the first group (of 4),
+	if MAP_TEST==0			; level 1: Easy, the morning (a portion of
+	db 0,8, F,1, 0,2		; the first 4), then the first group,
 	repeat 4			; all the service
 	db U,1, 0,1, R,1, 0,1
 	rend

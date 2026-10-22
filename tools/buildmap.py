@@ -127,6 +127,14 @@ def write_objects(path, src, tables, stations):
             for k in range(4):
                 x, y, d = seats[k] if k < len(seats) else (0, 0, 0)
                 f.write(f"\tdw {x},{y} : db {d}\n")
+        # the kitchen's cooking places (stoves and ovens, each metatile one):
+        # type (0 stove, 1 oven), centre x, y (map pixels)
+        cook = [(0 if c == "S" else 1, mx, my) for c, mx, my, _ in stations if c in "SO"]
+        f.write("; the kitchen's stoves (0) and ovens (1): type, centre x, y\n")
+        f.write(f"KS_N\tequ {len(cook)}\n")
+        f.write("kitchen_stn:\n")
+        for t, mx, my in cook:
+            f.write(f"\tdb {t} : dw {16 * mx + 8},{16 * my + 8}\n")
         # seats as constants too (test placements)
         for i, (seats, bx, by) in enumerate(tables):
             for k, (x, y, d) in enumerate(seats):
@@ -195,6 +203,7 @@ def main():
                 f.write(f"PASS_BY\tequ {16 * my + 24}\n")
                 f.write(f"PASS_X\tequ {16 * mx}\t; the pass, top left (map pixels)\n")
                 f.write(f"PASS_Y\tequ {16 * my}\n")
+                f.write(f"PASS_KX\tequ {16 * (mx - side) + 8}\t; Liberty's feet at it (kitchen)\n")
                 break
     write_objects(f"{args.out}_objs.asm", args.level, tables, stations)
     write_stations(f"{args.out}_stations.asm", args.level, stations)

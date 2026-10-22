@@ -34,6 +34,7 @@ OV_COST		equ 2+TXT_COST_LEN	; row 3: cost and price of the dish
 OV_PRICE	equ OV_COST+3+TXT_PRICE_LEN
 
 ov_cur:		db 0		; the dish chosen
+ov_sel:		db 0		; the first morning: Easy or Medium first
 ov_used:	db 0		; minutes of the morning used
 ov_stars:	db 0
 
@@ -103,8 +104,14 @@ ov_morning:
 	ld (ov_cur),a
 	ld (ov_used),a
 	ld (ctl_who),a			; the day starts with Bill
+	ld (lib_carry),a		; the kitchen empty
 	ld hl,bill_x
 	ld (ctl_rec),hl
+	ld hl,ks_slots
+	ld b,KS_SIZE
+.k:	ld (hl),a
+	inc hl
+	djnz .k
 	ld (sv_menu),a
 	ld hl,0
 	ld (sv_cook_t),hl
@@ -121,6 +128,16 @@ ov_morning:
 	call hud_spaces
 	call sv_hud_day			; day, served, lost, time
 	call sv_hud_money
+	ld a,(sv_day)			; the first morning: Easy or Medium
+	dec a
+	jr nz,ov_prepline
+	inc a
+	ld (ov_sel),a
+	call ov_draw
+	jp ov_mode
+
+; Row 3 of the morning: cost and price of the dish, fire: open.
+ov_prepline:
 	ld a,13
 	ld hl,txt_cost
 	ld de,txt_open_fire
@@ -133,8 +150,45 @@ ov_morning:
 	call hud_text
 	jp ov_draw
 
+; Easy or Medium (row 3): left/right, fire.
+ov_mode:
+	ld a,(sv_mode)
+	or a
+	ld a,8
+	jr z,.e
+	ld a,12
+.e:	ld hl,txt_mode_easy
+	ld de,txt_mode_ok
+	call ov_line
+	ld a,(sv_mode)
+	or a
+	ld a,8
+	jr nz,.m
+	ld a,12
+.m:	ld b,HUD_BG
+	call hud_colors
+	ld hl,txt_mode_medium
+	ld bc,((2+TXT_MODE_EASY_LEN)<<8)+HUD_ROW3
+	jp hud_text
+
 ov_keys:
-	ld hl,ov_cur
+	ld a,(ov_sel)
+	or a
+	jr z,.prep
+	ld a,c
+	and (1<<KEY_LEFT)|(1<<KEY_RIGHT)
+	jr z,.ok
+	ld a,(sv_mode)
+	xor 1
+	ld (sv_mode),a
+	jr ov_mode
+.ok:	bit KEY_FIRE,c
+	ret z
+	xor a
+	ld (ov_sel),a
+	call ov_prepline
+	ret
+.prep:	ld hl,ov_cur
 	bit KEY_LEFT,c
 	jr z,.r
 	dec (hl)
