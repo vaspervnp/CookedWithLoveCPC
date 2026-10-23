@@ -1071,14 +1071,7 @@ sv_route_next:
 	jr nz,.door
 	ld a,(iy+CU_RTAB)		; seat k: x, y
 	and 3
-	ld e,a
-	add a,a
-	add a,a
-	add a,e
-	add a,TB_SEAT0
-	ld e,a
-	ld d,0
-	add hl,de
+	call tb_seat
 	ld e,(hl)
 	inc hl
 	ld d,(hl)
@@ -1135,22 +1128,61 @@ sv_arrived:
 	djnz .l
 	ret
 
-; HL = seat A of the table of group IX (x, y, dir)
+; HL = seat A of the table of group IX (x, y, dir: tb_seat)
 sv_seat:
 	push af
 	ld a,(ix+GR_TABLE)
 	call sv_table
-	ld de,TB_SEAT0
-	add hl,de
 	pop af
-	ld e,a				; *SEAT_SIZE (5)
-	add a,a
-	add a,a
-	add a,e
-	ld e,a
-	ld d,0
+	; fall through
+
+; HL = table, A = seat k -> HL = seat_buf: x, y (the sitting customer's
+; sprite), dir; from Bill's spot below the table (tools/buildmap.py
+; table_seats): left chair x - 32 facing right, right chair x facing left,
+; y - 60 (4 seats: the rows y - 76, y - 60).
+tb_seat:
+	push bc
+	push de
+	ld c,a
+	ld b,(hl)			; seats
+	inc hl
+	ld e,(hl)			; DE = x
+	inc hl
+	ld d,(hl)
+	inc hl
+	push hl
+	ld hl,-32
 	add hl,de
+	bit 0,c
+	jr z,.x
+	ld de,32
+	add hl,de
+.x:	ld (seat_buf),hl
+	pop hl
+	ld e,(hl)			; DE = y
+	inc hl
+	ld d,(hl)
+	ld hl,-60
+	add hl,de
+	ld a,b
+	cp 4
+	jr c,.y
+	ld de,-16
+	bit 1,c
+	jr z,.y4
+	ld de,0
+.y4:	add hl,de
+.y:	ld (seat_buf+2),hl
+	bit 0,c
+	ld a,DIR_RIGHT
+	jr z,.d
+	ld a,DIR_LEFT
+.d:	ld (seat_buf+4),a
+	ld hl,seat_buf
+	pop de
+	pop bc
 	ret
+seat_buf:	ds 5,0
 
 ; HL = table A
 sv_table:
@@ -1158,10 +1190,7 @@ sv_table:
 	ld h,0
 	ld d,h
 	ld e,l
-	add hl,hl			; *25 = *24 + 1
-	add hl,de
-	add hl,hl
-	add hl,hl
+	add hl,hl			; *TB_SIZE (5)
 	add hl,hl
 	add hl,de
 	ld de,lvl_tables
