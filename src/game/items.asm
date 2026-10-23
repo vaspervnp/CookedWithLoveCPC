@@ -40,12 +40,16 @@ bill_items:
 	pop hl
 	ld (spr_z),hl
 tray_sprite:
+	ld a,(bill_dir)
+	ld b,a
 	ld a,(bill_plates)
+; A plates in front of a figure facing B, its sprite at tray_x, tray_y.
+tray_ab:
 	or a
 	ret z
 	dec a
 	ld c,a
-	ld a,(bill_dir)
+	ld a,b
 	cp DIR_UP
 	ret z
 	or a				; rows: down 0, right 3, left 6

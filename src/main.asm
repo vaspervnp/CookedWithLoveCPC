@@ -556,6 +556,7 @@ scroll_step_y:	db 8-7*FINE_Y
 	include "engine/sprite.asm"
 	include "engine/hud.asm"
 	include "engine/sound.asm"
+	include "game/seats.asm"
 	include "game/area.asm"
 	include "engine/fdc.asm"
 	include "palette.asm"
@@ -906,6 +907,7 @@ tiles_b5	equ 0
 	include "game/kitchen.asm"
 	include "game/storage.asm"
 	include "game/menu.asm"
+	include "game/waiter.asm"
 	include "game/demo.asm"
 	endif
 bank5_end:

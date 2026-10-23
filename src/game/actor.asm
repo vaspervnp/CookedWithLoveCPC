@@ -44,6 +44,10 @@ actor_init:
 ; follows. In: A = input bits (KEY_*). Needs RAM_C5 (map).
 actor_tick:
 	ld ix,(ctl_rec)
+	call actor_move
+	jr actor_cam
+; Actor IX moves by the input A (KEY_* bits): collision, facing, walk.
+actor_move:
 	ld (at_in),a
 	xor a
 	ld (ix+AC_MOV),a
@@ -89,18 +93,19 @@ actor_tick:
 	jr nz,.anim
 	xor a
 	ld (ix+AC_DIST),a
-	jr .cam
+	ret
 .anim:	ld a,(ix+AC_DIST)
 	cp ANIM_STEP
-	jr c,.cam
+	ret c
 	sub ANIM_STEP
 	ld (ix+AC_DIST),a
 	ld a,(ix+AC_ANIM)
 	inc a
 	and 3
 	ld (ix+AC_ANIM),a
+	ret
 
-.cam:	; camera: horizontal (screen x = x - 2*sx)
+actor_cam:		; camera: horizontal (screen x = x - 2*sx)
 	ld l,(ix+AC_X)
 	ld h,(ix+AC_X+1)
 	ld a,(scr_sx)

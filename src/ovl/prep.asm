@@ -43,6 +43,7 @@ OV_PRICE	equ OV_COST+3+TXT_PRICE_LEN
 	; the evening's row 3: up, an expansion's name, its price, down, a
 	; recipe's icon and price, then fire: next day at the right
 	assert 7+TXT_EXP_KITCHEN_LEN+6<=39-TXT_NEXT_LEN,"row 3: the offers do not fit"
+	assert 7+TXT_EXP_WAITER_LEN+6<=39-TXT_NEXT_LEN,"row 3: the offers do not fit"
 	assert TXT_EXP_STORE_LEN<=TXT_EXP_KITCHEN_LEN&&TXT_EXP_ROOM_LEN<=TXT_EXP_KITCHEN_LEN
 
 ov_cur:		db 0		; the dish chosen
@@ -58,6 +59,11 @@ ov_init:
 	jp z,ov_first			; (the first day)
 	ld hl,(sv_money)		; the day is over: rent and wages
 	ld de,DAY_COST
+	ld a,(sv_exp)
+	and EXP_WAITER
+	jr z,.w
+	ld de,DAY_COST+WT_WAGE
+.w:
 	or a
 	sbc hl,de
 	jr nc,.paid
@@ -251,6 +257,9 @@ ov_morning:
 	djnz .dr
 	ld hl,bill_x
 	ld (ctl_rec),hl
+	push af
+	call wt_reset			; (hired: at the pass)
+	pop af
 	ld hl,ks_slots
 	ld b,KS_SIZE
 .k:	ld (hl),a
@@ -728,13 +737,13 @@ ov_rcol:	db 0
 
 ; Carry: no expansion on offer; else the first one not bought and
 ; affordable from ov_xsel on (ov_xi: 0 room, 1 kitchen, 2 storage, Hard
-; only), HL its price.
+; only, 3 a waiter: src/game/waiter.asm), HL its price.
 ov_xprice:
 	ld a,(ov_xsel)
 	ld c,a
-	ld e,3				; (tries)
+	ld e,4				; (tries)
 .x:	ld a,c
-	cp 3
+	cp 4
 	jr c,.c
 	xor a
 	ld c,a
@@ -780,8 +789,8 @@ ov_xnext:
 	inc a
 	ld (ov_xsel),a
 	jp ov_evening
-ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST
-ov_xtxt:	dw txt_exp_room,txt_exp_kitchen,txt_exp_store
+ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST,WT_HIRE
+ov_xtxt:	dw txt_exp_room,txt_exp_kitchen,txt_exp_store,txt_exp_waiter
 
 ; Down in the evening: the recipe bought (on the menu in the morning).
 ov_rcbuy:
@@ -802,34 +811,40 @@ ov_pay:
 	ld (sv_money),hl
 	jp sv_hud_money
 
-; Up in the evening: the expansion on offer bought: the room (its map, its
+; Up in the evening: the one on offer bought: the room (its map, its
 ; tables), the kitchen (its map; src/game/kitchen.asm), the storage
-; (src/game/storage.asm).
+; (src/game/storage.asm), a waiter (from the morning: src/game/waiter.asm).
 ov_buy:
 	call ov_xprice
 	ret c
 	call ov_pay
-	ld a,(ov_xi)
+	ld a,(ov_xi)			; its bit
+	ld b,a
+	inc b
+	ld a,1
+.b:	dec b
+	jr z,.bb
+	add a,a
+	jr .b
+.bb:	ld hl,sv_exp
+	or (hl)
+	ld (hl),a
+	ld a,(ov_xi)			; (ov_evening offers the next one)
+	push af
+	call ov_evening
+	pop af
 	or a
 	jr z,.room
 	dec a
-	ld a,EXP_STORE
-	jr nz,.set
-	ld hl,patch_kopen
+	ret nz
+	ld hl,patch_kopen		; the kitchen
 	call ov_patch
-	ld a,EXP_KITCHEN
-	jr .map
+	jr ov_view
 .room:	ld hl,patch_open
 	call ov_patch
 	xor a				; the tables free
 	call ov_tables
-	ld a,EXP_ROOM
-.map:	call .set
 	jr ov_view
-.set:	ld hl,sv_exp
-	or (hl)
-	ld (hl),a
-	jp ov_evening
 
 ; A new game: the expansions closed again.
 ov_unbuy:

@@ -101,7 +101,7 @@ SHEETS := bill:assets/sprites/bill.png:48:9:6:0,1,3 \
 	blossom_carry:assets/sprites/blossom_carry.png:48:6:3:::storage \
 	blossom_act:assets/sprites/blossom_act.png:48:2::::storage
 $(BUILD)/spr.asm: $(foreach s,$(SHEETS),$(word 2,$(subst :, ,$(s)))) tools/spritec.py tools/png2cpc.py tools/cpc.py data/palette.txt | $(BUILD)
-	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6 --area-bank 7 --fixed b5:5:0x6F00:0x1100
+	$(PYTHON) tools/spritec.py $(BUILD)/spr $(foreach s,$(SHEETS),--sheet $(s)) --banks 4,6 --area-bank 7 --fixed b5:5:0x6F78:0x1088
 
 # Customer part sheets from the customer renders (assets/blender/customer_build.py)
 parts:

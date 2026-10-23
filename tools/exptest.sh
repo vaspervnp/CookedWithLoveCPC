@@ -2,7 +2,8 @@
 # The expansions bought from a real evening, in CPCEC (~2 min): Easy, a
 # 3-minute day with 700 to start (TEST_MONEY), nobody served; in the
 # evening up buys the room (300), up again the kitchen (250: its wall row
-# 31 becomes floor), the next day Bill walks up into the room.
+# 31 becomes floor), up again hires a waiter (100: the rest), the next day
+# he is at the pass and Bill walks up into the room.
 # Checks RAM dumps (tools/cpcram.py). Keys: 0 up, 76 fire; VBLs.
 set -e
 cd "$(dirname "$0")/.."
@@ -11,8 +12,8 @@ OUT=build/cpcec/exp
 mkdir -p build/cpcec
 make -s en OVLEXTRA=-DTITLE_WAIT=50 EXTRA="-DDAY_MIN=3 -DTEST_MONEY=700" >/dev/null
 cp build/cwl_en.sym $OUT.sym
-K="76:1250-1258,76:1300-1308,0:5200-5208,0:5300-5308,76:5600-5608,76:5800-5808,0:5900-6500"
-scenario $OUT "$K" "5150,5250,5450,6500" 6500 600
+K="76:1250-1258,76:1300-1308,0:5200-5208,0:5300-5308,0:5400-5408,76:5600-5608,76:5800-5808,0:5900-6500"
+scenario $OUT "$K" "5150,5250,5350,5450,6500" 6500 600
 make -s en >/dev/null
 python3 - "$OUT" <<'PY'
 import sys
@@ -32,8 +33,11 @@ check(5150, "tb_busy", [64] * 6, 6)
 check(5250, "sv_exp", 1)
 check(5250, "sv_money", 350, word=True)
 check(5250, "tb_busy", [0] * 6, 6)
-check(5450, "sv_exp", 3)
-check(5450, "sv_money", 100, word=True)
+check(5350, "sv_exp", 3)
+check(5350, "sv_money", 100, word=True)
+check(5450, "sv_exp", 11)
+check(5450, "sv_money", 0, word=True)
+check(6500, "wt_state", 1)
 kitchen = lambda v: v[31 * 40 + 20] == v[30 * 40 + 20]	# the wall's row as the floor above
 check(5150, "map_data", False, 42 * 40, f=kitchen)
 check(5450, "map_data", True, 42 * 40, f=kitchen)

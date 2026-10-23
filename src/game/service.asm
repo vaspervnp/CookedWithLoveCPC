@@ -107,6 +107,7 @@ SEXP_COST	equ 150
 EXP_ROOM	equ 1		; sv_exp: bought
 EXP_KITCHEN	equ 2
 EXP_STORE	equ 4
+EXP_WAITER	equ 8		; (hired: src/game/waiter.asm)
 sv_exp:		db 0
 	ifdef TEST_MONEY		; (tests: more)
 START_MONEY	equ TEST_MONEY
@@ -319,6 +320,7 @@ service_tick:
 .fb:	bit KEY_FIRE,c
 	call nz,sv_fire
 .mk:	call sv_cook_tick
+	call wt_tick
 	call kitchen_tick
 	call storage_tick
 	ld hl,sv_tick
@@ -957,7 +959,11 @@ sv_leave:
 	rrca
 	rrca
 	inc a
-	ld hl,bill_carry
+	ld hl,wt_grp			; their plates on the waiter's tray: wasted
+	cp (hl)
+	jr nz,.nw
+	ld (hl),0
+.nw:	ld hl,bill_carry
 	cp (hl)
 	jr nz,.nc
 	xor a
@@ -1136,53 +1142,7 @@ sv_seat:
 	pop af
 	; fall through
 
-; HL = table, A = seat k -> HL = seat_buf: x, y (the sitting customer's
-; sprite), dir; from Bill's spot below the table (tools/buildmap.py
-; table_seats): left chair x - 32 facing right, right chair x facing left,
-; y - 60 (4 seats: the rows y - 76, y - 60).
-tb_seat:
-	push bc
-	push de
-	ld c,a
-	ld b,(hl)			; seats
-	inc hl
-	ld e,(hl)			; DE = x
-	inc hl
-	ld d,(hl)
-	inc hl
-	push hl
-	ld hl,-32
-	add hl,de
-	bit 0,c
-	jr z,.x
-	ld de,32
-	add hl,de
-.x:	ld (seat_buf),hl
-	pop hl
-	ld e,(hl)			; DE = y
-	inc hl
-	ld d,(hl)
-	ld hl,-60
-	add hl,de
-	ld a,b
-	cp 4
-	jr c,.y
-	ld de,-16
-	bit 1,c
-	jr z,.y4
-	ld de,0
-.y4:	add hl,de
-.y:	ld (seat_buf+2),hl
-	bit 0,c
-	ld a,DIR_RIGHT
-	jr z,.d
-	ld a,DIR_LEFT
-.d:	ld (seat_buf+4),a
-	ld hl,seat_buf
-	pop de
-	pop bc
-	ret
-seat_buf:	ds 5,0
+	jp tb_seat			; (base RAM: src/game/seats.asm)
 
 ; HL = table A
 sv_table:
@@ -1514,6 +1474,31 @@ sv_group_a:
 	add ix,de
 	ret
 
+; Group IX served (by Bill or the waiter): they eat.
+sv_serve:
+	ld (ix+GR_STATE),GS_EATING
+	ld (ix+GR_T),EAT_T&255
+	ld (ix+GR_T+1),EAT_T>>8
+	ld a,SFX_SERVE
+	call sfx_play
+	ld a,MOOD_HAPPY
+	call sv_mood
+	call sv_refill
+	ld a,(ix+GR_BURNT)		; burnt dishes: patience (the tip) down,
+	or a				; after the refill
+	ret z
+	ld b,a
+	ld a,(ix+GR_P)
+.bt:	sub 64
+	jr nc,.bk
+	xor a
+.bk:	djnz .bt
+	or a
+	jr nz,.bp
+	inc a
+.bp:	ld (ix+GR_P),a
+	jp sv_show_mood
+
 ; carry if Bill is on the spot of table A (below it)
 sv_at_table:
 	call sv_table
@@ -1680,28 +1665,7 @@ sv_fire:
 	xor a
 	ld (bill_carry),a
 	ld (bill_plates),a
-	ld (ix+GR_STATE),GS_EATING
-	ld (ix+GR_T),EAT_T&255
-	ld (ix+GR_T+1),EAT_T>>8
-	ld a,SFX_SERVE
-	call sfx_play
-	ld a,MOOD_HAPPY
-	call sv_mood
-	call sv_refill
-	ld a,(ix+GR_BURNT)		; burnt dishes: patience (the tip) down,
-	or a				; after the refill
-	ret z
-	ld b,a
-	ld a,(ix+GR_P)
-.bt:	sub 64
-	jr nc,.bk
-	xor a
-.bk:	djnz .bt
-	or a
-	jr nz,.bp
-	inc a
-.bp:	ld (ix+GR_P),a
-	jp sv_show_mood
+	jp sv_serve
 .pay:	ld b,(ix+GR_N)			; money (their dishes) and tip, the table
 	ld hl,(sv_money)		; is free, out
 	push ix
@@ -1851,6 +1815,7 @@ sv_bill_near:
 
 ; A plate over the pass while an order waits there (render, bank 5).
 service_sprites:
+	call wt_sprites			; (hired)
 	call kitchen_sprites		; (Medium)
 	ld c,0				; plates left on tables (the tray sprite,
 .t:	ld a,c				; a stamp)

@@ -9,8 +9,9 @@ service_init:
 	djnz .lk
 	endif
 	ifdef TEST_XP			; test: expansions bought (sv_exp bits;
-	ld a,TEST_XP			; the maps stay closed)
-	ld (sv_exp),a
+	ld a,TEST_XP			; the maps stay closed; a waiter: at the
+	ld (sv_exp),a			; pass)
+	call wt_reset
 	endif
 	if TEST_FILL			; test: 8 portions of each, open, the
 	ld hl,sv_stock			; hatch full (Hard)
