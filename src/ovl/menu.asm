@@ -1,5 +1,10 @@
 ; The recipes bought (src/game/menu.asm: the data in bank 5), in the
-; overlay's second half.
+; overlay's second half. The icons and inks here are loaded with it each
+; time as made (tools/mkfont.py): the new recipe's are copied to the menu
+; (the replaced one's are not needed again until a new game, which copies
+; the first menu's back).
+
+	include "recicons.asm"		; rc_/mn_ ink, icons
 
 ; Recipe DISH_N + rc_cnt (rc_new) replaces dish A of the menu.
 rc_place:
@@ -30,6 +35,14 @@ rc_reset:
 	call rc_swap
 	jr rc_reset
 .e:	ld (rc_new),a
+	ld hl,mn_ink			; the first menu's icons, inks
+	ld de,dish_ink
+	ld bc,DISH_N
+	ldir
+	ld hl,mn_icons
+	ld de,hud_font+G_DISH0*4
+	ld bc,DISH_N*8
+	ldir
 	ret
 
 ; The icon of recipe DISH_N + A into G_NEW_L/R (to show it).
@@ -44,7 +57,8 @@ rc_show:
 	ldir
 	ret
 
-; Dish B of the menu and recipe DISH_N + C change places.
+; Dish B of the menu and recipe DISH_N + C change places in the tables;
+; the recipe's icon and ink to dish B.
 rc_swap:
 	ld (rc_b),bc
 	ld ix,rc_tabs
@@ -78,16 +92,17 @@ rc_swap:
 	call st_add
 	ld b,2
 	call rc_xchg
-	ld a,(rc_b+1)			; the ink
+	ld a,(rc_b)			; the ink, the icon (2 glyphs of 4 bytes)
+	ld hl,rc_ink			; copied
+	call st_add
+	ld a,(hl)
+	push af
+	ld a,(rc_b+1)
 	ld hl,dish_ink
 	call st_add
-	ex de,hl
-	ld a,(rc_b)
-	ld hl,rc_ink
-	call st_add
-	ld b,1
-	call rc_xchg
-	ld a,(rc_b+1)			; the icon: 2 glyphs of 4 bytes
+	pop af
+	ld (hl),a
+	ld a,(rc_b+1)
 	add a,a
 	add a,a
 	add a,a
@@ -100,8 +115,9 @@ rc_swap:
 	add a,a
 	ld hl,rc_icons
 	call st_add
-	ld b,8
-	; fall through
+	ld bc,8
+	ldir
+	ret
 ; B bytes at HL and DE change places.
 rc_xchg:
 	ld a,(de)

@@ -1,8 +1,8 @@
 #!/bin/bash
 # Medium in CPCEC, with scripted keys (~2 min): the groups sit by themselves
 # (TEST_FILL, no patience lost), Bill starts at table 6 and takes the order
-# of its single customer (a dish of a stove: the walk is to one); Liberty
-# cooks it, lets it burn,
+# of its single customer (cod, TEST_DISH: a stove, where Liberty walks);
+# Liberty cooks it, lets it burn,
 # takes it to the pass; Bill takes it there and serves it, and the burnt
 # dish costs 64 patience after the refill. Checks RAM dumps (tools/cpcram.py).
 # Keys: line*8+bit (0 up, 1 right, 2 down, 8 left, 47 space, 76 fire), VBLs.
@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 . tools/scenario.sh
 OUT=build/cpcec/medium
 mkdir -p build/cpcec
-make -s en EXTRA="-DTEST_FILL=1 -DTEST_MODE=1 -DBILL_X0=56 -DBILL_Y0=366" >/dev/null
+make -s en EXTRA="-DTEST_FILL=1 -DTEST_MODE=1 -DTEST_DISH=1 -DBILL_X0=56 -DBILL_Y0=366" >/dev/null
 cp build/cwl_en.sym $OUT.sym
 K=(
 	76:1600-1608 47:1700-1708			# the order, to Liberty

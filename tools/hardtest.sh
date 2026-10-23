@@ -5,13 +5,16 @@
 # at the door, puts it on a shelf, takes 5 units, leaves them at the hatch.
 # Checks the variables in RAM dumps (tools/cpcram.py); the EN disc is built
 # with DAY_MIN=100 and TITLE_WAIT=50, then built again as usual.
+# STORE=1: with the storage's expansion (TEST_XP=4): 2 boxes at the door,
+# shelves of 99, the hatch filled from a shelf.
 # Keys: line*8+bit (0 up, 1 right, 2 down, 8 left, 47 space, 76 fire), VBLs.
 set -e
 cd "$(dirname "$0")/.."
 . tools/scenario.sh
 OUT=build/cpcec/hard
 mkdir -p build/cpcec
-make -s en OVLEXTRA=-DTITLE_WAIT=50 EXTRA=-DDAY_MIN=100 >/dev/null
+XP=; [ -n "$STORE" ] && XP=-DTEST_XP=4
+make -s en OVLEXTRA=-DTITLE_WAIT=50 EXTRA="-DDAY_MIN=100 $XP" >/dev/null
 cp build/cwl_en.sym $OUT.sym
 K=(
 	1:1150-1158 1:1200-1208 76:1250-1258		# Medium, Hard, OK
@@ -31,8 +34,8 @@ K=(
 
 scenario $OUT "$(IFS=,; echo "${K[*]}")" "9100,9700,12500,12600,12960,13000,14150" 14150 900
 make -s en >/dev/null
-python3 - "$OUT" <<'PY'
-import sys
+STORE=${STORE:-} python3 - "$OUT" <<'PY'
+import os, sys
 sys.path.insert(0, "tools")
 from cpcram import dump
 o = sys.argv[1]
@@ -48,11 +51,19 @@ check(9100, "sv_money", 76, word=True)
 check(9100, "st_stock", [27, 25, 25, 30, 30], 5)
 check(9700, "ctl_who", 2)
 check(12500, "st_door", [2, 1, 0, 0, 0], 5)
-check(12600, "st_door", [1, 1, 0, 0, 0], 5)
-check(12600, "blo_carry", 1)
-check(12960, "st_stock", [31, 24, 24, 30, 30], 5)
-check(13000, "blo_units", 5)
-check(13000, "st_stock", [26, 24, 24, 30, 30], 5)
-check(14150, "st_hatch", [5, 0, 0, 0, 0], 5)
+if not os.environ.get("STORE"):
+    check(12600, "st_door", [1, 1, 0, 0, 0], 5)
+    check(12600, "blo_carry", 1)
+    check(12960, "st_stock", [31, 24, 24, 30, 30], 5)
+    check(13000, "blo_units", 5)
+    check(13000, "st_stock", [26, 24, 24, 30, 30], 5)
+    check(14150, "st_hatch", [5, 0, 0, 0, 0], 5)
+else:				# the expansion: 2 boxes, then what fills the hatch
+    check(12600, "st_door", [0, 1, 0, 0, 0], 5)
+    check(12600, "blo_units", 10)
+    check(12960, "st_stock", [36, 24, 24, 30, 30], 5)
+    check(13000, "blo_units", 9)
+    check(13000, "st_stock", [27, 24, 24, 30, 30], 5)
+    check(14150, "st_hatch", [9, 0, 0, 0, 0], 5)
 sys.exit(0 if ok else 1)
 PY

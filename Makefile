@@ -59,9 +59,9 @@ $(BUILD)/test_map.bin: $(BUILD)/testtiles.bin tools/maps2asm.py
 # Level 1: the map (assets/maps/level1.txt) on the restaurant tileset
 # (assets/tiles/restaurant.png/.txt, drawn by tools/mktileset.py: make tiles),
 # with its objects (tables, stations: build/lvl1_objs.asm)
-$(BUILD)/lvl1_map.bin: assets/maps/level1.txt assets/maps/level1_open.txt assets/tiles/restaurant.png assets/tiles/restaurant.txt tools/buildmap.py tools/maps2asm.py | $(BUILD)
-	$(PYTHON) tools/buildmap.py assets/tiles/restaurant.png assets/maps/level1.txt $(BUILD)/lvl1 --open assets/maps/level1_open.txt
-	$(PYTHON) tools/maps2asm.py $(BUILD)/lvl1_src_tiles.bin $(BUILD)/lvl1_src_map.bin $(BUILD)/lvl1 $(BUILD)/lvl1_src_open.bin
+$(BUILD)/lvl1_map.bin: assets/maps/level1.txt assets/maps/level1_open.txt assets/maps/level1_kitchen.txt assets/tiles/restaurant.png assets/tiles/restaurant.txt tools/buildmap.py tools/maps2asm.py | $(BUILD)
+	$(PYTHON) tools/buildmap.py assets/tiles/restaurant.png assets/maps/level1.txt $(BUILD)/lvl1 --open assets/maps/level1_open.txt --kopen assets/maps/level1_kitchen.txt
+	$(PYTHON) tools/maps2asm.py $(BUILD)/lvl1_src_tiles.bin $(BUILD)/lvl1_src_map.bin $(BUILD)/lvl1 $(BUILD)/lvl1_src_open.bin $(BUILD)/lvl1_src_kopen.bin
 
 tiles:
 	$(PYTHON) tools/mktileset.py assets/tiles

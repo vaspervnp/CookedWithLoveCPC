@@ -1,21 +1,24 @@
 # HUD texts (tools/text2asm.py): id, English, Greek. Capitals only (Greek
 # without accents, as Greek is written in capitals); 4x8 font, 40 columns.
-id	en	gr
-OPEN	OPEN	ΑΝΟΙΧΤΑ
-CLOSED	CLOSED	ΚΛΕΙΣΤΑ
-DAY_END	END OF THE DAY	ΤΕΛΟΣ ΤΗΣ ΜΕΡΑΣ
-NEXT	FIRE: NEXT DAY	FIRE: ΝΕΑ ΜΕΡΑ
-BROKE	BANKRUPT!	ΠΤΩΧΕΥΣΗ!
-NEW_GAME	FIRE: NEW GAME	FIRE: ΝΕΟ ΠΑΙΧΝΙΔΙ
-COST	COST	ΚΟΣΤΟΣ
-PRICE	PRICE	ΤΙΜΗ
-OPEN_FIRE	FIRE: OPEN	FIRE: ΑΝΟΙΓΜΑ
-MINUS	-	-
-MODE_EASY	EASY	ΕΥΚΟΛΟ
-MODE_MEDIUM	MEDIUM	ΜΕΣΑΙΟ
-MODE_OK	FIRE: OK	FIRE: ΟΚ
-MODE_HARD	HARD	ΔΥΣΚΟΛΟ
-ORDER	ORDER	ΠΑΡΑΓΓΕΛΙΑ
-EXP	UP: ROOM	ΠΑΝΩ: ΣΑΛΑ
-DOWN	DOWN	ΚΑΤΩ
-NEW	NEW:	ΝΕΟ:
+# where: game (base RAM, with the HUD) or ovl (only the overlay's: in it,
+# src/ovl/prep.asm; the letters of all are in the HUD font).
+id	en	gr	where
+OPEN	OPEN	ΑΝΟΙΧΤΑ	game
+CLOSED	CLOSED	ΚΛΕΙΣΤΑ	game
+DAY_END	END OF THE DAY	ΤΕΛΟΣ ΤΗΣ ΜΕΡΑΣ	ovl
+NEXT	FIRE: NEXT DAY	FIRE: ΝΕΑ ΜΕΡΑ	ovl
+BROKE	BANKRUPT!	ΠΤΩΧΕΥΣΗ!	ovl
+NEW_GAME	FIRE: NEW GAME	FIRE: ΝΕΟ ΠΑΙΧΝΙΔΙ	ovl
+COST	COST	ΚΟΣΤΟΣ	ovl
+PRICE	PRICE	ΤΙΜΗ	ovl
+OPEN_FIRE	FIRE: OPEN	FIRE: ΑΝΟΙΓΜΑ	ovl
+MINUS	-	-	ovl
+MODE_EASY	EASY	ΕΥΚΟΛΟ	ovl
+MODE_MEDIUM	MEDIUM	ΜΕΣΑΙΟ	ovl
+MODE_OK	FIRE: OK	FIRE: ΟΚ	ovl
+MODE_HARD	HARD	ΔΥΣΚΟΛΟ	ovl
+ORDER	ORDER	ΠΑΡΑΓΓΕΛΙΑ	ovl
+EXP_ROOM	ROOM	ΣΑΛΑ	ovl
+EXP_KITCHEN	KITCHEN	ΚΟΥΖΙΝΑ	ovl
+EXP_STORE	STORAGE	ΑΠΟΘΗΚΗ	ovl
+NEW	NEW:	ΝΕΟ:	ovl

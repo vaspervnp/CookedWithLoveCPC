@@ -10,6 +10,8 @@
 ;     ready for Bill. A burnt dish costs the group patience (the tip) when served.
 ; Over each busy station a bubble: ... cooking, the plate when done,
 ; angry when burnt. In Easy the kitchen stays automatic (service.asm).
+; The kitchen's expansion (bought in the evening, sv_exp): its lower part,
+; the stations after KS_N0; in Easy the dishes take ~2/3 of the time.
 
 KQ_ST		equ 0		; 0 free, 1 cooking, 2 done, 3 burnt
 KQ_DISH		equ 1
@@ -85,8 +87,12 @@ lib_fire:
 	call sv_near
 	ret nc
 	jp lib_place
-.stn:	ld iy,kitchen_stn		; a station by her
+.stn:	ld iy,kitchen_stn		; a station by her (the expansion's last)
 	ld ix,ks_slots
+	ld a,(sv_exp)
+	and EXP_KITCHEN
+	ld b,KS_N0
+	jr z,.f
 	ld b,KS_N
 .f:	push bc
 	ld e,(iy+1)
@@ -210,6 +216,32 @@ lib_start:
 	inc a
 	ld (ix+KQ_GRP),a
 	ld (ix+KQ_ST),1
+	ret
+
+; Easy with the kitchen's expansion: cooking time HL to 11/16 (~2/3).
+kx_fast:
+	ld a,(sv_mode)
+	or a
+	ret nz
+	ld a,(sv_exp)
+	and EXP_KITCHEN
+	ret z
+	push de
+	ld d,h
+	ld e,l
+	srl d				; HL - HL/4 - HL/16
+	rr e
+	srl d
+	rr e
+	or a
+	sbc hl,de
+	srl d
+	rr e
+	srl d
+	rr e
+	or a
+	sbc hl,de
+	pop de
 	ret
 
 ; A = dish -> A = its station kind

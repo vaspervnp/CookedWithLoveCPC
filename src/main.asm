@@ -906,8 +906,8 @@ tiles_b5	equ 0
 	include "game/kitchen.asm"
 	include "game/storage.asm"
 	include "game/menu.asm"
-	endif
 	include "game/demo.asm"
+	endif
 bank5_end:
 	if SPR_FIXED_B5
 	assert bank5_end<=SPR_FIXED_B5_BASE,"bank 5 overlaps its sprites (b5)"

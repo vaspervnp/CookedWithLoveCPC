@@ -27,7 +27,12 @@ DEMO	equ 0
 	jp ov_init
 	jp ov_tick
 
-	include "lvl1_patch.asm"	; the expansion (tools/maps2asm.py)
+	include "lvl1_patch.asm"	; the expansions (tools/maps2asm.py)
+	if LANG_EN			; the overlay's texts (tools/text2asm.py;
+	include "text_en.asm"		; LANG_EN is defined by now, 0 or 1)
+	else
+	include "text_gr.asm"
+	endif
 
 PREP_START	equ 10*60	; the morning
 PREP_MIN	equ 120
@@ -35,12 +40,10 @@ PORTION_MAX	equ 9		; per dish (one digit)
 OV_COL		equ 8		; HUD row 2: dish d at column OV_COL + 4 d
 OV_COST		equ 2+TXT_COST_LEN	; row 3: cost and price of the dish
 OV_PRICE	equ OV_COST+3+TXT_PRICE_LEN
-	if 6+TXT_EXP_LEN+TXT_DOWN_LEN+5<39-TXT_NEXT_LEN	; the evening: the recipe
-OV_RCCOL	equ 6+TXT_EXP_LEN		; after the room's price
-	else
-OV_RCCOL	equ 5+TXT_EXP_LEN		; (no space: Greek)
-	endif
-	assert OV_RCCOL+TXT_DOWN_LEN+5<39-TXT_NEXT_LEN,"row 3: the two offers do not fit"
+	; the evening's row 3: up, an expansion's name, its price, down, a
+	; recipe's icon and price, then fire: next day at the right
+	assert 7+TXT_EXP_KITCHEN_LEN+6<=39-TXT_NEXT_LEN,"row 3: the offers do not fit"
+	assert TXT_EXP_STORE_LEN<=TXT_EXP_KITCHEN_LEN&&TXT_EXP_ROOM_LEN<=TXT_EXP_KITCHEN_LEN
 
 ov_cur:		db 0		; the dish chosen
 ov_sel:		db 0		; the first morning: Easy, Medium or Hard first
@@ -70,165 +73,9 @@ ov_init:
 .paid:	ld (sv_money),hl
 	call sv_hud_money
 	call ov_summary
-	; fall through
-; Row 3 of the evening: the day over; on offer if affordable the expansion
-; (up) and the next recipe (down: src/game/menu.asm).
-ov_evening:
-	ld a,(sv_exp)
-	or a
-	jr nz,.n
-	ld hl,(sv_money)
-	ld de,EXP_COST
-	or a
-	sbc hl,de
-	jr c,.n
-	ld a,8
-	ld hl,txt_exp
-	ld de,txt_next
-	call ov_line
-	ld hl,EXP_COST
-	ld d,3
-	ld bc,((2+TXT_EXP_LEN)<<8)+HUD_ROW3
-	call hud_number
-	ld b,OV_RCCOL
-	jr ov_rcdraw
-.n:	call ov_rcprice
-	ld a,13
-	ld hl,txt_day_end
-	jr c,.d
-	ld hl,txt_down
-.d:	ld de,txt_next
-	call ov_line
-	ld b,1
-	; fall through
-; The recipe on offer at column B of row 3: down, its icon, its price.
-ov_rcdraw:
-	call ov_rcprice
-	ret c
-	ld a,b
-	ld (ov_rcol),a
-	ld a,13
-	ld b,HUD_BG
-	call hud_colors
-	ld a,(ov_rcol)
-	ld b,a
-	ld c,HUD_ROW3
-	ld hl,txt_down
-	call hud_text
-	call ov_rcicon
-	ld a,(ov_rcol)
-	add a,TXT_DOWN_LEN		; (no space: room for both offers
-	ld b,a				; in Greek too)
-	call ov_rcchar
-	ld a,8
-	ld b,HUD_BG
-	call hud_colors
-	call ov_rcprice
-	ld a,(ov_rcol)
-	add a,TXT_DOWN_LEN+2
-	ld b,a
-	ld c,HUD_ROW3
-	ld d,3
-	jp hud_number
-; The next recipe's icon in G_NEW, its ink set.
-ov_rcicon:
-	ld a,(rc_cnt)
-	call rc_show
-	ld a,(rc_cnt)
-	ld hl,rc_ink
-	call st_add
-	ld a,(hl)
-	ld b,HUD_BG
-	jp hud_colors
-; G_NEW at columns B, B+1 of row 3.
-ov_rcchar:
-	ld c,HUD_ROW3
-	push bc
-	ld a,G_NEW_L
-	call hud_char
-	pop bc
-	inc b
-	ld a,G_NEW_R
-	jp hud_char
-; Carry: no recipe on offer (one bought already, none left, too dear);
-; else HL = its price.
-ov_rcprice:
-	ld a,(rc_new)
-	or a
-	scf
-	ret nz
-	ld a,(rc_cnt)
-	cp RC_N
-	ccf
-	ret c
-	ld hl,RC_COST0
-	ld de,RC_STEP
-	inc a
-.p:	dec a
-	jr z,.m
-	add hl,de
-	jr .p
-.m:	push hl
-	ex de,hl
-	ld hl,(sv_money)
-	or a
-	sbc hl,de
-	pop hl
-	ret
-ov_rcol:	db 0
-
-; Down in the evening: the recipe bought (on the menu in the morning).
-ov_rcbuy:
-	call ov_rcprice
-	ret c
-	ex de,hl
-	ld hl,(sv_money)
-	or a
-	sbc hl,de
-	ld (sv_money),hl
-	call sv_hud_money
-	ld a,1
-	ld (rc_new),a
 	jp ov_evening
-
-; Up in the evening: the expansion bought (its map, its tables).
-ov_buy:
-	ld a,(sv_exp)
-	or a
-	ret nz
-	ld hl,(sv_money)
-	ld de,EXP_COST
-	or a
-	sbc hl,de
-	ret c
-	ld (sv_money),hl
-	call sv_hud_money
-	ld a,1
-	ld (sv_exp),a
-	ld hl,patch_open
-	xor a				; the tables free
-	call ov_patch
-	call ov_evening
-	jr ov_view
-
-; A new game: the expansion closed again.
-ov_unbuy:
-	ld a,(sv_exp)
-	or a
-	ret z
-	xor a
-	ld (sv_exp),a
-	ld hl,patch_close
-	ld a,TB_LOCKED
-	call ov_patch
-ov_view:
-	ld a,1				; (the main loop draws the view again)
-	ld (view_req),a
-	ret
-
-; Apply map patch HL (tools/maps2asm.py) and set the expansion's tables to A.
+; Apply map patch HL (tools/maps2asm.py).
 ov_patch:
-	push af
 .e:	ld e,(hl)
 	inc hl
 	ld d,(hl)
@@ -257,7 +104,9 @@ ov_patch:
 	or a
 	jr nz,.r
 	jr .e
-.t:	pop af
+.t:	ret
+; The room's tables (the first ones) to A: free or TB_LOCKED.
+ov_tables:
 	ld hl,tb_busy
 	ld b,TB_LOCK_N
 .l:	ld (hl),a
@@ -334,6 +183,9 @@ ov_tick:
 	jp nz,ov_buy
 	bit KEY_DOWN,c
 	jp nz,ov_rcbuy
+	ld a,c
+	and (1<<KEY_LEFT)|(1<<KEY_RIGHT)
+	jp nz,ov_xnext
 .f:	bit KEY_FIRE,c
 	ret z
 	ld a,(sv_phase)
@@ -727,6 +579,274 @@ ov_draw:
 	assert $<=SAVE_AREA1,"the overlay's first half is too big"
 	print "overlay, first half: ",{hex}$
 	org OVL_HI			; (the other half: src/game/area.asm)
+
+; Row 3 of the evening: the day over; on offer if affordable an expansion
+; (up: the first one not bought of the room, the kitchen, the storage in
+; Hard) and the next recipe (down: src/game/menu.asm).
+ov_evening:
+	ld a,13
+	ld hl,txt_day_end
+	ld de,txt_next
+	call ov_line
+	call ov_xprice
+	jr nc,.o
+	call ov_rcprice
+	ret c				; nothing on offer
+.o:	ld a,HUD_BG			; the offers instead of the day end
+	ld b,a
+	call hud_colors
+	ld bc,(1<<8)+HUD_ROW3
+	ld e,24
+	call hud_spaces
+	ld b,1
+	call ov_xprice
+	jr c,ov_rcdraw
+	push hl
+	ld a,8				; up, the name, the price
+	ld b,HUD_BG
+	call hud_colors
+	ld a,G_UP
+	ld bc,(1<<8)+HUD_ROW3
+	call hud_char
+	ld a,13
+	ld b,HUD_BG
+	call hud_colors
+	ld a,(ov_xi)
+	add a,a
+	ld hl,ov_xtxt
+	call st_add
+	ld a,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,a
+	push hl
+	ld bc,(2<<8)+HUD_ROW3
+	call hud_text
+	ld a,8
+	ld b,HUD_BG
+	call hud_colors
+	pop hl				; its length
+	ld b,0
+.ln:	ld a,(hl)
+	inc hl
+	inc b
+	inc a
+	jr nz,.ln
+	ld a,b				; (+ 1 for the end)
+	add a,2
+	ld (ov_rcol),a
+	ld b,a
+	pop hl
+	ld c,HUD_ROW3
+	ld d,3
+	call hud_number
+	ld a,(ov_rcol)
+	add a,4
+	ld b,a
+	; fall through
+; The recipe on offer at column B of row 3: down, its icon, its price.
+ov_rcdraw:
+	call ov_rcprice
+	ret c
+	ld a,b
+	ld (ov_rcol),a
+	ld a,8
+	ld b,HUD_BG
+	call hud_colors
+	ld a,(ov_rcol)
+	ld b,a
+	ld c,HUD_ROW3
+	ld a,G_DOWN
+	call hud_char
+	call ov_rcicon
+	ld a,(ov_rcol)
+	inc a
+	ld b,a
+	call ov_rcchar
+	ld a,8
+	ld b,HUD_BG
+	call hud_colors
+	call ov_rcprice
+	ld a,(ov_rcol)
+	add a,3
+	ld b,a
+	ld c,HUD_ROW3
+	ld d,3
+	jp hud_number
+; The next recipe's icon in G_NEW, its ink set.
+ov_rcicon:
+	ld a,(rc_cnt)
+	call rc_show
+	ld a,(rc_cnt)
+	ld hl,rc_ink
+	call st_add
+	ld a,(hl)
+	ld b,HUD_BG
+	jp hud_colors
+; G_NEW at columns B, B+1 of row 3.
+ov_rcchar:
+	ld c,HUD_ROW3
+	push bc
+	ld a,G_NEW_L
+	call hud_char
+	pop bc
+	inc b
+	ld a,G_NEW_R
+	jp hud_char
+; Carry: no recipe on offer (one bought already, none left, too dear);
+; else HL = its price.
+ov_rcprice:
+	ld a,(rc_new)
+	or a
+	scf
+	ret nz
+	ld a,(rc_cnt)
+	cp RC_N
+	ccf
+	ret c
+	ld hl,RC_COST0
+	ld de,RC_STEP
+	inc a
+.p:	dec a
+	jr z,ov_afford
+	add hl,de
+	jr .p
+; Carry if the money is less than HL (kept).
+ov_afford:
+	push hl
+	ex de,hl
+	ld hl,(sv_money)
+	or a
+	sbc hl,de
+	pop hl
+	ret
+ov_rcol:	db 0
+
+; Carry: no expansion on offer; else the first one not bought and
+; affordable from ov_xsel on (ov_xi: 0 room, 1 kitchen, 2 storage, Hard
+; only), HL its price.
+ov_xprice:
+	ld a,(ov_xsel)
+	ld c,a
+	ld e,3				; (tries)
+.x:	ld a,c
+	cp 3
+	jr c,.c
+	xor a
+	ld c,a
+.c:	ld (ov_xi),a
+	cp 2
+	jr nz,.m
+	ld a,(sv_mode)			; the storage: Hard only
+	cp 2
+	jr nz,.n
+	ld a,c
+.m:	ld b,a				; bought?
+	inc b
+	ld a,1
+.b:	dec b
+	jr z,.bb
+	add a,a
+	jr .b
+.bb:	ld hl,sv_exp
+	and (hl)
+	jr nz,.n
+	ld a,c
+	add a,a
+	ld hl,ov_xcost
+	call st_add
+	ld a,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,a
+	push de
+	call ov_afford
+	pop de
+	ret nc
+.n:	inc c
+	dec e
+	jr nz,.x
+	scf
+	ret
+ov_xi:		db 0
+ov_xsel:	db 0		; (left/right: the next one)
+; Left/right in the evening: the next expansion on offer.
+ov_xnext:
+	ld a,(ov_xi)
+	inc a
+	ld (ov_xsel),a
+	jp ov_evening
+ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST
+ov_xtxt:	dw txt_exp_room,txt_exp_kitchen,txt_exp_store
+
+; Down in the evening: the recipe bought (on the menu in the morning).
+ov_rcbuy:
+	call ov_rcprice
+	ret c
+	call ov_pay
+	ld a,1
+	ld (rc_new),a
+	jp ov_evening
+; The money less HL.
+ov_pay:
+	ex de,hl
+	ld hl,(sv_money)
+	or a
+	sbc hl,de
+	ld (sv_money),hl
+	jp sv_hud_money
+
+; Up in the evening: the expansion on offer bought: the room (its map, its
+; tables), the kitchen (its map; src/game/kitchen.asm), the storage
+; (src/game/storage.asm).
+ov_buy:
+	call ov_xprice
+	ret c
+	call ov_pay
+	ld a,(ov_xi)
+	or a
+	jr z,.room
+	dec a
+	ld a,EXP_STORE
+	jr nz,.set
+	ld hl,patch_kopen
+	call ov_patch
+	ld a,EXP_KITCHEN
+	jr .map
+.room:	ld hl,patch_open
+	call ov_patch
+	xor a				; the tables free
+	call ov_tables
+	ld a,EXP_ROOM
+.map:	call .set
+	jr ov_view
+.set:	ld hl,sv_exp
+	or (hl)
+	ld (hl),a
+	jp ov_evening
+
+; A new game: the expansions closed again.
+ov_unbuy:
+	ld a,(sv_exp)
+	or a
+	ret z
+	ld hl,sv_exp
+	bit 1,(hl)			; (EXP_KITCHEN)
+	ld hl,patch_kclose
+	call nz,ov_patch
+	ld hl,sv_exp
+	bit 0,(hl)			; (EXP_ROOM)
+	ld (hl),0
+	jr z,ov_view
+	ld hl,patch_close
+	call ov_patch
+	ld a,TB_LOCKED
+	call ov_tables
+ov_view:
+	ld a,1				; (the main loop draws the view again)
+	ld (view_req),a
+	ret
+
 
 ; The supplier (Hard, after the summary): boxes of each group for tomorrow
 ; (BOX_UNITS units, BOX_COST each, up to 9). Row 2: each group, its units

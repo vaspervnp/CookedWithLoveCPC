@@ -14,11 +14,15 @@
 ;     there; empty-handed, she takes BOX_UNITS of the group of that kind
 ;     the hatch has least of;
 ;   at the hatch, carrying: she leaves it there for the kitchen.
+; The storage's expansion (sv_exp, bought in the evening): the shelves
+; take ST_CAP2, at the door she takes 2 boxes of a group, at a shelf what
+; fills the hatch.
 ; HUD row 3 while she is the player's: the groups, the units on the
 ; shelves and at the hatch (grey).
 
 BOX_UNITS	equ 5
 ST_CAP		equ 60		; units of a group on the shelves / fridges
+ST_CAP2		equ 99		; with the storage's expansion (2 digits on the HUD)
 HATCH_CAP	equ 9		; (one digit on the HUD)
 ST_START	equ 30		; units of each group at a new game
 DELIV_MIN	equ 13*60
@@ -113,7 +117,14 @@ blo_fire:
 	ld hl,st_hatch
 	call st_add
 	ld c,HATCH_CAP
-.put:	ld a,(blo_units)		; (up to the room there)
+.put:	ld a,(sv_exp)			; (the shelves: more with the expansion)
+	and EXP_STORE
+	jr z,.pc
+	ld a,c
+	cp ST_CAP
+	jr nz,.pc
+	ld c,ST_CAP2
+.pc:	ld a,(blo_units)		; (up to the room there)
 	add a,(hl)
 	cp c
 	jr c,.p
@@ -137,11 +148,20 @@ blo_fire:
 	jr nz,.dd
 	ret
 .dg:	dec (hl)
+	ld c,BOX_UNITS
+	ld a,(sv_exp)			; the expansion: 2 boxes, if there
+	and EXP_STORE
+	jr z,.d1
+	ld a,(hl)
+	or a
+	jr z,.d1
+	dec (hl)
+	ld c,2*BOX_UNITS
+.d1:	ld a,c
+	ld (blo_units),a
 	ld a,b
 	inc a
 	ld (blo_carry),a
-	ld a,BOX_UNITS
-	ld (blo_units),a
 	ret
 .take:	ld c,#FF			; the group of this kind with stock and
 	ld b,0				; the least at the hatch
@@ -172,14 +192,24 @@ blo_fire:
 	ld a,c
 	inc a
 	ret z				; nothing of this kind
+	ld d,BOX_UNITS			; units: a box, with the expansion what
+	ld a,(sv_exp)			; fills the hatch
+	and EXP_STORE
+	jr z,.tu
+	ld a,HATCH_CAP
+	sub e
+	ret z
+	ld d,a
+.tu:	ld a,c
+	inc a
 	ld (blo_carry),a
 	ld a,c
 	ld hl,st_stock
 	call st_add
 	ld a,(hl)
-	cp BOX_UNITS
+	cp d
 	jr c,.tl
-	ld a,BOX_UNITS
+	ld a,d
 .tl:	ld (blo_units),a
 	ld c,a
 	ld a,(hl)

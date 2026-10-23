@@ -30,11 +30,11 @@ def check(frame, what, f, want):
 check(5150, "evening: money", lambda r: r.get("sv_money", 1, True), 100)
 check(5300, "bought: money, new", lambda r: (r.get("sv_money", 1, True), r.get("rc_new")), (0, 1))
 check(5850, "curry for the cod", lambda r: (r.get("rc_cnt"), r.get("rc_log"), r.get("dish_price", 9)[1::7],
-                                             r.get("dish_ticks", 9, True)[1::7], r.get("dish_ink", 2)[1], r.get("rc_ink")),
-      (1, 1, [12, 8], [375, 225], 8, 13))
+                                             r.get("dish_ticks", 9, True)[1::7], r.get("dish_ink", 2)[1]),
+      (1, 1, [12, 8], [375, 225], 8))
 check(9250, "bankrupt", lambda r: r.get("sv_phase"), 4)
 check(9600, "new game: first menu", lambda r: (r.get("rc_cnt"), r.get("sv_money", 1, True), r.get("dish_price", 9)[1::7],
-                                               r.get("dish_ticks", 9, True)[1::7], r.get("dish_ink", 2)[1], r.get("rc_ink")),
-      (0, 150, [8, 12], [225, 375], 13, 8))
+                                               r.get("dish_ticks", 9, True)[1::7], r.get("dish_ink", 2)[1]),
+      (0, 150, [8, 12], [225, 375], 13))
 sys.exit(0 if ok else 1)
 PY

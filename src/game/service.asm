@@ -101,8 +101,13 @@ sv_bub_t:	db 0
 sv_dirty:	db 0		; Bill carries dirty plates
 TB_DIRTY	equ #80		; tb_busy: plates left (+ their number, 1-3)
 TB_LOCKED	equ #40		; tb_busy: in the expansion, not bought yet
-EXP_COST	equ 300		; the expansion (src/ovl/prep.asm)
-sv_exp:		db 0		; bought
+EXP_COST	equ 300		; the expansions (src/ovl/prep.asm): the dining
+KEXP_COST	equ 250		; room, the kitchen, the storage (Hard)
+SEXP_COST	equ 150
+EXP_ROOM	equ 1		; sv_exp: bought
+EXP_KITCHEN	equ 2
+EXP_STORE	equ 4
+sv_exp:		db 0
 	ifdef TEST_MONEY		; (tests: more)
 START_MONEY	equ TEST_MONEY
 	else
@@ -1174,6 +1179,9 @@ sv_choose:
 .c:	push bc
 	push hl
 	call sv_rand
+	ifdef TEST_DISH			; test: this dish (if there are portions)
+	ld a,TEST_DISH
+	endif
 	and 7				; (DISH_N = 8): this one or the next
 .f:	ld e,a				; with portions left
 	ld d,0
@@ -1207,6 +1215,7 @@ sv_choose:
 .n:	inc iy
 	pop bc
 	djnz .c
+	call kx_fast
 	ld (ix+GR_T),l
 	ld (ix+GR_T+1),h
 	push ix

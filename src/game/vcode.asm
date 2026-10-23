@@ -44,6 +44,7 @@ sv_cook_tick:
 	inc hl
 	ld h,(hl)
 	ld l,a
+	call kx_fast
 	ld (sv_cook_t),hl
 	ret
 	endif

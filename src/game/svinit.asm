@@ -8,6 +8,10 @@ service_init:
 	inc hl
 	djnz .lk
 	endif
+	ifdef TEST_XP			; test: expansions bought (sv_exp bits;
+	ld a,TEST_XP			; the maps stay closed)
+	ld (sv_exp),a
+	endif
 	if TEST_FILL			; test: 8 portions of each, open, the
 	ld hl,sv_stock			; hatch full (Hard)
 	ld b,DISH_N
