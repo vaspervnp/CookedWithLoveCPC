@@ -203,7 +203,10 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 **Προϋπολογισμός sprites:** κοινά στις banks 4 + 6 (32K): Bill ~10,1K, πελάτες ~20,7K + καθιστά πόδια 1,6K, σύνολο 32,4K (γεμάτες: ~0,3K ελεύθερα). Στη bank 5 (`&6F00`, 4,25K) τα μικρά πρόσθετα sprites: δίσκος με 1–3 πιάτα (μπροστά, πλάι) και 6 φούσκες, 4,1K. Η bank 7 (16K) έχει τα sprites της περιοχής που βλέπει η κάμερα: κουζίνα 15K (Ελευθερία), αποθήκη 15,4K (Ανθή).
 
 **Φόρτωση:**
-- Το `CWL.BIN` φορτώνεται στο `&0100`. Τα δεδομένα της bank 5 είναι «σταθμευμένα» στο `&4000` και στο boot το `mem_relocate` τα μεταφέρει στη bank και καθαρίζει το `&4000`–`&FFFF`.
+- Το `RUN"CWL` ξεκινά τον loader ([src/loader.asm](src/loader.asm), `CWL.BIN` στο `&9000`). Αυτός βάζει Mode 0 και την palette μέσω firmware, φορτώνει την οθόνη τίτλου στο `&C000` και μετά το παιχνίδι (`GAME.BIN`), που φορτώνεται στο `&0100`. Ο τίτλος μένει στην οθόνη όσο φορτώνονται τα υπόλοιπα (~10 s).
+- Το `TITLE.SCR` έχει AMSDOS header (το `CAS IN DIRECT` δεν διαβάζει αρχεία χωρίς header) και 16K − 128 bytes: με το header είναι ακριβώς 32 sectors, οπότε το `fdc_load` (ολόκληρα sectors, από το `&C000 − 128`) σταματά στο `&FFFF`. Η τελευταία γραμμή της οθόνης μένει μαύρη.
+- Το παιχνίδι ξεκινά ~210 VBL αργότερα από πριν τον loader: τα σενάρια με χρόνους σε VBL τα μετατοπίζουν με το `BOOT` του `tools/scenario.sh`.
+- Στο `GAME.BIN` τα δεδομένα της bank 5 είναι «σταθμευμένα» στο `&4000` και στο boot το `mem_relocate` τα μεταφέρει στη bank και καθαρίζει το `&4000`–`&FFFF`.
 - **Φόρτωση ανά περιοχή** ([src/game/area.asm](src/game/area.asm), [src/engine/fdc.asm](src/engine/fdc.asm)):
   - Όταν η κάμερα μπαίνει σε άλλη περιοχή, το `area_check` φορτώνει το `<ΠΕΡΙΟΧΗ>.SPR` στη bank 7. Στην πίστα δοκιμής η κουζίνα είναι sx < 60 και η αποθήκη sx > 140, με υστέρηση ανάμεσα.
   - Χωρίς firmware: δικός μας οδηγός για τον µPD765 με polling. Διαβάζει τον κατάλογο του AMSDOS (track 0, &C1–&C4), μαζεύει τα blocks όλων των extents του αρχείου, και διαβάζει κάθε σειρά συνεχόμενων sectors ενός track με μία εντολή Read Data.
@@ -289,7 +292,7 @@ make DEBUG=1    # debug build
 
 1. `tools/palette.py` — `data/palette.txt` → `build/palette.asm` (hardware colours) και `assets/palette/cwl.gpl` (palette για Aseprite).
 2. `rasm src/main.asm -Isrc -Ibuild -DLANG_EN=1` (ή `-DLANG_GR=1`) → `build/cwl_en.bin` + symbols.
-3. `iDSK` → νέα δισκέτα με το `CWL.BIN` (binary, load/exec `&0100`).
+3. `iDSK` → νέα δισκέτα με τον loader `CWL.BIN` (`&9000`), το παιχνίδι `GAME.BIN` (load/exec `&0100`, κρυφό) και τα υπόλοιπα αρχεία.
 
 Μετατροπή εικόνας:
 

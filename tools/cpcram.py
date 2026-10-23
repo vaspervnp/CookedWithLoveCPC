@@ -8,6 +8,7 @@ Usage: cpcram.py <dump.ram> <cwl.sym> name[:count[:w]] ...
 As a module: Ram(dump, sym).get("name", n=1, word=False)
 """
 
+import os
 import sys
 
 
@@ -32,6 +33,12 @@ class Ram:
         else:
             v = [self.byte(a + i) for i in range(n)]
         return v if n > 1 else v[0]
+
+
+def dump(prefix, frame, sym=None):
+    """The dump of a scenario (tools/scenario.sh) at VBL frame + BOOT."""
+    boot = int(os.environ.get("BOOT", "0"))
+    return Ram(f"{prefix}{frame + boot:05d}.ram", sym or prefix + ".sym")
 
 
 def main():

@@ -48,6 +48,7 @@ DEMO	equ 0
 	ifndef DBGPOS
 DBGPOS	equ DEMO
 	endif
+SOUND	equ DEMO==0&&TESTMODE==0&&DBGPOS==0	; the sound effects (no room in the test builds)
 	ifndef MAP_TEST			; 1: the scroll test map, 0: level 1
 MAP_TEST	equ TESTMODE
 	endif

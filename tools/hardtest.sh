@@ -8,6 +8,7 @@
 # Keys: line*8+bit (0 up, 1 right, 2 down, 8 left, 47 space, 76 fire), VBLs.
 set -e
 cd "$(dirname "$0")/.."
+. tools/scenario.sh
 OUT=build/cpcec/hard
 mkdir -p build/cpcec
 make -s en OVLEXTRA=-DTITLE_WAIT=50 EXTRA=-DDAY_MIN=100 >/dev/null
@@ -20,7 +21,7 @@ K=(
 	0:8900-8908 0:8950-8958 1:9000-9008 0:9050-9058	# 2 veg, 1 meat
 	76:9150-9158 0:9250-9258 76:9300-9308		# day 2: a portion, open
 	47:9400-9408 47:9500-9508			# Liberty, Blossom
-	2:9800-9969 1:10000-10250 2:10300-10450		# to the door (walls)
+	1:9800-9900 2:9920-10000 1:10020-10120 2:10140-10260	# to the door: shelf, crate, wall, door
 	76:12550-12558					# a box (after 13:00)
 	8:12650-12689 0:12720-12900 76:12940-12948	# up to a shelf: put
 	76:12980-12988					# take 5
@@ -28,20 +29,17 @@ K=(
 	76:14110-14118					# the hatch
 )
 
-rm -f $OUT*.ram
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy CPCEC_KEYS="$(IFS=,; echo "${K[*]}")" \
-	CPCEC_DUMPS="9100,9700,12500,12600,12960,13000,14150" CPCEC_PREFIX=$OUT CPCEC_EXIT=14150 \
-	timeout 900 "${CPCEC:-$HOME/tools/cpcec/cpcec}" -S -r0 -O -m2 -k1 -g0 build/cwl_en.dsk >/dev/null 2>&1 || true
+scenario $OUT "$(IFS=,; echo "${K[*]}")" "9100,9700,12500,12600,12960,13000,14150" 14150 900
 make -s en >/dev/null
 python3 - "$OUT" <<'PY'
 import sys
 sys.path.insert(0, "tools")
-from cpcram import Ram
+from cpcram import dump
 o = sys.argv[1]
 ok = True
 def check(frame, name, want, n=1, word=False):
     global ok
-    got = Ram(f"{o}{frame:05d}.ram", o + ".sym").get(name, n, word)
+    got = dump(o, frame).get(name, n, word)
     good = got == want
     ok &= good
     print(f"{'ok  ' if good else 'FAIL'} {frame:5d} {name:10s} {got}" + ("" if good else f" (want {want})"))

@@ -4,6 +4,7 @@
 # frame of a run is checked (position found automatically).
 # Usage: tools/cpcectest.sh [crtc types, default "0 1 2 3 4"]
 cd "$(dirname "$0")/.."
+. tools/scenario.sh			# BOOT: the frames below + BOOT
 mkdir -p build/cpcec
 TYPES="${1:-0 1 2 3 4}"
 fail=0
@@ -19,15 +20,15 @@ for g in $TYPES; do
 	echo "== CRTC $g"
 	for xy in "0 0" "0 1" "0 2" "0 3" "0 4" "0 5" "0 6" "0 7" "1 7" "77 250" "240 504"; do
 		set -- $xy
-		make -s en EXTRA="-DTEST_X=$1 -DTEST_Y=$2" >/dev/null 2>&1
-		rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "850,851,852" $g
+		make -s en EXTRA="-DTEST_X=$1 -DTEST_Y=$2" >/dev/null 2>&1 || { echo "BUILD FAILED: -DTEST_X=$1 -DTEST_Y=$2"; exit 1; }
+		rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$((850 + BOOT)),$((851 + BOOT)),$((852 + BOOT))" $g
 		echo -n "static [$1,$2]"; check $1 $2; echo
 	done
-	make -s en EXTRA="-DTEST_PATH=3 -DTEST_X=0 -DTEST_Y=40" >/dev/null 2>&1
-	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, 870 1 930)" $g
+	make -s en EXTRA="-DTEST_PATH=3 -DTEST_X=0 -DTEST_Y=40" >/dev/null 2>&1 || { echo "BUILD FAILED: -DTEST_PATH=3 -DTEST_X=0 -DTEST_Y=40"; exit 1; }
+	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, $((870 + BOOT)) 1 $((930 + BOOT)))" $g
 	echo -n "bounce V"; check 0 -1; echo
-	make -s en EXTRA="-DTEST_PATH=3 -DTEST_X=12 -DTEST_Y=0" >/dev/null 2>&1
-	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, 870 1 900)" $g
+	make -s en EXTRA="-DTEST_PATH=3 -DTEST_X=12 -DTEST_Y=0" >/dev/null 2>&1 || { echo "BUILD FAILED: -DTEST_PATH=3 -DTEST_X=12 -DTEST_Y=0"; exit 1; }
+	rm -f build/cpcec/t*.bmp; tools/cpcecshot.sh build/cwl_en.dsk build/cpcec/t "$(seq -s, $((870 + BOOT)) 1 $((900 + BOOT)))" $g
 	echo -n "bounce H"; check -1 0; echo
 done
 make -s en >/dev/null 2>&1

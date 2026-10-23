@@ -1,7 +1,8 @@
 ; Sound effects on AY channel C (tone or noise), one at a time: a new one
 ; cuts the one playing. sfx_tick runs at each VSYNC (irq_i0); it leaves the
 ; PSG alone while read_input reads the keyboard through it (psg_busy).
-; Not in DEMO builds (no room there): the entry points just return.
+; Not in the DEMO and scroll test builds (no room there, SOUND in
+; src/main.asm): the entry points just return.
 ;
 ; An effect: steps of 2 bytes, then 0:
 ;   volume << 4 | frames (1-15 VBLs),  pitch (tone period / 4: 15625 / Hz;
@@ -16,7 +17,7 @@ SFX_BURN	equ 5
 SFX_DONE	equ 6
 	assert SFX_BURN==SFX_DONE-1	; (kitchen_tick)
 
-	if DEMO==0
+	if SOUND
 ; A = SFX_*. Destroys AF.
 sfx_play:
 	push hl

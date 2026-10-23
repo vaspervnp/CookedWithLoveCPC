@@ -132,16 +132,21 @@ $(BUILD)/title_%.scr: tools/mktitle.py tools/mkfont.py tools/png2cpc.py assets/s
 	$(PYTHON) tools/mktitle.py $* $@ --png $(BUILD)/title_$*.png
 
 # Disk name on the CPC is always CWL.BIN -> RUN"CWL
-$(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin $(BUILD)/prep_%.bin $(BUILD)/title_%.scr
-	rm -f $@ $(BUILD)/CWL.BIN
-	cp $< $(BUILD)/CWL.BIN
+# the loader (CWL.BIN: the title at once, then the game)
+$(BUILD)/loader.bin: src/loader.asm $(BUILD)/palette.asm | $(BUILD)
+	$(RASM) src/loader.asm -I$(BUILD) -DLOADER=1 -ob $@ >/dev/null
+
+$(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin $(BUILD)/prep_%.bin $(BUILD)/title_%.scr $(BUILD)/loader.bin
+	rm -f $@ $(BUILD)/CWL.BIN $(BUILD)/GAME.BIN
 	$(IDSK) $@ -n
-	$(IDSK) $@ -i $(BUILD)/CWL.BIN -t 1 -c $(LOAD) -e $(EXEC)
-	rm -f $(BUILD)/CWL.BIN
+	cp $(BUILD)/loader.bin $(BUILD)/CWL.BIN
+	cd $(BUILD) && $(IDSK) $(notdir $@) -i CWL.BIN -t 1 -c 9000 -e 9000 >/dev/null && rm -f CWL.BIN
+	cp $< $(BUILD)/GAME.BIN
+	cd $(BUILD) && $(IDSK) $(notdir $@) -i GAME.BIN -t 1 -c $(LOAD) -e $(EXEC) -s >/dev/null && rm -f GAME.BIN
 	cp $(BUILD)/prep_$*.bin $(BUILD)/PREP.OVL
 	cd $(BUILD) && $(IDSK) $(notdir $@) -i PREP.OVL -t 1 -c 3800 -s >/dev/null && rm -f PREP.OVL
 	cp $(BUILD)/title_$*.scr $(BUILD)/TITLE.SCR
-	cd $(BUILD) && $(IDSK) $(notdir $@) -i TITLE.SCR -t 0 -s >/dev/null && rm -f TITLE.SCR
+	cd $(BUILD) && $(IDSK) $(notdir $@) -i TITLE.SCR -t 1 -c C000 -s >/dev/null && rm -f TITLE.SCR
 	cd $(BUILD) && for f in spr_?.dat; do b=$${f#spr_}; b=$${b%.dat}; cp $$f SPR$$b.DAT; $(IDSK) $(notdir $@) -i SPR$$b.DAT -t 1 -c 4000 -s >/dev/null; rm -f SPR$$b.DAT; done
 	cd $(BUILD) && for f in spr_??*.dat; do a=$${f#spr_}; a=$${a%.dat}; n=$$(echo $$a | tr a-z A-Z | cut -c1-8).SPR; cp $$f $$n; $(IDSK) $(notdir $@) -i $$n -t 1 -c 4000 -s >/dev/null; rm -f $$n; done
 

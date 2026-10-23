@@ -2,7 +2,8 @@
 """Generate the palette for the assembler and for Aseprite from data/palette.txt.
 
 Outputs:
-  <asm>  : 'palette_hw' table (16 pens + border) as gate array colours
+  <asm>  : 'palette_hw' table (16 pens + border) as gate array colours,
+           'palette_fw' as firmware colours
   <gpl>  : GIMP/Aseprite palette
 """
 
@@ -25,6 +26,10 @@ def main():
         for i, (fw, name) in enumerate(pens):
             f.write(f"\tdb #{FW_TO_HW[fw]:02X}\t; pen {i:2d} fw {fw:2d} {name}\n")
         f.write(f"\tdb #{FW_TO_HW[border]:02X}\t; border fw {border}\n")
+        f.write("\tifdef LOADER\t\t; the same in firmware colours (src/loader.asm)\n")
+        f.write("palette_fw:\n")
+        f.write("\tdb " + ",".join(str(fw) for fw, _ in pens) + f",{border}\n")
+        f.write("\tendif\n")
 
     with open(args.gpl, "w", encoding="utf-8") as f:
         f.write("GIMP Palette\nName: Cooked with Love CPC\nColumns: 8\n#\n")

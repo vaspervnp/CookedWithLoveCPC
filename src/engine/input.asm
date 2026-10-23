@@ -32,7 +32,7 @@ read_key_line:
 ; Out: A = KEY_* bits set for pressed directions (cursor keys or joystick 0).
 ; Destroys BC, DE.
 read_input:
-	if DEMO==0
+	if SOUND
 	ld a,1				; (sfx_tick: not now)
 	ld (psg_busy),a
 	endif
@@ -84,7 +84,7 @@ read_input:
 	bit 5,d
 	jr z,$+4
 	set KEY_SWAP,e
-	if DEMO==0
+	if SOUND
 	xor a
 	ld (psg_busy),a
 	endif

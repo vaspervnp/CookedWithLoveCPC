@@ -3,7 +3,8 @@
 (y / 8) * 80 + (y % 8) * &800) with the title in big letters, Bill, Liberty
 and Blossom (frame 0 of their sheets), the controls and the credits, in
 English or Greek, with the letters of tools/mkfont.py (3 x 7, scaled).
-src/ovl/prep.asm shows it at the boot until fire.
+The loader (src/loader.asm) shows it while the game loads, src/ovl/prep.asm
+loads it again (fdc_load) and shows it until fire.
 
 Usage: mktitle.py <en|gr> <out.scr> [--png preview.png]
 """
@@ -18,6 +19,8 @@ from mkfont import DIGITS, LETTERS, OTHER, SAME, plain_char
 from png2cpc import to_pens
 
 W, H = 160, 200
+SIZE = 0x4000 - 128     # with its AMSDOS header 32 whole sectors: fdc_load reads
+                        # them to &C000 - 128 .. &FFFF; the rest (line 199) black
 BLACK, RED, ORANGE, YELLOW, GREEN, WHITE, GREY, WOOD = 0, 4, 5, 8, 10, 13, 12, 15
 
 TEXT = {
@@ -87,8 +90,8 @@ def main():
     t = TEXT[args.lang]
     img = [[BLACK] * W for _ in range(H)]
     for y in range(0, 4):               # tablecloth stripes, top and bottom
-        for x in range(W):
-            img[y][x] = img[H - 1 - y][x] = RED if (x // 4 + y // 2) % 2 else WHITE
+        for x in range(W):                  # (line 199 stays black: SIZE)
+            img[y][x] = img[H - 2 - y][x] = RED if (x // 4 + y // 2) % 2 else WHITE
     text(img, "COOKED", 12, YELLOW, 2, 3)
     text(img, "WITH LOVE", 38, ORANGE, 2, 3)
     for i, (sheet, name) in enumerate(zip(("bill.png", "liberty.png", "blossom.png"), t["names"])):
@@ -105,8 +108,9 @@ def main():
         base = (y // 8) * 80 + (y % 8) * 0x800
         for x in range(0, W, 2):
             scr[base + x // 2] = mode0_byte(img[y][x], img[y][x + 1])
+    assert not any(scr[SIZE:]), "the screen's last bytes are not black"
     with open(args.out, "wb") as f:
-        f.write(scr)
+        f.write(scr[:SIZE])
     if args.png:
         pens, _ = load_palette()
         rgb = [fw_to_rgb(fw) for fw, _ in pens]

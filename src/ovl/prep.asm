@@ -163,15 +163,15 @@ ov_patch:
 	djnz .l
 	ret
 
-; The boot: the title screen (TITLE.SCR, tools/mktitle.py; on the disc
-; without an AMSDOS header, fdc_load reads whole sectors) until fire,
+; The boot: the title screen (TITLE.SCR, tools/mktitle.py: 16K less 128
+; bytes, with its header 32 whole sectors for fdc_load) until fire,
 ; then the first morning. (Not in the DEMO builds: no one presses fire.)
 ov_first:
 	if DEMO==0
 	di
 	call crtc_plain			; (black while it loads)
 .try:	ld hl,ov_tname
-	ld de,#C000			; (no header: 32 whole sectors)
+	ld de,#C000-AREA_HDR		; (with it 32 whole sectors, to &FFFF)
 	call fdc_load
 	jr c,.try
 	call wait_vsync
