@@ -53,6 +53,8 @@ storage_tick:
 	ret c
 	ld a,1
 	ld (st_deliv),a
+	ld a,SFX_DELIV
+	call sfx_play
 	ld hl,st_order
 	ld de,st_door
 	ld b,ING_N
@@ -132,7 +134,7 @@ blo_fire:
 .p:	ld (hl),a
 	xor a
 	ld (blo_carry),a
-	jp sv_hud_stock
+	jp st_box
 .door:	ld a,(blo_carry)		; a box from the door
 	or a
 	ret nz
@@ -162,7 +164,8 @@ blo_fire:
 	ld a,b
 	inc a
 	ld (blo_carry),a
-	ret
+	ld a,SFX_BOX
+	jp sfx_play
 .take:	ld c,#FF			; the group of this kind with stock and
 	ld b,0				; the least at the hatch
 	ld e,#FF			; (E: its hatch units)
@@ -215,6 +218,8 @@ blo_fire:
 	ld a,(hl)
 	sub c
 	ld (hl),a
+st_box:	ld a,SFX_BOX			; (a box: the sound, the HUD)
+	call sfx_play
 	jp sv_hud_stock
 
 ; HUD row 2, columns 6-7: the first group with less than ST_LOW units on

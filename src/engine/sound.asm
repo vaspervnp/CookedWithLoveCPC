@@ -15,6 +15,9 @@ SFX_READY	equ 3
 SFX_ANGRY	equ 4
 SFX_BURN	equ 5
 SFX_DONE	equ 6
+SFX_BOX		equ 7		; Blossom: a box taken or put
+SFX_DELIV	equ 8		; the delivery at the door
+SFX_DAY		equ 9		; the day over
 	assert SFX_BURN==SFX_DONE-1	; (kitchen_tick)
 
 	if SOUND
@@ -123,6 +126,7 @@ psg_write:
 	ret
 
 sfx_tab:	dw fx_order,fx_serve,fx_coin,fx_ready,fx_angry,fx_burn,fx_done
+		dw fx_box,fx_deliv,fx_day
 fx_order:	db #C2,20, #82,15, 0				; blip
 fx_serve:	db #D3,30, #D3,24, #C4,20, #62,20, 0		; C E G
 fx_coin:	db #E3,16, #F4,12, #A4,12, #54,12, 0		; B, E
@@ -130,6 +134,9 @@ fx_ready:	db #E2,18, #B3,18, #74,18, #34,18, 0		; ding
 fx_angry:	db #C4,40, #C4,47, #C6,60, #66,60, 0		; down
 fx_burn:	db #E4,0, #A6,0, #56,0, #38,0, 0		; hiss
 fx_done:	db #B2,15, #02,15, #B3,15, #43,15, 0		; ding ding
+fx_box:		db #D1,0, #A2,90, #42,90, 0			; thud
+fx_deliv:	db #C2,0, #04,1, #C2,0, 0			; knock knock
+fx_day:		db #C5,30, #C5,24, #C5,20, #D8,15, #64,15, 0	; C E G C
 sfx_ptr:	dw 0
 sfx_left:	db 0
 psg_busy:	db 0

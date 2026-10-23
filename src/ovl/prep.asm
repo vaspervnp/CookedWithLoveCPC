@@ -61,7 +61,9 @@ ov_init:
 	or a
 	sbc hl,de
 	jr nc,.paid
-	ld hl,0				; not enough: game over
+	ld a,SFX_ANGRY			; not enough: game over
+	call sfx_play
+	ld hl,0
 	ld (sv_money),hl
 	call sv_hud_money
 	ld a,SP_BROKE
@@ -71,6 +73,8 @@ ov_init:
 	ld de,txt_new_game
 	jp ov_line
 .paid:	ld (sv_money),hl
+	ld a,SFX_DAY
+	call sfx_play
 	call sv_hud_money
 	call ov_summary
 	jp ov_evening
@@ -787,8 +791,10 @@ ov_rcbuy:
 	ld a,1
 	ld (rc_new),a
 	jp ov_evening
-; The money less HL.
+; The money less HL (a purchase).
 ov_pay:
+	ld a,SFX_COIN
+	call sfx_play
 	ex de,hl
 	ld hl,(sv_money)
 	or a
@@ -982,6 +988,8 @@ ov_sup_keys:
 	pop de
 	ret c
 	ld (sv_money),hl
+	ld a,SFX_COIN
+	call sfx_play
 	ex de,hl
 	inc (hl)
 	jp ov_sup_draw
