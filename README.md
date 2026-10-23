@@ -334,6 +334,8 @@ python3 tools/png2cpc.py tiles.png tiles.bin --layout tiles    # 8x8 tiles, 32 b
   - `tools/hatchtest.sh` (~30 s): στο Hard, οι μερίδες του πάσου παίρνουν τα υλικά τους από τη θυρίδα.
   - `tools/recipetest.sh` (~3,5 λεπτά): μια συνταγή αγοράζεται το βράδυ, αντικαθιστά τον μπακαλιάρο το πρωί, και η πτώχευση φέρνει πίσω το πρώτο μενού.
 
+  Τα `tools/screenshots.sh` (~12 λεπτά) βγάζει screenshots (PNG) στο [docs/img](docs/img): τον τίτλο στις δύο γλώσσες και στιγμές των σεναρίων (με `SHOTS="f1,f2"` στο `tools/scenario.sh`).
+
   Για τα σενάρια υπάρχουν τα `-DTEST_MODE=1|2` (Medium / Hard από την αρχή) και το `-DTEST_MONEY=n` (χρήματα στην αρχή).
 - Debug build (`make DEBUG=1`): το border γίνεται λευκό όσο δουλεύει ο main loop, για μέτρηση του χρόνου CPU.
 - **Sprites/παιχνίδι:** το `-DDEMO=1` κάνει τον Bill να περπατά μόνος του με σενάριο. Η debug γραμμή (HUD line 0) δείχνει κάμερα, θέση και frame του sprite και χρόνους σταδίων. Το `tools/gamecheck.py` αποδίδει την αναμενόμενη εικόνα (χάρτης + sprite), τη συγκρίνει pixel-pixel και ελέγχει ότι τα πόδια δεν είναι μέσα σε εμπόδιο. Το `-DCLONES=n` προσθέτει αντίγραφα του Bill για stress test. Το `-DCUSTOMERS=0` βγάζει τους δοκιμαστικούς πελάτες (το `gamecheck` ξέρει μόνο τον Bill). Το `tools/custcheck.py` ελέγχει pixel-pixel τους ακίνητους πελάτες (build με `-DMAP_TEST=1`). Το `tools/spritetest.sh` τρέχει όλους τους ελέγχους sprites (και τον Bill στην πάνω μερική γραμμή, με `-DCAM_T=40`). Τα `-DBILL_X0=x -DBILL_Y0=y -DDBGPOS=1` ξεκινούν τον Bill σε δοσμένη θέση (π.χ. `BILL_X0=100 BILL_Y0=232` για γραμμές που τυλίγουν στο 2K block).
