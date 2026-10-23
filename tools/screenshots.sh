@@ -15,6 +15,10 @@ SHOTS=1650,2400,3520,4760,5980 tools/mediumtest.sh
 SHOTS=1550,9100,12600,14150 tools/hardtest.sh
 SHOTS=5150,6500 tools/exptest.sh
 SHOTS=5650,5850,9250 tools/recipetest.sh
+. tools/scenario.sh			# the kitchen's expansion: room and kitchen
+make -s en OVLEXTRA=-DTITLE_WAIT=50 EXTRA="-DDAY_MIN=3 -DTEST_MONEY=700" >/dev/null
+SHOTS=6300 scenario build/cpcec/kexp "76:1250-1258,76:1300-1308,0:5200-5208,0:5300-5308,76:5600-5608,76:5800-5808,47:5900-5908,2:6000-6700" "" 6300 600
+make -s en >/dev/null
 python3 - $OUT <<'PY'
 import os, sys
 from PIL import Image
@@ -29,7 +33,7 @@ shots = [			# name, file (prefix, VBL: + BOOT for the scenarios)
     ("storage_door", "hard", 12600, 1), ("storage_hatch", "hard", 14150, 1),
     ("evening_offers", "exp", 5150, 1), ("expansion_room", "exp", 6500, 1),
     ("recipe_choose", "recipe", 5650, 1), ("recipe_menu", "recipe", 5850, 1),
-    ("bankrupt", "recipe", 9250, 1),
+    ("bankrupt", "recipe", 9250, 1), ("kitchen_expansion", "kexp", 6300, 1),
 ]
 for name, pre, f, shifted in shots:
     src = f"build/cpcec/{pre}{f + boot * shifted:05d}.bmp"

@@ -598,8 +598,8 @@ ov_evening:
 	ld bc,(1<<8)+HUD_ROW3
 	ld e,24
 	call hud_spaces
-	ld b,1
 	call ov_xprice
+	ld b,1				; (ov_xprice changes B)
 	jr c,ov_rcdraw
 	push hl
 	ld a,8				; up, the name, the price
