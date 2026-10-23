@@ -9,11 +9,13 @@ Output (asm, bank 5):
   dish_cost     the ingredients of a portion (byte): about 40% of the price
   dish_stn      the station of a dish (Medium): 0 stove (pot or pan), 1 oven
   dish_need     its ingredient groups (Hard): bits ING_* (V, M, G, D, P)
-  and for the overlay (src/ovl/prep.asm, assembled with -DOVERLAY=1):
   dish_prep     minutes of the morning preparation per portion (byte): a
                 tenth of the time on the site, at least 2
-  (their HUD icons: G_DISH0 + 2 * dish, drawn by tools/mkfont.py in the
-  order of the first menu)
+  (nothing for the overlay, src/ovl/prep.asm with -DOVERLAY=1: it has the
+  game's symbols. The HUD icons: G_DISH0 + 2 * dish for the menu, by
+  tools/mkfont.py; the later recipes' ones in build/recicons.asm. Bought
+  in the evening, a recipe changes places with a dish of the menu in all
+  these tables: src/game/menu.asm)
 
 Usage: recipes2asm.py <recipes.tsv> <out.asm>
 """
@@ -48,8 +50,7 @@ def main():
         f.write("dish_need:\n\tdb " + ",".join(str(sum(1 << "VMGDP".index(g) for g in d["groups"])) for d in order) + "\n")
         f.write("dish_stn:\t; where Liberty cooks it (Medium): 0 stove (pot, pan), 1 oven\n\tdb "
                 + ",".join("1" if "oven" in d["stations"] else "0" for d in order) + "\n")
-        f.write("\telse\n")
-        f.write("dish_prep:\n\tdb " + ",".join(str(max(2, (int(d["time"]) + 5) // 10)) for d in order) + "\n")
+        f.write("dish_prep:\t; minutes of the morning per portion (src/ovl/prep.asm)\n\tdb " + ",".join(str(max(2, (int(d["time"]) + 5) // 10)) for d in order) + "\n")
         f.write("\tendif\n")
 
 

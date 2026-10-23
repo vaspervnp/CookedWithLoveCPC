@@ -1,7 +1,8 @@
 #!/bin/bash
 # Medium in CPCEC, with scripted keys (~2 min): the groups sit by themselves
 # (TEST_FILL, no patience lost), Bill starts at table 6 and takes the order
-# of its single customer (cod: a stove); Liberty cooks it, lets it burn,
+# of its single customer (a dish of a stove: the walk is to one); Liberty
+# cooks it, lets it burn,
 # takes it to the pass; Bill takes it there and serves it, and the burnt
 # dish costs 64 patience after the refill. Checks RAM dumps (tools/cpcram.py).
 # Keys: line*8+bit (0 up, 1 right, 2 down, 8 left, 47 space, 76 fire), VBLs.
@@ -37,7 +38,8 @@ def g1(frame):			# group 1: the single customer at table 6
     r = dump(o, frame)
     return r, r.get("groups", 32)[16:32]
 r, g = g1(1650); check(1650, "ordered", (g[0], g[3]), (6, 6))
-r, g = g1(2200); check(2200, "cooking", r.get("ks_slots", 54)[36:39], [1, 1, 2])
+r, g = g1(2200); ks = r.get("ks_slots", 54)	# station 6 (a stove): cooking group 1's dish
+check(2200, "cooking", (ks[36], ks[37] == g[10], r.get("dish_stn", 8)[ks[37]], ks[38]), (1, True, 0, 2))
 r, g = g1(2400); check(2400, "done", r.get("ks_slots", 54)[36], 2)
 r, g = g1(2950); check(2950, "burnt", r.get("ks_slots", 54)[36], 3)
 r, g = g1(3040); check(3040, "Liberty carries", (r.get("lib_carry"), r.get("lib_cburnt")), (2, 1))

@@ -7,7 +7,7 @@ PYTHON ?= python3
 
 BUILD  := build
 SRC    := $(shell find src -name '*.asm')
-GEN    := $(BUILD)/palette.asm $(BUILD)/hudfont.asm $(BUILD)/recipes.asm $(BUILD)/text_en.asm $(BUILD)/text_gr.asm $(BUILD)/testtiles.bin $(BUILD)/test_map.bin $(BUILD)/lvl1_map.bin $(BUILD)/spr.asm
+GEN    := $(BUILD)/palette.asm $(BUILD)/hudfont.asm $(BUILD)/recicons.asm $(BUILD)/recipes.asm $(BUILD)/text_en.asm $(BUILD)/text_gr.asm $(BUILD)/testtiles.bin $(BUILD)/test_map.bin $(BUILD)/lvl1_map.bin $(BUILD)/spr.asm
 
 LOAD   := 0100
 EXEC   := 0100
@@ -38,7 +38,8 @@ $(BUILD)/palette.asm: data/palette.txt tools/palette.py tools/cpc.py | $(BUILD)
 	$(PYTHON) tools/palette.py --asm $@ --gpl assets/palette/cwl.gpl
 
 $(BUILD)/hudfont.asm: tools/mkfont.py tools/cpc.py | $(BUILD)
-	$(PYTHON) tools/mkfont.py $@
+	$(PYTHON) tools/mkfont.py $@ $(BUILD)/recicons.asm
+$(BUILD)/recicons.asm: $(BUILD)/hudfont.asm ;
 
 # HUD texts of each language and the letters they use
 $(BUILD)/text_%.asm: data/text/strings.tsv tools/text2asm.py tools/mkfont.py | $(BUILD)
@@ -144,7 +145,7 @@ $(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin $(BUILD)/prep_%.bin $(BUILD)/title_%.scr 
 	cp $< $(BUILD)/GAME.BIN
 	cd $(BUILD) && $(IDSK) $(notdir $@) -i GAME.BIN -t 1 -c $(LOAD) -e $(EXEC) -s >/dev/null && rm -f GAME.BIN
 	cp $(BUILD)/prep_$*.bin $(BUILD)/PREP.OVL
-	cd $(BUILD) && $(IDSK) $(notdir $@) -i PREP.OVL -t 1 -c 3800 -s >/dev/null && rm -f PREP.OVL
+	cd $(BUILD) && $(IDSK) $(notdir $@) -i PREP.OVL -t 1 -c 2800 -s >/dev/null && rm -f PREP.OVL
 	cp $(BUILD)/title_$*.scr $(BUILD)/TITLE.SCR
 	cd $(BUILD) && $(IDSK) $(notdir $@) -i TITLE.SCR -t 1 -c C000 -s >/dev/null && rm -f TITLE.SCR
 	cd $(BUILD) && for f in spr_?.dat; do b=$${f#spr_}; b=$${b%.dat}; cp $$f SPR$$b.DAT; $(IDSK) $(notdir $@) -i SPR$$b.DAT -t 1 -c 4000 -s >/dev/null; rm -f SPR$$b.DAT; done

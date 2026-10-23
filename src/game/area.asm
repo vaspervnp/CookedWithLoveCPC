@@ -70,9 +70,11 @@ area_load:
 ; The overlay between the days (src/ovl/prep.asm, PREP.OVL on the disc):
 ; the summary, the costs, the morning preparation. The service asks for it
 ; (ovl_req) when the room is empty: only Bill's figures are drawn then,
-; whose save-unders stay below OVL_BASE in the second save area, so the
-; overlay lives there until the service opens again.
-OVL_BASE	equ SAVE_AREA1+#800	; (where the boot code ran: 2K)
+; whose save-unders stay in the first 2K of each save area, so the overlay
+; lives in the other halves until the service opens again: one file from
+; OVL_BASE to OVL_HI + 2K (the 2K between, Bill's, zeros on the disc).
+OVL_BASE	equ SAVE_AREA0+#800	; 2K
+OVL_HI		equ SAVE_AREA1+#800	; 2K more (where the boot code ran)
 OVL_INIT	equ OVL_BASE		; jump table: init (phase SP_OVER/SP_PREP)
 OVL_TICK	equ OVL_BASE+3		; a tick between the days (bank 5 mapped)
 ovl_req:	db 0

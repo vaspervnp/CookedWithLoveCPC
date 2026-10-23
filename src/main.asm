@@ -905,6 +905,7 @@ tiles_b5	equ 0
 	include "game/service.asm"
 	include "game/kitchen.asm"
 	include "game/storage.asm"
+	include "game/menu.asm"
 	endif
 	include "game/demo.asm"
 bank5_end:

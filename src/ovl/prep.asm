@@ -27,7 +27,6 @@ DEMO	equ 0
 	jp ov_init
 	jp ov_tick
 
-	include "recipes.asm"		; dish_prep (OVERLAY)
 	include "lvl1_patch.asm"	; the expansion (tools/maps2asm.py)
 
 PREP_START	equ 10*60	; the morning
@@ -36,6 +35,12 @@ PORTION_MAX	equ 9		; per dish (one digit)
 OV_COL		equ 8		; HUD row 2: dish d at column OV_COL + 4 d
 OV_COST		equ 2+TXT_COST_LEN	; row 3: cost and price of the dish
 OV_PRICE	equ OV_COST+3+TXT_PRICE_LEN
+	if 6+TXT_EXP_LEN+TXT_DOWN_LEN+5<39-TXT_NEXT_LEN	; the evening: the recipe
+OV_RCCOL	equ 6+TXT_EXP_LEN		; after the room's price
+	else
+OV_RCCOL	equ 5+TXT_EXP_LEN		; (no space: Greek)
+	endif
+	assert OV_RCCOL+TXT_DOWN_LEN+5<39-TXT_NEXT_LEN,"row 3: the two offers do not fit"
 
 ov_cur:		db 0		; the dish chosen
 ov_sel:		db 0		; the first morning: Easy, Medium or Hard first
@@ -66,7 +71,8 @@ ov_init:
 	call sv_hud_money
 	call ov_summary
 	; fall through
-; Row 3 of the evening: the day over; the expansion on offer if affordable.
+; Row 3 of the evening: the day over; on offer if affordable the expansion
+; (up) and the next recipe (down: src/game/menu.asm).
 ov_evening:
 	ld a,(sv_exp)
 	or a
@@ -83,11 +89,107 @@ ov_evening:
 	ld hl,EXP_COST
 	ld d,3
 	ld bc,((2+TXT_EXP_LEN)<<8)+HUD_ROW3
-	jp hud_number
-.n:	ld a,13
+	call hud_number
+	ld b,OV_RCCOL
+	jr ov_rcdraw
+.n:	call ov_rcprice
+	ld a,13
 	ld hl,txt_day_end
-	ld de,txt_next
-	jp ov_line
+	jr c,.d
+	ld hl,txt_down
+.d:	ld de,txt_next
+	call ov_line
+	ld b,1
+	; fall through
+; The recipe on offer at column B of row 3: down, its icon, its price.
+ov_rcdraw:
+	call ov_rcprice
+	ret c
+	ld a,b
+	ld (ov_rcol),a
+	ld a,13
+	ld b,HUD_BG
+	call hud_colors
+	ld a,(ov_rcol)
+	ld b,a
+	ld c,HUD_ROW3
+	ld hl,txt_down
+	call hud_text
+	call ov_rcicon
+	ld a,(ov_rcol)
+	add a,TXT_DOWN_LEN		; (no space: room for both offers
+	ld b,a				; in Greek too)
+	call ov_rcchar
+	ld a,8
+	ld b,HUD_BG
+	call hud_colors
+	call ov_rcprice
+	ld a,(ov_rcol)
+	add a,TXT_DOWN_LEN+2
+	ld b,a
+	ld c,HUD_ROW3
+	ld d,3
+	jp hud_number
+; The next recipe's icon in G_NEW, its ink set.
+ov_rcicon:
+	ld a,(rc_cnt)
+	call rc_show
+	ld a,(rc_cnt)
+	ld hl,rc_ink
+	call st_add
+	ld a,(hl)
+	ld b,HUD_BG
+	jp hud_colors
+; G_NEW at columns B, B+1 of row 3.
+ov_rcchar:
+	ld c,HUD_ROW3
+	push bc
+	ld a,G_NEW_L
+	call hud_char
+	pop bc
+	inc b
+	ld a,G_NEW_R
+	jp hud_char
+; Carry: no recipe on offer (one bought already, none left, too dear);
+; else HL = its price.
+ov_rcprice:
+	ld a,(rc_new)
+	or a
+	scf
+	ret nz
+	ld a,(rc_cnt)
+	cp RC_N
+	ccf
+	ret c
+	ld hl,RC_COST0
+	ld de,RC_STEP
+	inc a
+.p:	dec a
+	jr z,.m
+	add hl,de
+	jr .p
+.m:	push hl
+	ex de,hl
+	ld hl,(sv_money)
+	or a
+	sbc hl,de
+	pop hl
+	ret
+ov_rcol:	db 0
+
+; Down in the evening: the recipe bought (on the menu in the morning).
+ov_rcbuy:
+	call ov_rcprice
+	ret c
+	ex de,hl
+	ld hl,(sv_money)
+	or a
+	sbc hl,de
+	ld (sv_money),hl
+	call sv_hud_money
+	ld a,1
+	ld (rc_new),a
+	jp ov_evening
 
 ; Up in the evening: the expansion bought (its map, its tables).
 ov_buy:
@@ -230,6 +332,8 @@ ov_tick:
 	jr nz,.f
 	bit KEY_UP,c
 	jp nz,ov_buy
+	bit KEY_DOWN,c
+	jp nz,ov_rcbuy
 .f:	bit KEY_FIRE,c
 	ret z
 	ld a,(sv_phase)
@@ -240,6 +344,7 @@ ov_tick:
 	jp z,ov_supplier
 	jr ov_morning
 .new:	call ov_unbuy
+	call rc_reset			; (the first menu again)
 	ld hl,START_MONEY		; a new game
 	ld (sv_money),hl
 	xor a
@@ -313,11 +418,25 @@ ov_morning:
 	call sv_hud_money
 	ld a,(sv_day)			; the first morning: Easy or Medium
 	dec a
-	jr nz,ov_prepline
+	jr nz,ov_rcmorn
 	inc a
 	ld (ov_sel),a
 	call ov_draw
 	jp ov_mode
+
+; A recipe bought: row 3 shows it; left/right the dish it replaces, fire.
+ov_rcmorn:
+	ld a,(rc_new)
+	or a
+	jr z,ov_prepline
+	ld a,13
+	ld hl,txt_new
+	ld de,txt_mode_ok
+	call ov_line
+	call ov_rcicon
+	ld b,2+TXT_NEW_LEN
+	call ov_rcchar
+	jp ov_draw
 
 ; Row 3 of the morning: cost and price of the dish, fire: open.
 ov_prepline:
@@ -399,7 +518,15 @@ ov_keys:
 	and DISH_N-1
 	ld (hl),a
 	jp ov_draw
-.u:	ld e,(hl)			; DE = the dish
+.u:	ld a,(rc_new)			; a recipe bought: fire puts it there
+	or a
+	jr z,.pp
+	bit KEY_FIRE,c
+	ret z
+	ld a,(hl)
+	call rc_place
+	jp ov_prepline
+.pp:	ld e,(hl)			; DE = the dish
 	ld d,0
 	bit KEY_UP,c
 	jr nz,ov_more
@@ -558,6 +685,9 @@ ov_draw:
 	ld a,c
 	cp DISH_N
 	jr nz,.d
+	ld a,(rc_new)			; (a recipe to place: its line stays)
+	or a
+	jp nz,sv_hud_money
 	ld a,13				; cost, price
 	ld b,HUD_BG
 	call hud_colors
@@ -593,6 +723,10 @@ ov_draw:
 	add hl,de
 	ld (sv_min),hl
 	jp sv_hud_time
+
+	assert $<=SAVE_AREA1,"the overlay's first half is too big"
+	print "overlay, first half: ",{hex}$
+	org OVL_HI			; (the other half: src/game/area.asm)
 
 ; The supplier (Hard, after the summary): boxes of each group for tomorrow
 ; (BOX_UNITS units, BOX_COST each, up to 9). Row 2: each group, its units
@@ -892,6 +1026,7 @@ ov_summary:
 	jp hud_number
 ov_pow:	dw 10,100,1000,10000,0
 
+	include "ovl/menu.asm"		; the recipes bought (src/game/menu.asm)
 	endif
-	assert $<=OVL_BASE+#800,"the overlay is too big"
+	assert $<=OVL_HI+#800,"the overlay is too big"
 	print "overlay end: ",{hex}$
