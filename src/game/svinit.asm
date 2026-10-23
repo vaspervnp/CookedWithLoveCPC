@@ -8,12 +8,17 @@ service_init:
 	inc hl
 	djnz .lk
 	endif
-	if TEST_FILL			; test: 9 portions of each, open
-	ld hl,sv_stock
+	if TEST_FILL			; test: 8 portions of each, open, the
+	ld hl,sv_stock			; hatch full (Hard)
 	ld b,DISH_N
-.st:	ld (hl),9
+.st:	ld (hl),8
 	inc hl
 	djnz .st
+	ld hl,st_hatch
+	ld b,ING_N
+.sh:	ld (hl),HATCH_CAP
+	inc hl
+	djnz .sh
 	xor a
 	call sv_status
 	call sv_hud_stock
