@@ -35,6 +35,7 @@ st_order:	ds ING_N,0	; boxes ordered for tomorrow
 st_deliv:	db 0		; today's delivery came
 blo_carry:	db 0		; group + 1 of what Blossom carries
 blo_units:	db 0
+	assert blo_units==blo_carry+1	; (hl_swap)
 st_kind:	db 0		; (blo_fire)
 
 ; A tick (Hard): the delivery, the warning.
@@ -93,6 +94,9 @@ blo_fire:
 	djnz .f
 	ret
 .at:	pop bc
+	; fall through
+; Blossom (the storage helper: src/game/helper.asm) at place IY (stn_buf).
+blo_at:
 	ld a,(iy+0)
 	cp 2
 	jr z,.door

@@ -51,7 +51,7 @@ staff_sprites:
 	ld hl,liberty_frames
 	ld de,liberty_act_frames
 	ld c,1
-	call .one
+	call staff_one
 	ld a,(lib_carry)
 	or a
 	ret z
@@ -60,15 +60,18 @@ staff_sprites:
 .st:	cp AREA_STORAGE
 	ret nz
 	ld ix,blo_rec
+	ld a,(blo_carry)
+	ld c,2
+; Blossom's figure: actor IX, A = what she carries, C = ctl_who when the
+; player's (the storage helper's too: src/game/helper.asm)
+staff_blo:
 	ld hl,blossom_frames
 	ld de,blossom_act_frames
-	ld c,2
-	ld a,(blo_carry)
 	or a
-	jr z,.one
+	jr z,staff_one
 	ld a,(ix+AC_DIR)
 	cp DIR_UP
-	jr z,.one
+	jr z,staff_one
 	push af
 	or a
 	jr z,.bd
@@ -78,13 +81,17 @@ staff_sprites:
 	call ac_frame
 	pop af
 	ld (ix+AC_DIR),a
-	jr .add
+	jr staff_add
 ; actor IX, walk frames HL, action frames DE, C = ctl_who when the player's
-.one:	ld a,(ctl_who)
+; (or walking: the walk frames; else working)
+staff_one:
+	ld a,(ctl_who)
 	cp c
 	jr z,.ac
+	ld a,(ix+AC_MOV)
+	or a
+	jr nz,.ac
 	push de
-	ld (ix+AC_MOV),0
 	call ac_frame			; (DE, BC)
 	ld a,(ix+AC_DIR)		; working: facing right (0) or left (6),
 	cp DIR_LEFT			; 2 phases of 8 ticks
@@ -108,9 +115,10 @@ staff_sprites:
 	inc hl
 	ld h,(hl)
 	ld l,a
-	jr .add
+	jr staff_add
 .ac:	call ac_frame
-.add:	push de
+staff_add:
+	push de
 	push bc
 	call sprites_add
 	pop bc

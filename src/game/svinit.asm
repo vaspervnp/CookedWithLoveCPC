@@ -13,22 +13,27 @@ service_init:
 	ld (sv_exp),a			; the pass (as hw_morning, src/ovl/prep.asm:
 	ld ix,wt_rec			; TEST_FILL starts with the service)
 	ld hl,PASS_BX
+	ld de,PASS_BY
 	ld a,EXP_WAITER
 	call .hw
 	ld ix,ck_rec
 	ld hl,PASS_KX
 	ld a,EXP_COOK
 	call .hw
+	ld ix,hl_rec
+	ld hl,HL_HX
+	ld de,HL_HY
+	ld a,EXP_HELPER
+	call .hw
 	jr .xd
 .hw:	ld (ix+HW_HX),l
 	ld (ix+HW_HX+1),h
 	ld (ix+AC_X),l
 	ld (ix+AC_X+1),h
-	ld hl,PASS_BY
-	ld (ix+HW_HY),l
-	ld (ix+HW_HY+1),h
-	ld (ix+AC_Y),l
-	ld (ix+AC_Y+1),h
+	ld (ix+HW_HY),e
+	ld (ix+HW_HY+1),d
+	ld (ix+AC_Y),e
+	ld (ix+AC_Y+1),d
 	ld hl,sv_exp
 	and (hl)
 	ret z
@@ -47,6 +52,12 @@ service_init:
 .sh:	ld (hl),HATCH_CAP
 	inc hl
 	djnz .sh
+	ifdef TEST_DOOR			; test: TEST_DOOR boxes of group 0 at
+	ld a,TEST_DOOR			; the door, none of it at the hatch
+	ld (st_door),a
+	xor a
+	ld (st_hatch),a
+	endif
 	xor a
 	call sv_status
 	call sv_hud_stock

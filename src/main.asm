@@ -1022,6 +1022,7 @@ tiles_b5	equ 0
 	include "game/menu.asm"
 	include "game/waiter.asm"
 	include "game/cook.asm"
+	include "game/helper.asm"
 	endif
 	include "game/demo.asm"		; (DEMO: the scripted input)
 bank5_end:

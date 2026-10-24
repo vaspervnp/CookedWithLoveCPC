@@ -45,6 +45,7 @@ OV_PRICE	equ OV_COST+3+TXT_PRICE_LEN
 	assert 7+TXT_EXP_KITCHEN_LEN+6<=39-TXT_NEXT_LEN,"row 3: the offers do not fit"
 	assert 7+TXT_EXP_WAITER_LEN+6<=39-TXT_NEXT_LEN,"row 3: the offers do not fit"
 	assert 7+TXT_EXP_COOK_LEN+6<=39-TXT_NEXT_LEN,"row 3: the offers do not fit"
+	assert 7+TXT_EXP_HELPER_LEN+6<=39-TXT_NEXT_LEN,"row 3: the offers do not fit"
 	assert TXT_EXP_STORE_LEN<=TXT_EXP_KITCHEN_LEN&&TXT_EXP_ROOM_LEN<=TXT_EXP_KITCHEN_LEN
 
 ov_cur:		db 0		; the dish chosen
@@ -70,7 +71,13 @@ ov_init:
 	ex de,hl
 	add hl,bc
 	ex de,hl
-.c:	or a
+.c:	bit 5,a				; (EXP_HELPER)
+	jr z,.h
+	ld bc,HL_WAGE
+	ex de,hl
+	add hl,bc
+	ex de,hl
+.h:	or a
 	sbc hl,de
 	jr nc,.paid
 	ld a,SFX_ANGRY			; not enough: game over
@@ -744,8 +751,9 @@ ov_rcol:	db 0
 ; Carry: no expansion on offer; else the first one not bought and
 ; affordable from ov_xsel on (ov_xi: 0 room, 1 kitchen, 2 storage, Hard
 ; only, 3 a waiter: src/game/waiter.asm, 4 a cook, not in Easy:
-; src/game/cook.asm), HL its price.
-OV_XN		equ 5
+; src/game/cook.asm, 5 a storage helper, Hard: src/game/helper.asm), HL its
+; price.
+OV_XN		equ 6
 ov_xprice:
 	ld a,(ov_xsel)
 	ld c,a
@@ -797,9 +805,10 @@ ov_xnext:
 	inc a
 	ld (ov_xsel),a
 	jp ov_evening
-ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST,WT_HIRE,CK_HIRE
+ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST,WT_HIRE,CK_HIRE,HL_HIRE
 ov_xtxt:	dw txt_exp_room,txt_exp_kitchen,txt_exp_store,txt_exp_waiter,txt_exp_cook
-ov_xmode:	db 0,0,2,0,1	; the least sv_mode
+		dw txt_exp_helper
+ov_xmode:	db 0,0,2,0,1,2	; the least sv_mode
 
 ; Down in the evening: the recipe bought (on the menu in the morning).
 ov_rcbuy:
@@ -853,7 +862,7 @@ ov_buy:
 	call ov_patch
 	xor a				; the tables free
 	call ov_tables
-	jr ov_view
+	jp ov_view
 
 	if DEMO==0
 ; The morning: the hired ones at the pass (src/game/waiter.asm, cook.asm).
@@ -863,6 +872,7 @@ hw_morning:
 	ld (wt_grp),a
 	ld (wt_plates),a
 	ld (ck_carry),a
+	ld (hl_carry),a
 	ld ix,wt_rec
 	ld a,EXP_WAITER
 	ld hl,PASS_BX
@@ -872,6 +882,11 @@ hw_morning:
 	ld a,EXP_COOK
 	ld hl,PASS_KX
 	ld de,PASS_BY
+	call hw_reset
+	ld ix,hl_rec
+	ld a,EXP_HELPER
+	ld hl,HL_HX
+	ld de,HL_HY
 	call hw_reset
 	pop ix
 	ret

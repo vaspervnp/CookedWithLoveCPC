@@ -109,6 +109,7 @@ EXP_KITCHEN	equ 2
 EXP_STORE	equ 4
 EXP_WAITER	equ 8		; (hired: src/game/waiter.asm)
 EXP_COOK	equ 16		; (src/game/cook.asm)
+EXP_HELPER	equ 32		; (src/game/helper.asm)
 sv_exp:		db 0
 	ifdef TEST_MONEY		; (tests: more)
 START_MONEY	equ TEST_MONEY
@@ -323,6 +324,7 @@ service_tick:
 .mk:	call sv_cook_tick
 	call wt_tick
 	call ck_tick
+	call hl_tick
 	call kitchen_tick
 	call storage_tick
 	ld hl,sv_tick
@@ -1819,6 +1821,7 @@ sv_bill_near:
 service_sprites:
 	call wt_sprites			; (hired)
 	call ck_sprites
+	call hl_sprites
 	call kitchen_sprites		; (Medium)
 	ld c,0				; plates left on tables (the tray sprite,
 .t:	ld a,c				; a stamp)
