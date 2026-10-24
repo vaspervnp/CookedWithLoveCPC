@@ -1,5 +1,4 @@
-; The seats of a table (src/game/service.asm), in base RAM (no room in
-; bank 5); called with bank 5 mapped (lvl_tables).
+; The seats of a table (src/game/service.asm).
 
 ; HL = table, A = seat k -> HL = seat_buf: x, y (the sitting customer's
 ; sprite), dir; from Bill's spot below the table (tools/buildmap.py

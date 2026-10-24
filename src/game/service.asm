@@ -1142,7 +1142,7 @@ sv_seat:
 	pop af
 	; fall through
 
-	jp tb_seat			; (base RAM: src/game/seats.asm)
+	jp tb_seat			; (src/game/seats.asm)
 
 ; HL = table A
 sv_table:

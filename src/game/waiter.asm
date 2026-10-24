@@ -2,7 +2,7 @@
 ; his wage with the rent): Bill's figure, on his own. He waits at the pass
 ; (Bill's spot there); an order ready and not on Bill's tray: he takes it,
 ; walks to its table by the turning points of his way (tools/buildmap.py
-; waiter_paths: wt_paths, wt_pts), serves it (sv_serve), walks back.
+; waiter_paths: HP_WTP, HP_WTPTS in the HUD page store), serves it (sv_serve), walks back.
 
 	if DEMO==0			; (DEMO builds: no room, no one hires)
 WT_OFF		equ 0
@@ -120,21 +120,19 @@ wt_group:
 	add ix,de
 	ret
 
-; HL = wt_wp, B = the turning points of the way to wt_tab (its first at
-; wt_ptr).
+; HL = wt_wp, B = the turning points of the way to wt_tab (their number's
+; index in the store at wt_ptr).
 wt_way:
 	ld a,(wt_tab)
-	ld hl,wt_paths
-	call st_add
-	ld a,(hl)
-	ld hl,wt_pts
-	call st_add
-	ld b,(hl)
-	inc hl
-	ld (wt_ptr),hl
+	add a,HP_WTP
+	call hp_get
+	add a,HP_WTPTS
+	ld (wt_ptr),a
+	call hp_get
+	ld b,a
 	ld hl,wt_wp
 	ret
-wt_ptr:		dw 0
+wt_ptr:		db 0
 
 ; HL = x, DE = y of the point wt_wp: a turning point (its metatile's
 ; centre), the table's spot, home.
@@ -146,11 +144,16 @@ wt_target:
 	cp b
 	jr nc,.spot
 	add a,a				; the point: column, row
-	ld hl,(wt_ptr)
-	call st_add
-	ld e,(hl)
-	inc hl
-	ld d,(hl)
+	ld hl,wt_ptr
+	add a,(hl)
+	inc a
+	ld h,a
+	call hp_get
+	ld e,a
+	ld a,h
+	inc a
+	call hp_get
+	ld d,a
 	ld l,e				; x = 16 c + 8
 	ld h,0
 	call .m16

@@ -1,7 +1,7 @@
 ; The kitchen in Medium (sv_mode = 1): Liberty cooks the orders. Each dish
 ; has its station (dish_stn: stove or oven, tools/recipes2asm.py); the
-; level's stoves and ovens are kitchen_stn (tools/buildmap.py), each a
-; place for one dish (ks_slots). Fire with Liberty:
+; level's stoves and ovens are in the HUD page store (HP_KS, tools/buildmap.py;
+; stn_load), each a place for one dish (ks_slots). Fire with Liberty:
 ;   at a free station: the oldest order's next dish of its kind starts
 ;     there (cooks by itself for its dish_ticks; done, it waits BURN_T,
 ;     then it burns);
@@ -87,7 +87,8 @@ lib_fire:
 	call sv_near
 	ret nc
 	jp lib_place
-.stn:	ld iy,kitchen_stn		; a station by her (the expansion's last)
+.stn:	ld a,HP_KS			; a station by her (the expansion's last)
+	call stn_first
 	ld ix,ks_slots
 	ld a,(sv_exp)
 	and EXP_KITCHEN
@@ -107,8 +108,7 @@ lib_fire:
 	ld c,KNEAR_Y
 	call sv_near
 	jr c,.at
-.nx:	ld de,5
-	add iy,de
+.nx:	call stn_next
 	ld de,KQ_SIZE
 	add ix,de
 	pop bc
@@ -335,12 +335,19 @@ kitchen_sprites:
 	or a
 	ret z
 	ld ix,ks_slots
-	ld iy,kitchen_stn
 	ld b,KS_N
 .s:	ld a,(ix+KQ_ST)
 	or a
 	jr z,.n
 	push bc
+	ld a,KS_N			; its station: HP_KS + 3 (KS_N - B)
+	sub b
+	ld c,a
+	add a,a
+	add a,c
+	add a,HP_KS
+	call stn_first
+	ld a,(ix+KQ_ST)
 	ld hl,ks_mood-1
 	add a,l
 	ld l,a
@@ -367,8 +374,41 @@ kitchen_sprites:
 	pop bc
 .n:	ld de,KQ_SIZE
 	add ix,de
-	ld de,5
-	add iy,de
 	djnz .s
 	ret
 ks_mood:	db MOOD_WAIT,MOOD_FOOD,MOOD_ANGRY
+
+; A station (the kitchen's, the storage's) from the HUD page store: A = its
+; index there (stn_first; stn_next: the one after) -> IY = stn_buf: type,
+; centre x, y (words: 16 column + 8, 16 row + 8). Destroys AF, E.
+stn_next:
+	ld a,(stn_i)
+	add a,3
+stn_first:
+	ld (stn_i),a
+	push hl
+	ld iy,stn_buf
+	ld e,a
+	call hp_get
+	ld (iy+0),a
+	call .w
+	ld (iy+1),l
+	ld (iy+2),h
+	call .w
+	ld (iy+3),l
+	ld (iy+4),h
+	pop hl
+	ret
+.w:	inc e
+	ld a,e
+	call hp_get
+	ld l,a
+	ld h,0
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	set 3,l
+	ret
+stn_i:		db 0
+stn_buf:	ds 5,0

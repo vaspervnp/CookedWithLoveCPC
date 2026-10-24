@@ -8,7 +8,7 @@
 ; the delivery door (st_door) and stay there until Blossom shelves them
 ; (what is left there at night goes off).
 ;
-; Fire with Blossom (storage_stn, tools/buildmap.py):
+; Fire with Blossom (HP_SS, tools/buildmap.py; stn_load):
 ;   at the door, empty-handed: a box (BOX_UNITS of a group);
 ;   at a shelf (fridge for meat/fish and dairy): carrying, she puts it
 ;     there; empty-handed, she takes BOX_UNITS of the group of that kind
@@ -72,7 +72,8 @@ blo_fire:
 	ld a,(sv_mode)
 	cp 2
 	ret nz
-	ld iy,storage_stn
+	ld a,HP_SS
+	call stn_first
 	ld b,SS_N
 .f:	push bc
 	ld e,(iy+1)
@@ -87,8 +88,7 @@ blo_fire:
 	ld c,KNEAR_Y
 	call sv_near
 	jr c,.at
-.nx:	ld de,5
-	add iy,de
+.nx:	call stn_next
 	pop bc
 	djnz .f
 	ret

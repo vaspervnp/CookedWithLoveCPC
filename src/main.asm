@@ -556,7 +556,32 @@ scroll_step_y:	db 8-7*FINE_Y
 	include "engine/sprite.asm"
 	include "engine/hud.asm"
 	include "engine/sound.asm"
-	include "game/seats.asm"
+
+; The HUD page store (build/lvl1_hp.asm, placed by hp_place): bytes 480-510
+; of the first set in each of its 8 lines (&41E0 + l*&800, free: the black
+; row B_MA ends at 480, 511 is the next set's). A = index -> A = its byte;
+; called with bank 5 mapped (it stays so).
+hp_get:
+	push hl
+	push bc
+	ld h,#41-8
+.l:	ld l,a				; line: index / 31
+	ld a,h
+	add a,8
+	ld h,a
+	ld a,l
+	sub 31
+	jr nc,.l
+	add a,31+#E0
+	ld l,a
+	ld bc,GA_PORT*256+RAM_C0
+	out (c),c
+	ld a,(hl)
+	ld c,RAM_C5
+	out (c),c
+	pop bc
+	pop hl
+	ret
 	include "game/area.asm"
 	include "engine/fdc.asm"
 	include "palette.asm"
@@ -663,6 +688,9 @@ start:
 	call hud_fill
 	endif
 	call tiles_place		; (after the HUD clear: in its page)
+	if MAP_TEST==0
+	call hp_place
+	endif
 
 	if TESTMODE
 	if TEST_PATH==1 || TEST_PATH==3
@@ -841,6 +869,24 @@ hud_clear:
 	if SERVICE
 	include "game/svinit.asm"
 	endif
+	if MAP_TEST==0
+; The HUD page store's data to its places (hp_get). Needs RAM_C0.
+hp_place:
+	ld hl,hp_data
+	ld de,#41E0
+	ld b,8
+.l:	push bc
+	ld bc,31
+	ldir
+	ld a,d
+	add a,8
+	ld d,a
+	ld e,#E0
+	pop bc
+	djnz .l
+	ret
+	include "lvl1_hp.asm"
+	endif
 boot_end:
 	assert boot_end<=#4000,"boot code too big"
 	print "boot code end: ",{hex}boot_end
@@ -904,6 +950,7 @@ tiles_b5	equ 0
 	include "game/items.asm"
 	if SERVICE
 	include "game/service.asm"
+	include "game/seats.asm"
 	include "game/kitchen.asm"
 	include "game/storage.asm"
 	include "game/menu.asm"
