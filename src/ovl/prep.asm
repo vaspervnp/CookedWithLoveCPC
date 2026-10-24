@@ -44,6 +44,7 @@ OV_PRICE	equ OV_COST+3+TXT_PRICE_LEN
 	; recipe's icon and price, then fire: next day at the right
 	assert 7+TXT_EXP_KITCHEN_LEN+6<=39-TXT_NEXT_LEN,"row 3: the offers do not fit"
 	assert 7+TXT_EXP_WAITER_LEN+6<=39-TXT_NEXT_LEN,"row 3: the offers do not fit"
+	assert 7+TXT_EXP_COOK_LEN+6<=39-TXT_NEXT_LEN,"row 3: the offers do not fit"
 	assert TXT_EXP_STORE_LEN<=TXT_EXP_KITCHEN_LEN&&TXT_EXP_ROOM_LEN<=TXT_EXP_KITCHEN_LEN
 
 ov_cur:		db 0		; the dish chosen
@@ -60,11 +61,16 @@ ov_init:
 	ld hl,(sv_money)		; the day is over: rent and wages
 	ld de,DAY_COST
 	ld a,(sv_exp)
-	and EXP_WAITER
+	bit 3,a				; (EXP_WAITER)
 	jr z,.w
 	ld de,DAY_COST+WT_WAGE
-.w:
-	or a
+.w:	bit 4,a				; (EXP_COOK)
+	jr z,.c
+	ld bc,CK_WAGE
+	ex de,hl
+	add hl,bc
+	ex de,hl
+.c:	or a
 	sbc hl,de
 	jr nc,.paid
 	ld a,SFX_ANGRY			; not enough: game over
@@ -258,7 +264,7 @@ ov_morning:
 	ld hl,bill_x
 	ld (ctl_rec),hl
 	push af
-	call wt_reset			; (hired: at the pass)
+	call hw_morning			; (hired: at the pass)
 	pop af
 	ld hl,ks_slots
 	ld b,KS_SIZE
@@ -737,24 +743,26 @@ ov_rcol:	db 0
 
 ; Carry: no expansion on offer; else the first one not bought and
 ; affordable from ov_xsel on (ov_xi: 0 room, 1 kitchen, 2 storage, Hard
-; only, 3 a waiter: src/game/waiter.asm), HL its price.
+; only, 3 a waiter: src/game/waiter.asm, 4 a cook, not in Easy:
+; src/game/cook.asm), HL its price.
+OV_XN		equ 5
 ov_xprice:
 	ld a,(ov_xsel)
 	ld c,a
-	ld e,4				; (tries)
+	ld e,OV_XN			; (tries)
 .x:	ld a,c
-	cp 4
+	cp OV_XN
 	jr c,.c
 	xor a
 	ld c,a
 .c:	ld (ov_xi),a
-	cp 2
-	jr nz,.m
-	ld a,(sv_mode)			; the storage: Hard only
-	cp 2
-	jr nz,.n
+	ld hl,ov_xmode			; (its modes)
+	call st_add
+	ld a,(sv_mode)
+	cp (hl)
+	jr c,.n
 	ld a,c
-.m:	ld b,a				; bought?
+	ld b,a				; bought?
 	inc b
 	ld a,1
 .b:	dec b
@@ -789,8 +797,9 @@ ov_xnext:
 	inc a
 	ld (ov_xsel),a
 	jp ov_evening
-ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST,WT_HIRE
-ov_xtxt:	dw txt_exp_room,txt_exp_kitchen,txt_exp_store,txt_exp_waiter
+ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST,WT_HIRE,CK_HIRE
+ov_xtxt:	dw txt_exp_room,txt_exp_kitchen,txt_exp_store,txt_exp_waiter,txt_exp_cook
+ov_xmode:	db 0,0,2,0,1	; the least sv_mode
 
 ; Down in the evening: the recipe bought (on the menu in the morning).
 ov_rcbuy:
@@ -839,12 +848,55 @@ ov_buy:
 	ret nz
 	ld hl,patch_kopen		; the kitchen
 	call ov_patch
-	jr ov_view
+	jp ov_view
 .room:	ld hl,patch_open
 	call ov_patch
 	xor a				; the tables free
 	call ov_tables
 	jr ov_view
+
+	if DEMO==0
+; The morning: the hired ones at the pass (src/game/waiter.asm, cook.asm).
+hw_morning:
+	push ix
+	xor a
+	ld (wt_grp),a
+	ld (wt_plates),a
+	ld (ck_carry),a
+	ld ix,wt_rec
+	ld a,EXP_WAITER
+	ld hl,PASS_BX
+	ld de,PASS_BY
+	call hw_reset
+	ld ix,ck_rec
+	ld a,EXP_COOK
+	ld hl,PASS_KX
+	ld de,PASS_BY
+	call hw_reset
+	pop ix
+	ret
+; IX = record, home HL, DE, A = its sv_exp bit: there, if hired.
+hw_reset:
+	ld (ix+HW_HX),l
+	ld (ix+HW_HX+1),h
+	ld (ix+HW_HY),e
+	ld (ix+HW_HY+1),d
+	ld (ix+AC_X),l
+	ld (ix+AC_X+1),h
+	ld (ix+AC_Y),e
+	ld (ix+AC_Y+1),d
+	ld (ix+AC_DIR),0
+	ld hl,sv_exp
+	and (hl)
+	jr z,.s
+	ld a,WT_HOME
+.s:	ld (ix+HW_STATE),a
+	ret
+
+	else
+hw_morning:
+	ret
+	endif
 
 ; A new game: the expansions closed again.
 ov_unbuy:

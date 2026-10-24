@@ -31,6 +31,7 @@ lib_carry:	db 0		; group + 1 of the plate Liberty carries
 lib_cdish:	db 0
 lib_cord:	db 0
 lib_cburnt:	db 0
+	assert lib_cburnt-lib_carry==3	; (a carry block: ks_take, ks_place)
 ks_type:	db 0		; (lib_start)
 ks_age:		db 0
 ks_bg:		dw 0
@@ -87,14 +88,10 @@ lib_fire:
 	call sv_near
 	ret nc
 	jp lib_place
-.stn:	ld a,HP_KS			; a station by her (the expansion's last)
+.stn:	ld a,HP_KS			; a station by her
 	call stn_first
 	ld ix,ks_slots
-	ld a,(sv_exp)
-	and EXP_KITCHEN
-	ld b,KS_N0
-	jr z,.f
-	ld b,KS_N
+	call ks_count
 .f:	push bc
 	ld e,(iy+1)
 	ld d,(iy+2)
@@ -120,21 +117,62 @@ lib_fire:
 	jr z,lib_start
 	cp 2
 	ret c				; still cooking
-	sub 2				; done or burnt: she takes it
-	ld (lib_cburnt),a
+	ld iy,lib_carry			; done or burnt: she takes it
+	; fall through
+; Slot IX done or burnt: its plate to carry block IY (lib_carry, ck_carry:
+; group + 1, dish, order, burnt).
+ks_take:
+	ld a,(ix+KQ_ST)
+	sub 2
+	ld (iy+3),a
 	ld a,(ix+KQ_DISH)
-	ld (lib_cdish),a
+	ld (iy+1),a
 	ld a,(ix+KQ_ORD)
-	ld (lib_cord),a
+	ld (iy+2),a
 	ld a,(ix+KQ_GRP)
-	ld (lib_carry),a
+	ld (iy+0),a
 	ld (ix+KQ_ST),0
+	ret
+
+; B = the stations there (the expansion's last).
+ks_count:
+	ld a,(sv_exp)
+	and EXP_KITCHEN
+	ld b,KS_N0
+	ret z
+	ld b,KS_N
+	ret
+
+; IY = stn_buf: station A (stn_first).
+ks_stn:
+	ld e,a
+	add a,a
+	add a,e
+	add a,HP_KS
+	jp stn_first
+
+; IX = the slot of station A. Destroys DE.
+ks_slot:
+	ld e,a
+	add a,a
+	add a,e
+	add a,a
+	ld e,a
+	ld d,0
+	ld ix,ks_slots
+	add ix,de
 	ret
 
 ; Station IY (its slot IX) is free: the dish of its kind waiting longest.
 lib_start:
 	ld a,(iy+0)
 	ld (ks_type),a
+	call ks_find
+	ret z				; nothing of this kind to cook
+	jr ks_cook
+; NZ if a dish of kind ks_type waits (the oldest: ks_bg, ks_bm, ks_bd).
+; Destroys B, DE, HL.
+ks_find:
 	xor a
 	ld (ks_age),a
 	push ix
@@ -183,7 +221,8 @@ lib_start:
 	pop ix
 	ld a,(ks_age)
 	or a
-	ret z				; nothing of this kind to cook
+	ret
+ks_cook:
 	ld iy,(ks_bg)
 	ld a,(ks_bm)
 	or (iy+GR_KIT)
@@ -257,10 +296,13 @@ dish_station:
 	pop hl
 	ret
 
-; Liberty leaves her plate at the pass: the dish of its order is there; all
-; of them: the order is ready. (The group gone, or a new one there: lost.)
+; Liberty leaves her plate at the pass (the cook his, IY = ck_carry:
+; ks_place): the dish of its order is there; all of them: the order is
+; ready. (The group gone, or a new one there: lost.)
 lib_place:
-	ld a,(lib_carry)
+	ld iy,lib_carry
+ks_place:
+	ld a,(iy+0)
 	dec a
 	add a,a
 	add a,a
@@ -270,12 +312,11 @@ lib_place:
 	ld d,0
 	ld ix,groups
 	add ix,de
-	xor a
-	ld (lib_carry),a
+	ld (iy+0),0
 	ld a,(ix+GR_STATE)
 	cp GS_ORDERED
 	ret nz
-	ld a,(lib_cord)
+	ld a,(iy+2)
 	cp (ix+GR_ORD)
 	ret nz
 	push ix
@@ -284,7 +325,7 @@ lib_place:
 	add hl,de
 	ld b,(ix+GR_N)
 	ld d,1				; started bit; placed: d << 4
-.m:	ld a,(lib_cdish)
+.m:	ld a,(iy+1)
 	cp (hl)
 	jr nz,.mn
 	ld a,(ix+GR_KIT)
@@ -306,7 +347,7 @@ lib_place:
 .pl:	ld a,(ix+GR_KIT)
 	or e
 	ld (ix+GR_KIT),a
-	ld a,(lib_cburnt)		; burnt: patience (the tip) down when
+	ld a,(iy+3)			; burnt: patience (the tip) down when
 	or a				; served (GR_BURNT, src/game/service.asm)
 	jr z,.ok
 	inc (ix+GR_BURNT)
@@ -340,13 +381,9 @@ kitchen_sprites:
 	or a
 	jr z,.n
 	push bc
-	ld a,KS_N			; its station: HP_KS + 3 (KS_N - B)
+	ld a,KS_N			; its station
 	sub b
-	ld c,a
-	add a,a
-	add a,c
-	add a,HP_KS
-	call stn_first
+	call ks_stn
 	ld a,(ix+KQ_ST)
 	ld hl,ks_mood-1
 	add a,l

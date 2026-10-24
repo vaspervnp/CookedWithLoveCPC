@@ -9,9 +9,32 @@ service_init:
 	djnz .lk
 	endif
 	ifdef TEST_XP			; test: expansions bought (sv_exp bits;
-	ld a,TEST_XP			; the maps stay closed; a waiter: at the
-	ld (sv_exp),a			; pass)
-	call wt_reset
+	ld a,TEST_XP			; the maps stay closed), the hired ones at
+	ld (sv_exp),a			; the pass (as hw_morning, src/ovl/prep.asm:
+	ld ix,wt_rec			; TEST_FILL starts with the service)
+	ld hl,PASS_BX
+	ld a,EXP_WAITER
+	call .hw
+	ld ix,ck_rec
+	ld hl,PASS_KX
+	ld a,EXP_COOK
+	call .hw
+	jr .xd
+.hw:	ld (ix+HW_HX),l
+	ld (ix+HW_HX+1),h
+	ld (ix+AC_X),l
+	ld (ix+AC_X+1),h
+	ld hl,PASS_BY
+	ld (ix+HW_HY),l
+	ld (ix+HW_HY+1),h
+	ld (ix+AC_Y),l
+	ld (ix+AC_Y+1),h
+	ld hl,sv_exp
+	and (hl)
+	ret z
+	ld (ix+HW_STATE),WT_HOME
+	ret
+.xd:
 	endif
 	if TEST_FILL			; test: 8 portions of each, open, the
 	ld hl,sv_stock			; hatch full (Hard)

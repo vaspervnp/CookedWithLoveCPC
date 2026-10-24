@@ -2,65 +2,34 @@
 ; his wage with the rent): Bill's figure, on his own. He waits at the pass
 ; (Bill's spot there); an order ready and not on Bill's tray: he takes it,
 ; walks to its table by the turning points of his way (tools/buildmap.py
-; waiter_paths: HP_WTP, HP_WTPTS in the HUD page store), serves it (sv_serve), walks back.
+; waiter_paths: HP_WTP in the second HUD page store, hp_get2), serves it
+; (sv_serve), walks back. The walking (hw_*) is the hired cook's too
+; (src/game/cook.asm).
 
 	if DEMO==0			; (DEMO builds: no room, no one hires)
-WT_OFF		equ 0
+WT_OFF		equ 0		; (the hired ones' HW_STATE)
 WT_HOME		equ 1		; at the pass
-WT_GO		equ 2		; to the table
+WT_GO		equ 2		; to the table (the cook: the station)
 WT_BACK		equ 3		; to the pass
 WT_WAGE		equ 20		; a day
 WT_HIRE		equ 100		; to hire him
 
-wt_rec:		ds 10,0		; actor record (AC_*)
-wt_state:	db 0
-wt_grp:		db 0		; group + 1 whose plates he carries (0: none)
-wt_tab:		db 0
-wt_wp:		db 0		; point of the way: 0.. n-1, n the table, #FF home
-wt_plates:	db 0
-
-; The morning: at the pass, if hired.
-wt_reset:
-	xor a
-	ld (wt_grp),a
-	ld (wt_plates),a
-	ld (wt_rec+AC_DIR),a
-	ld a,(sv_exp)
-	and EXP_WAITER
-	jr z,.s
-	ld a,WT_HOME
-.s:	ld (wt_state),a
-	ld hl,PASS_BX
-	ld (wt_rec+AC_X),hl
-	ld hl,PASS_BY
-	ld (wt_rec+AC_Y),hl
-	ret
+	; wt_rec, wt_grp, wt_tab, wt_plates: src/game/vars.asm
 
 ; A tick of the service.
 wt_tick:
-	ld a,(wt_state)
+	ld ix,wt_rec
+	ld a,(ix+HW_STATE)
 	or a
 	ret z
 	dec a
 	jr z,.home
-	call wt_target			; on his way
-	call wt_step
+	call hw_walk			; on his way
 	ret nz
-	ld a,(wt_state)
+	ld a,(ix+HW_STATE)
 	cp WT_GO
-	ld hl,wt_wp
-	jr nz,.back
-	call wt_way			; B = turning points
-	ld a,(hl)
-	cp b
-	jr nc,.table
-	inc (hl)			; the next one
-	ret
-.table:	ld a,b				; there: back by the same way
-	dec a
-	ld (hl),a			; (none: #FF, home)
-	ld a,WT_BACK
-	ld (wt_state),a
+	jr nz,hw_home
+	ld (ix+HW_STATE),WT_BACK	; at the table: back by the same way
 	ld a,(wt_grp)			; still theirs (not gone)?
 	or a
 	ret z
@@ -72,14 +41,6 @@ wt_tick:
 	cp GS_CARRIED
 	ret nz
 	jp sv_serve
-.back:	ld a,(hl)
-	inc a
-	jr z,.home0			; home
-	dec (hl)
-	ret
-.home0:	ld a,WT_HOME
-	ld (wt_state),a
-	ret
 .home:	ld ix,groups			; an order ready: his
 	ld b,G_MAX
 .g:	ld a,(ix+GR_STATE)
@@ -94,18 +55,34 @@ wt_tick:
 	sub b
 	inc a
 	ld (wt_grp),a
-	ld a,(ix+GR_TABLE)
-	ld (wt_tab),a
 	ld a,(ix+GR_N)			; (the tray holds 3)
 	cp 4
 	jr c,.p3
 	ld a,3
 .p3:	ld (wt_plates),a
-	xor a
-	ld (wt_wp),a
-	ld a,WT_GO
-	ld (wt_state),a
+	ld a,(ix+GR_TABLE)
+	ld (wt_tab),a
+	ld ix,wt_rec
+	add a,HP_WTP
+	call hw_go
+	ld a,(wt_tab)			; its end: the table's spot (as Bill's)
+	call sv_table
+	inc hl
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld (ix+HW_EX),e
+	ld (ix+HW_EX+1),d
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	ld (ix+HW_EY),e
+	ld (ix+HW_EY+1),d
 	jp sv_hud_tickets
+hw_home:
+	ld (ix+HW_STATE),WT_HOME
+	ret
 
 ; IX = group wt_grp - 1
 wt_group:
@@ -120,79 +97,79 @@ wt_group:
 	add ix,de
 	ret
 
-; HL = wt_wp, B = the turning points of the way to wt_tab (their number's
-; index in the store at wt_ptr).
-wt_way:
-	ld a,(wt_tab)
-	add a,HP_WTP
-	call hp_get
-	add a,HP_WTPTS
-	ld (wt_ptr),a
-	call hp_get
-	ld b,a
-	ld hl,wt_wp
+; IX = record: on the way at store index A (hp_get2: its index there), its
+; end the last point.
+hw_go:
+	call hp_get2
+	ld (ix+HW_PTR),a
+	ld (ix+HW_WP),0
+	ld (ix+HW_STATE),WT_GO
+	ld c,a
+	call hp_get2
+	add a,a
+	add a,c
+	dec a
+	call hw_point
+	ld (ix+HW_EX),l
+	ld (ix+HW_EX+1),h
+	ld (ix+HW_EY),e
+	ld (ix+HW_EY+1),d
 	ret
-wt_ptr:		db 0
 
-; HL = x, DE = y of the point wt_wp: a turning point (its metatile's
-; centre), the table's spot, home.
-wt_target:
-	call wt_way
-	ld a,(hl)
+; IX = record going (WT_GO) or back (WT_BACK): a step; Z at the way's end
+; (or home), then back by the same way.
+hw_walk:
+	call hw_target
+	call wt_step
+	ret nz
+	ld a,(ix+HW_PTR)
+	call hp_get2
+	ld b,a
+	ld a,(ix+HW_STATE)
+	cp WT_GO
+	jr nz,.back
+	ld a,(ix+HW_WP)
+	cp b
+	jr nc,.end
+	inc (ix+HW_WP)			; the next one (NZ)
+	ret
+.end:	dec b				; (none: #FF, home)
+	ld (ix+HW_WP),b
+	xor a
+	ret
+.back:	ld a,(ix+HW_WP)
+	dec (ix+HW_WP)
+	inc a
+	ret
+
+; IX = record -> HL = x, DE = y of its point: a turning point (its
+; metatile's centre: hw_point, in the common code), the end, home.
+hw_target:
+	ld a,(ix+HW_PTR)
+	call hp_get2
+	ld b,a
+	ld a,(ix+HW_WP)
 	cp #FF
 	jr z,.home
 	cp b
-	jr nc,.spot
-	add a,a				; the point: column, row
-	ld hl,wt_ptr
-	add a,(hl)
+	jr nc,.end
+	add a,a
+	add a,(ix+HW_PTR)
 	inc a
-	ld h,a
-	call hp_get
-	ld e,a
-	ld a,h
-	inc a
-	call hp_get
-	ld d,a
-	ld l,e				; x = 16 c + 8
-	ld h,0
-	call .m16
-	ld bc,8
-	add hl,bc
-	push hl
-	ld l,d				; y = 16 r + 12
-	ld h,0
-	call .m16
-	ld bc,12
-	add hl,bc
-	ex de,hl
-	pop hl
+	jp hw_point
+.home:	ld l,(ix+HW_HX)
+	ld h,(ix+HW_HX+1)
+	ld e,(ix+HW_HY)
+	ld d,(ix+HW_HY+1)
 	ret
-.m16:	add hl,hl
-	add hl,hl
-	add hl,hl
-	add hl,hl
-	ret
-.spot:	ld a,(wt_tab)			; the table's spot (as Bill's)
-	call sv_table
-	inc hl
-	ld e,(hl)
-	inc hl
-	ld d,(hl)
-	inc hl
-	ld a,(hl)
-	inc hl
-	ld h,(hl)
-	ld l,a
-	ex de,hl
-	ret
-.home:	ld hl,PASS_BX
-	ld de,PASS_BY
+.end:	ld l,(ix+HW_EX)
+	ld h,(ix+HW_EX+1)
+	ld e,(ix+HW_EY)
+	ld d,(ix+HW_EY+1)
 	ret
 
-; A step towards HL, DE (x first, then y): Z there.
+; IX = record: a step towards HL, DE (x first, then y): Z there.
 wt_step:
-	ld ix,wt_rec
 	push de
 	ld e,(ix+AC_X)
 	ld d,(ix+AC_X+1)
@@ -249,7 +226,6 @@ wt_sprites:
 	else
 wt_tick:
 wt_sprites:
-wt_reset:
 	ret
 wt_grp:		db 0
 WT_WAGE		equ 0

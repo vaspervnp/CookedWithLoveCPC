@@ -3,11 +3,123 @@
 ; blossom, blossom_carry, blossom_act). Their sprites are in the area images
 ; of bank 7: each is drawn only while her area is loaded.
 ;
-; For now each runs a looped test script. A step: kind, a, b, ticks
-;   ST_ACT:   a = action, b = frame offset of the facing (0 right, else left)
-;   ST_WALK:  a = DIR_*, b = pixels per 2 ticks (signed, horizontal)
-;   ST_CARRY: as ST_WALK, carrying a box (frames: down, right, left; going
-;             up the walk frames are used, the box is hidden)
+; In the game (SERVICE) both are actors (lib_rec, blo_rec, src/game/actor.asm)
+; from the start: the player's after a swap (fire 2 / space); not the
+; player's, each works where she stands (her action frames). The test
+; builds without the service run each on a looped script (below).
+
+	if SERVICE
+LIB_X0 equ 360 : LIB_Y0 equ 207		; feet: kitchen row 12, the oven to her left
+BLO_X0 equ 536 : BLO_Y0 equ 399		; storage row 24
+
+; Swap the player (the service, fire 2 / space): Bill -> Liberty -> (Hard:
+; Blossom ->) Bill.
+staff_swap:
+	xor a				; none walks on by himself
+	ld (bill_moving),a
+	ld (lib_rec+AC_MOV),a
+	ld (blo_rec+AC_MOV),a
+	ld a,(ctl_who)
+	inc a
+	cp 2
+	jr c,.w
+	jr nz,.b0			; (3: back to Bill)
+	ld a,(sv_mode)			; Blossom in Hard only
+	cp 2
+	ld a,2
+	jr z,.w
+.b0:	xor a
+.w:	ld (ctl_who),a
+	ld hl,bill_x
+	or a
+	jr z,.set
+	ld hl,lib_rec
+	dec a
+	jr z,.set
+	ld hl,blo_rec
+.set:	ld (ctl_rec),hl
+	jp sv_hud_stock			; (row 3: Blossom's or the portions)
+
+; Liberty with a plate over her (src/game/kitchen.asm), Blossom carrying
+; (but going up: walking) with her carry frames (down, right, left), each
+; in her area.
+staff_sprites:
+	ld a,(area_cur)
+	cp AREA_KITCHEN
+	jr nz,.st
+	ld ix,lib_rec
+	ld hl,liberty_frames
+	ld de,liberty_act_frames
+	ld c,1
+	call .one
+	ld a,(lib_carry)
+	or a
+	ret z
+	ld a,MOOD_FOOD
+	jp bubble_a
+.st:	cp AREA_STORAGE
+	ret nz
+	ld ix,blo_rec
+	ld hl,blossom_frames
+	ld de,blossom_act_frames
+	ld c,2
+	ld a,(blo_carry)
+	or a
+	jr z,.one
+	ld a,(ix+AC_DIR)
+	cp DIR_UP
+	jr z,.one
+	push af
+	or a
+	jr z,.bd
+	dec a
+.bd:	ld (ix+AC_DIR),a
+	ld hl,blossom_carry_frames
+	call ac_frame
+	pop af
+	ld (ix+AC_DIR),a
+	jr .add
+; actor IX, walk frames HL, action frames DE, C = ctl_who when the player's
+.one:	ld a,(ctl_who)
+	cp c
+	jr z,.ac
+	push de
+	ld (ix+AC_MOV),0
+	call ac_frame			; (DE, BC)
+	ld a,(ix+AC_DIR)		; working: facing right (0) or left (6),
+	cp DIR_LEFT			; 2 phases of 8 ticks
+	ld a,0
+	jr nz,.r
+	ld a,6
+.r:	ld l,a
+	ld a,(sv_tick)
+	rrca
+	rrca
+	rrca
+	and 1
+	add a,l
+	add a,a
+	pop hl
+	add a,l
+	ld l,a
+	jr nc,.d
+	inc h
+.d:	ld a,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,a
+	jr .add
+.ac:	call ac_frame
+.add:	push de
+	push bc
+	call sprites_add
+	pop bc
+	pop de
+	ret
+
+staff_tick:
+	ret
+	else
 
 ST_ACT		equ 0
 ST_WALK		equ 1
@@ -61,65 +173,6 @@ lib_taken:	db 0		; Liberty is the player's (lib_rec) since a swap
 
 blo_taken:	db 0
 
-	if SERVICE
-; Swap the player (the service, fire 2 / space): Bill -> Liberty -> (Hard:
-; Blossom ->) Bill. The first time each leaves her script where she is.
-staff_swap:
-	xor a				; none walks on by himself
-	ld (bill_moving),a
-	ld (lib_rec+AC_MOV),a
-	ld (blo_rec+AC_MOV),a
-	ld a,(ctl_who)
-	inc a
-	cp 2
-	jr c,.w
-	jr nz,.b0			; (3: back to Bill)
-	ld a,(sv_mode)			; Blossom in Hard only
-	cp 2
-	ld a,2
-	jr z,.w
-.b0:	xor a
-.w:	ld (ctl_who),a
-	ld hl,bill_x
-	or a
-	jr z,.set
-	dec a
-	jr nz,.blo
-	ld hl,lib_taken
-	ld ix,staff_list
-	ld de,lib_rec
-	call .take
-	ld hl,lib_rec
-	jr .set
-.blo:	ld hl,blo_taken
-	ld ix,staff_list+SR_SIZE
-	ld de,blo_rec
-	call .take
-	ld hl,blo_rec
-.set:	ld (ctl_rec),hl
-	jp sv_hud_stock			; (row 3: Blossom's or the portions)
-; flag HL, staff record IX -> actor record DE (sprite left/top -> feet)
-.take:	ld a,(hl)
-	or a
-	ret nz
-	inc (hl)
-	push de
-	pop iy
-	ld l,(ix+SR_X)
-	ld h,(ix+SR_X+1)
-	ld de,16
-	add hl,de
-	ld (iy+AC_X),l
-	ld (iy+AC_X+1),h
-	ld l,(ix+SR_Y)
-	ld h,(ix+SR_Y+1)
-	ld de,47
-	add hl,de
-	ld (iy+AC_Y),l
-	ld (iy+AC_Y+1),h
-	ld (iy+AC_DIR),DIR_DOWN
-	ret
-	endif
 
 ; NZ if staff record IX is under the player (A: 1 Liberty, 2 Blossom).
 staff_taken:
@@ -216,24 +269,6 @@ staff_sprites:
 	jr z,.lf
 	ld ix,blo_rec			; Blossom: carrying (but going up):
 	ld hl,blossom_frames		; her carry frames (down, right, left)
-	if SERVICE
-	ld a,(blo_carry)
-	or a
-	jr z,.lf
-	ld a,(ix+AC_DIR)
-	cp DIR_UP
-	jr z,.lf
-	push af
-	or a
-	jr z,.bd
-	dec a
-.bd:	ld (ix+AC_DIR),a
-	ld hl,blossom_carry_frames
-	call ac_frame
-	pop af
-	ld (ix+AC_DIR),a
-	jr .add2
-	endif
 .lf:	call ac_frame
 .add2:	push de
 	push bc
@@ -241,20 +276,6 @@ staff_sprites:
 	pop bc
 	pop de
 	pop ix
-	if SERVICE
-	push ix				; (Blossom: no plate)
-	pop hl
-	ld a,l
-	cp staff_list&255
-	ret nz
-	ld a,(lib_carry)		; a plate (src/game/kitchen.asm)
-	or a
-	ret z
-	ld a,MOOD_FOOD
-	push ix
-	call bubble_a
-	pop ix
-	endif
 	ret
 .scr:	ld l,(ix+SR_STEP)
 	ld h,(ix+SR_STEP+1)
@@ -336,3 +357,4 @@ staff_sprites:
 	rrca
 	and 3
 	jp walk_frame
+	endif

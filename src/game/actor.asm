@@ -420,8 +420,13 @@ bill_dir:	db 0
 bill_anim:	db 0
 bill_dist:	db 0
 bill_moving:	db 0
-lib_rec:	ds 10,0		; Liberty, once taken over (src/game/staff.asm)
-blo_rec:	ds 10,0		; Blossom (Hard)
+	if SERVICE			; Liberty, Blossom (Hard: src/game/staff.asm)
+lib_rec:	dw LIB_X0 : db 0 : dw LIB_Y0 : db 0,DIR_LEFT,0,0,0
+blo_rec:	dw BLO_X0 : db 0 : dw BLO_Y0 : db 0,DIR_DOWN,0,0,0
+	else
+lib_rec:	ds 10,0
+blo_rec:	ds 10,0
+	endif
 ctl_rec:	dw bill_x	; under control
 ctl_who:	db 0		; 0 Bill, 1 Liberty, 2 Blossom
 at_in:		db 0

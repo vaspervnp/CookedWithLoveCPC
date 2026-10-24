@@ -557,10 +557,29 @@ scroll_step_y:	db 8-7*FINE_Y
 	include "engine/hud.asm"
 	include "engine/sound.asm"
 
-; The HUD page store (build/lvl1_hp.asm, placed by hp_place): bytes 480-510
-; of the first set in each of its 8 lines (&41E0 + l*&800, free: the black
-; row B_MA ends at 480, 511 is the next set's). A = index -> A = its byte;
-; called with bank 5 mapped (it stays so).
+; The HUD page stores (build/lvl1_hp.asm, placed by hp_place), free bytes
+; of its 8 lines (&4000 + l*&800): hp_get, 248 bytes, 480-510 of the first
+; set (the black row B_MA ends at 480, 511 is the next set's); hp_get2,
+; 360 bytes, 496-510 of the others (their tiles end at 496). A = index ->
+; A = its byte; called with bank 5 mapped (it stays so).
+hp_get2:
+	push hl
+	push bc
+	ld h,#41
+.l:	ld l,a				; sets 1-3 of each line in turn
+	ld a,h
+	add a,2
+	ld h,a
+	and 7
+	dec a
+	jr nz,.s
+	inc h				; (set 0)
+	inc h
+.s:	ld a,l
+	sub 15
+	jr nc,.l
+	add a,15+#F0
+	jr hp_read
 hp_get:
 	push hl
 	push bc
@@ -573,6 +592,7 @@ hp_get:
 	sub 31
 	jr nc,.l
 	add a,31+#E0
+hp_read:
 	ld l,a
 	ld bc,GA_PORT*256+RAM_C0
 	out (c),c
@@ -582,6 +602,35 @@ hp_get:
 	pop bc
 	pop hl
 	ret
+
+	if SERVICE&&DEMO==0
+; The hired ones' walking (src/game/waiter.asm hw_target).
+; A = the store index of a point (column, row) -> HL = 16 c + 8, DE = 16 r
+; + 12
+hw_point:
+	ld e,a
+	call hp_get2
+	call .m16
+	set 3,l
+	push hl
+	ld a,e
+	inc a
+	call hp_get2
+	call .m16
+	ld a,l
+	or 12
+	ld l,a
+	ex de,hl
+	pop hl
+	ret
+.m16:	ld l,a
+	ld h,0
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	ret
+	endif
 	include "game/area.asm"
 	include "engine/fdc.asm"
 	include "palette.asm"
@@ -884,6 +933,23 @@ hp_place:
 	ld e,#E0
 	pop bc
 	djnz .l
+	ld hl,hp_data2
+	ld d,#41
+	ld b,24
+.m:	push bc
+	ld a,d
+	add a,2
+	ld d,a
+	and 7
+	dec a
+	jr nz,.s
+	inc d
+	inc d
+.s:	ld e,#F0
+	ld bc,15
+	ldir
+	pop bc
+	djnz .m
 	ret
 	include "lvl1_hp.asm"
 	endif
@@ -955,8 +1021,9 @@ tiles_b5	equ 0
 	include "game/storage.asm"
 	include "game/menu.asm"
 	include "game/waiter.asm"
-	include "game/demo.asm"
+	include "game/cook.asm"
 	endif
+	include "game/demo.asm"		; (DEMO: the scripted input)
 bank5_end:
 	if SPR_FIXED_B5
 	assert bank5_end<=SPR_FIXED_B5_BASE,"bank 5 overlaps its sprites (b5)"
