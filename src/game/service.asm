@@ -110,6 +110,7 @@ EXP_STORE	equ 4
 EXP_WAITER	equ 8		; (hired: src/game/waiter.asm)
 EXP_COOK	equ 16		; (src/game/cook.asm)
 EXP_HELPER	equ 32		; (src/game/helper.asm)
+EXP_WAITER2	equ 64		; (the second waiter)
 sv_exp:		db 0
 	ifdef TEST_MONEY		; (tests: more)
 START_MONEY	equ TEST_MONEY
@@ -963,11 +964,8 @@ sv_leave:
 	rrca
 	rrca
 	inc a
-	ld hl,wt_grp			; their plates on the waiter's tray: wasted
-	cp (hl)
-	jr nz,.nw
-	ld (hl),0
-.nw:	ld hl,bill_carry
+	call wt_drop			; their plates on a waiter's tray: wasted
+	ld hl,bill_carry
 	cp (hl)
 	jr nz,.nc
 	xor a

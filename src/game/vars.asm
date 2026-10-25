@@ -17,6 +17,10 @@ HW_EY		equ 15		; words), home
 HW_HX		equ 17
 HW_HY		equ 19
 HW_SIZE		equ 21
+WR_GRP		equ 21		; a waiter's: group + 1 whose plates he carries,
+WR_TAB		equ 22		; its table, the plates
+WR_PLATES	equ 23
+WR_SIZE		equ 24
 	endif
 
 	if VARS_BLK==0
@@ -57,10 +61,10 @@ wt_rec:		ds 10,0
 wt_state:	db 0
 wt_wp:		db 0
 		ds HW_SIZE-12,0
-	assert wt_state-wt_rec==HW_STATE&&wt_wp-wt_rec==HW_WP
-wt_grp:		db 0		; group + 1 whose plates he carries (0: none)
+wt_grp:		db 0		; (WR_*: by name for the tests)
 wt_tab:		db 0
 wt_plates:	db 0
+	assert wt_state-wt_rec==HW_STATE&&wt_wp-wt_rec==HW_WP&&wt_grp-wt_rec==WR_GRP&&$-wt_rec==WR_SIZE
 	endif
 	endif
 

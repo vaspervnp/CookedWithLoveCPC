@@ -16,6 +16,12 @@ service_init:
 	ld de,PASS_BY
 	ld a,EXP_WAITER
 	call .hw
+	ld ix,wt2_rec
+	ld hl,PASS_BX
+	ld de,PASS_BY-16
+	ld a,EXP_WAITER2
+	call .hw
+	ld de,PASS_BY
 	ld ix,ck_rec
 	ld hl,PASS_KX
 	ld a,EXP_COOK

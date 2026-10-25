@@ -16,10 +16,14 @@ WT_HIRE		equ 100		; to hire him
 
 	; wt_rec, wt_grp, wt_tab, wt_plates: src/game/vars.asm
 
+wt2_rec:	ds WR_SIZE,0	; the second (EXP_WAITER2)
+
 ; A tick of the service.
 wt_tick:
 	ld ix,wt_rec
-	ld a,(ix+HW_STATE)
+	call .one
+	ld ix,wt2_rec
+.one:	ld a,(ix+HW_STATE)
 	or a
 	ret z
 	dec a
@@ -30,18 +34,18 @@ wt_tick:
 	cp WT_GO
 	jr nz,hw_home
 	ld (ix+HW_STATE),WT_BACK	; at the table: back by the same way
-	ld a,(wt_grp)			; still theirs (not gone)?
+	ld a,(ix+WR_GRP)		; still theirs (not gone: wt_drop)?
 	or a
 	ret z
+	ld (ix+WR_GRP),0
+	ld (ix+WR_PLATES),0
 	call wt_group
-	xor a
-	ld (wt_grp),a
-	ld (wt_plates),a
 	ld a,(ix+GR_STATE)
 	cp GS_CARRIED
 	ret nz
 	jp sv_serve
-.home:	ld ix,groups			; an order ready: his
+.home:	push ix				; an order ready: his
+	ld ix,groups
 	ld b,G_MAX
 .g:	ld a,(ix+GR_STATE)
 	cp GS_READY
@@ -49,23 +53,25 @@ wt_tick:
 	ld de,GR_SIZE
 	add ix,de
 	djnz .g
+	pop ix
 	ret
 .pick:	ld (ix+GR_STATE),GS_CARRIED
-	ld a,G_MAX
-	sub b
-	inc a
-	ld (wt_grp),a
+	ld c,(ix+GR_TABLE)
 	ld a,(ix+GR_N)			; (the tray holds 3)
 	cp 4
 	jr c,.p3
 	ld a,3
-.p3:	ld (wt_plates),a
-	ld a,(ix+GR_TABLE)
-	ld (wt_tab),a
-	ld ix,wt_rec
+.p3:	pop ix
+	ld (ix+WR_PLATES),a
+	ld a,G_MAX
+	sub b
+	inc a
+	ld (ix+WR_GRP),a
+	ld a,c
+	ld (ix+WR_TAB),a
 	add a,HP_WTP
 	call hw_go
-	ld a,(wt_tab)			; its end: the table's spot (as Bill's)
+	ld a,(ix+WR_TAB)		; its end: the table's spot (as Bill's)
 	call sv_table
 	inc hl
 	ld e,(hl)
@@ -84,7 +90,21 @@ hw_home:
 	ld (ix+HW_STATE),WT_HOME
 	ret
 
-; IX = group wt_grp - 1
+; A = group + 1 leaving (src/game/service.asm sv_leave): their plates on
+; a waiter's tray, wasted.
+wt_drop:
+	ld hl,wt_grp
+	call .d
+	ld hl,wt2_rec+WR_GRP
+.d:	cp (hl)
+	ret nz
+	ld (hl),0
+	inc hl
+	inc hl
+	ld (hl),0
+	ret
+
+; IX = group A - 1
 wt_group:
 	dec a
 	add a,a
@@ -204,12 +224,14 @@ wt_step:
 	or 1				; NZ
 	ret
 
-; His sprite and his tray, if hired (in the view).
+; Their sprites and their trays, if hired (in the view).
 wt_sprites:
-	ld a,(wt_state)
+	ld ix,wt_rec
+	call .one
+	ld ix,wt2_rec
+.one:	ld a,(ix+HW_STATE)
 	or a
 	ret z
-	ld ix,wt_rec
 	ld hl,bill_frames
 	call ac_frame
 	push hl
@@ -218,16 +240,17 @@ wt_sprites:
 	ret nc
 	ld (tray_x),de
 	ld (tray_y),bc
+	push ix
 	call sprites_add
-	ld a,(wt_rec+AC_DIR)
-	ld b,a
-	ld a,(wt_plates)
+	pop ix
+	ld b,(ix+AC_DIR)
+	ld a,(ix+WR_PLATES)
 	jp tray_ab
 	else
 wt_tick:
 wt_sprites:
+wt_drop:
 	ret
-wt_grp:		db 0
 WT_WAGE		equ 0
 WT_HIRE		equ 0
 	endif

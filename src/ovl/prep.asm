@@ -77,7 +77,13 @@ ov_init:
 	ex de,hl
 	add hl,bc
 	ex de,hl
-.h:	or a
+.h:	bit 6,a				; (EXP_WAITER2)
+	jr z,.w2
+	ld bc,WT_WAGE
+	ex de,hl
+	add hl,bc
+	ex de,hl
+.w2:	or a
 	sbc hl,de
 	jr nc,.paid
 	ld a,SFX_ANGRY			; not enough: game over
@@ -751,9 +757,9 @@ ov_rcol:	db 0
 ; Carry: no expansion on offer; else the first one not bought and
 ; affordable from ov_xsel on (ov_xi: 0 room, 1 kitchen, 2 storage, Hard
 ; only, 3 a waiter: src/game/waiter.asm, 4 a cook, not in Easy:
-; src/game/cook.asm, 5 a storage helper, Hard: src/game/helper.asm), HL its
-; price.
-OV_XN		equ 6
+; src/game/cook.asm, 5 a storage helper, Hard: src/game/helper.asm, 6 a
+; second waiter, after the first), HL its price.
+OV_XN		equ 7
 ov_xprice:
 	ld a,(ov_xsel)
 	ld c,a
@@ -769,6 +775,13 @@ ov_xprice:
 	ld a,(sv_mode)
 	cp (hl)
 	jr c,.n
+	ld a,c
+	ld hl,ov_xneed			; (what it needs bought)
+	call st_add
+	ld a,(sv_exp)
+	and (hl)
+	cp (hl)
+	jr nz,.n
 	ld a,c
 	ld b,a				; bought?
 	inc b
@@ -805,10 +818,11 @@ ov_xnext:
 	inc a
 	ld (ov_xsel),a
 	jp ov_evening
-ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST,WT_HIRE,CK_HIRE,HL_HIRE
+ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST,WT_HIRE,CK_HIRE,HL_HIRE,WT_HIRE
 ov_xtxt:	dw txt_exp_room,txt_exp_kitchen,txt_exp_store,txt_exp_waiter,txt_exp_cook
-		dw txt_exp_helper
-ov_xmode:	db 0,0,2,0,1,2	; the least sv_mode
+		dw txt_exp_helper,txt_exp_waiter
+ov_xmode:	db 0,0,2,0,1,2,0	; the least sv_mode
+ov_xneed:	db 0,0,0,0,0,0,EXP_WAITER	; the sv_exp bits it needs
 
 ; Down in the evening: the recipe bought (on the menu in the morning).
 ov_rcbuy:
@@ -873,6 +887,13 @@ hw_morning:
 	ld (wt_plates),a
 	ld (ck_carry),a
 	ld (hl_carry),a
+	ld (wt2_rec+WR_GRP),a
+	ld (wt2_rec+WR_PLATES),a
+	ld ix,wt2_rec			; (the second: above the first)
+	ld a,EXP_WAITER2
+	ld hl,PASS_BX
+	ld de,PASS_BY-16
+	call hw_reset
 	ld ix,wt_rec
 	ld a,EXP_WAITER
 	ld hl,PASS_BX
