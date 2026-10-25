@@ -63,9 +63,8 @@ wt_tick:
 	ld a,3
 .p3:	pop ix
 	ld (ix+WR_PLATES),a
-	ld a,G_MAX
+	ld a,G_MAX+1
 	sub b
-	inc a
 	ld (ix+WR_GRP),a
 	ld a,c
 	ld (ix+WR_TAB),a

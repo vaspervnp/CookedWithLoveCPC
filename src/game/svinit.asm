@@ -26,6 +26,11 @@ service_init:
 	ld hl,PASS_KX
 	ld a,EXP_COOK
 	call .hw
+	ld ix,ck2_rec
+	ld hl,PASS_KX
+	ld de,PASS_BY-16
+	ld a,EXP_COOK2
+	call .hw
 	ld ix,hl_rec
 	ld hl,HL_HX
 	ld de,HL_HY

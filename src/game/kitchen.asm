@@ -287,11 +287,7 @@ kx_fast:
 dish_station:
 	push hl
 	ld hl,dish_stn
-	add a,l
-	ld l,a
-	ld a,h
-	adc a,0
-	ld h,a
+	call st_add
 	ld a,(hl)
 	pop hl
 	ret
@@ -386,11 +382,7 @@ kitchen_sprites:
 	call ks_stn
 	ld a,(ix+KQ_ST)
 	ld hl,ks_mood-1
-	add a,l
-	ld l,a
-	ld a,h
-	adc a,0
-	ld h,a
+	call st_add
 	ld a,(hl)
 	ld l,(iy+1)			; left = centre - 16, top = centre - 8
 	ld h,(iy+2)

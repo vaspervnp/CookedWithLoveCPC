@@ -309,11 +309,7 @@ sa_ty:	db 0
 ; A = step (0..3) -> A = pose
 walk_frame:
 	ld hl,walk_pose
-	add a,l
-	ld l,a
-	ld a,h
-	adc a,0
-	ld h,a
+	call st_add
 	ld a,(hl)
 	ret
 walk_pose:	db 1,0,2,0

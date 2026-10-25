@@ -83,7 +83,13 @@ ov_init:
 	ex de,hl
 	add hl,bc
 	ex de,hl
-.w2:	or a
+.w2:	bit 7,a				; (EXP_COOK2)
+	jr z,.c2
+	ld bc,CK_WAGE
+	ex de,hl
+	add hl,bc
+	ex de,hl
+.c2:	or a
 	sbc hl,de
 	jr nc,.paid
 	ld a,SFX_ANGRY			; not enough: game over
@@ -758,8 +764,9 @@ ov_rcol:	db 0
 ; affordable from ov_xsel on (ov_xi: 0 room, 1 kitchen, 2 storage, Hard
 ; only, 3 a waiter: src/game/waiter.asm, 4 a cook, not in Easy:
 ; src/game/cook.asm, 5 a storage helper, Hard: src/game/helper.asm, 6 a
-; second waiter, after the first), HL its price.
-OV_XN		equ 7
+; second waiter, after the first, 7 a second cook, after the first), HL its
+; price.
+OV_XN		equ 8
 ov_xprice:
 	ld a,(ov_xsel)
 	ld c,a
@@ -818,11 +825,11 @@ ov_xnext:
 	inc a
 	ld (ov_xsel),a
 	jp ov_evening
-ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST,WT_HIRE,CK_HIRE,HL_HIRE,WT_HIRE
+ov_xcost:	dw EXP_COST,KEXP_COST,SEXP_COST,WT_HIRE,CK_HIRE,HL_HIRE,WT_HIRE,CK_HIRE
 ov_xtxt:	dw txt_exp_room,txt_exp_kitchen,txt_exp_store,txt_exp_waiter,txt_exp_cook
-		dw txt_exp_helper,txt_exp_waiter
-ov_xmode:	db 0,0,2,0,1,2,0	; the least sv_mode
-ov_xneed:	db 0,0,0,0,0,0,EXP_WAITER	; the sv_exp bits it needs
+		dw txt_exp_helper,txt_exp_waiter,txt_exp_cook
+ov_xmode:	db 0,0,2,0,1,2,0,1	; the least sv_mode
+ov_xneed:	db 0,0,0,0,0,0,EXP_WAITER,EXP_COOK	; the sv_exp bits it needs
 
 ; Down in the evening: the recipe bought (on the menu in the morning).
 ov_rcbuy:
@@ -889,6 +896,12 @@ hw_morning:
 	ld (hl_carry),a
 	ld (wt2_rec+WR_GRP),a
 	ld (wt2_rec+WR_PLATES),a
+	ld (ck2_rec+CR_CARRY),a
+	ld ix,ck2_rec			; (the second: above the first)
+	ld a,EXP_COOK2
+	ld hl,PASS_KX
+	ld de,PASS_BY-16
+	call hw_reset
 	ld ix,wt2_rec			; (the second: above the first)
 	ld a,EXP_WAITER2
 	ld hl,PASS_BX

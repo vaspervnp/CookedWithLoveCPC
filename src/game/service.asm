@@ -111,6 +111,7 @@ EXP_WAITER	equ 8		; (hired: src/game/waiter.asm)
 EXP_COOK	equ 16		; (src/game/cook.asm)
 EXP_HELPER	equ 32		; (src/game/helper.asm)
 EXP_WAITER2	equ 64		; (the second waiter)
+EXP_COOK2	equ 128		; (the second cook)
 sv_exp:		db 0
 	ifdef TEST_MONEY		; (tests: more)
 START_MONEY	equ TEST_MONEY
@@ -695,18 +696,12 @@ sv_group:
 .ft:	ld a,c
 	cp TABLE_COUNT
 	jr nc,.state
-	ld hl,tb_busy
-	ld e,c
-	ld d,0
-	add hl,de
+	call tb_c
 	ld a,(hl)
 	or a
 	jr nz,.fn
-	push bc
 	ld a,c
-	call sv_table
-	pop bc
-	ld a,(hl)
+	call tb_nseat
 	cp (ix+GR_N)
 	jr nc,.fs
 .fn:	inc c
@@ -1146,18 +1141,62 @@ sv_seat:
 
 	jp tb_seat			; (src/game/seats.asm)
 
-; HL = table A
-sv_table:
-	ld l,a
-	ld h,0
-	ld d,h
-	ld e,l
-	add hl,hl			; *TB_SIZE (5)
-	add hl,hl
-	add hl,de
-	ld de,lvl_tables
-	add hl,de
+; HL = tb_busy + C (A kept).
+tb_c:
+	push af
+	ld a,c
+	ld hl,tb_busy
+	call st_add
+	pop af
 	ret
+
+; A = the seats of table A (one byte of the store: sv_table reads three).
+tb_nseat:
+	ld l,a
+	add a,a
+	add a,l
+	add a,HP_TB
+	jp hp_get
+
+; HL = table A: tb_buf, its seats, Bill's spot x, y (words; from the HUD
+; page store, HP_TB). Destroys AF, DE.
+sv_table:
+	ld e,a
+	add a,a
+	add a,e
+	add a,HP_TB
+	ld e,a
+	ld hl,tb_buf
+	call hp_get
+	ld (hl),a
+	ld d,8
+	call .w
+	ld d,14
+	call .w
+	ld hl,tb_buf
+	ret
+.w:	inc hl				; 16 A + D
+	inc e
+	ld a,e
+	call hp_get
+	push af
+	rlca
+	rlca
+	rlca
+	rlca
+	and #F0
+	or d
+	ld (hl),a
+	inc hl
+	pop af
+	rrca
+	rrca
+	rrca
+	rrca
+	and #0F
+	ld (hl),a
+	ret
+tb_buf:		ds TB_SIZE,0
 
 ; The order of group IX: each customer chooses a dish of the menu (with
 ; portions left: there are enough for all); the kitchen needs the time of
@@ -1263,12 +1302,8 @@ sv_hud_tickets:
 	ld a,12
 	jr nz,.ink
 .col:	ld hl,dish_ink
-	ld a,l
-	add a,c
-	ld l,a
-	ld a,h
-	adc a,0
-	ld h,a
+	ld a,c
+	call st_add
 	ld a,(hl)
 .ink:	push bc
 	ld b,HUD_BG
@@ -1565,9 +1600,8 @@ sv_fire:
 	call sv_hud_tickets
 	pop ix
 	pop bc
-	ld a,G_MAX			; group + 1
+	ld a,G_MAX+1			; group + 1
 	sub b
-	inc a
 	ld (bill_carry),a
 	ld a,(ix+GR_N)			; the tray holds 3 plates (the sprite)
 	cp 4
@@ -1583,10 +1617,7 @@ sv_fire:
 .dt:	ld a,c
 	cp TABLE_COUNT
 	jr nc,.tg
-	ld hl,tb_busy
-	ld e,c
-	ld d,0
-	add hl,de
+	call tb_c
 	ld a,(hl)
 	and TB_DIRTY
 	jr z,.dn
@@ -1657,9 +1688,8 @@ sv_fire:
 	jp sv_refill
 .serve:	cp GS_CARRIED
 	jr nz,.pay
-	ld a,G_MAX			; their plates on Bill's tray?
+	ld a,G_MAX+1			; their plates on Bill's tray?
 	sub b
-	inc a
 	ld c,a
 	ld a,(bill_carry)
 	cp c
@@ -1674,11 +1704,7 @@ sv_fire:
 .pm:	ld a,(ix+GR_DISH)
 	push hl
 	ld hl,dish_price
-	add a,l
-	ld l,a
-	ld a,h
-	adc a,0
-	ld h,a
+	call st_add
 	ld e,(hl)
 	ld d,0
 	pop hl
@@ -1722,9 +1748,8 @@ sv_fire:
 	djnz .g
 	ret
 .take:	ld (ix+GR_STATE),GS_FOLLOW
-	ld a,G_MAX			; group index + 1
+	ld a,G_MAX+1			; group index + 1
 	sub b
-	inc a
 	ld (sv_follow),a
 	xor a
 	call sv_mood
@@ -1741,16 +1766,12 @@ sv_fire:
 .st:	ld a,c
 	cp TABLE_COUNT
 	ret nc
-	ld hl,tb_busy
-	ld e,c
-	ld d,0
-	add hl,de
+	call tb_c
 	ld a,(hl)
 	or a
 	jr nz,.sn
 	ld a,c
-	call sv_table
-	ld a,(hl)			; seats enough?
+	call tb_nseat			; seats enough?
 	cp (ix+GR_N)
 	jr c,.sn
 	push bc
@@ -1770,10 +1791,7 @@ sv_fire:
 ; Group IX (A = its index + 1) takes table C: they walk to their chairs.
 sv_sit:
 	ld (ix+GR_TABLE),c		; the table is theirs
-	ld hl,tb_busy
-	ld e,c
-	ld d,0
-	add hl,de
+	call tb_c
 	ld (hl),a
 	ld (ix+GR_STATE),GS_SEATING
 	call sv_members			; member k: a route to seat k
@@ -1825,10 +1843,7 @@ service_sprites:
 .t:	ld a,c				; a stamp)
 	cp TABLE_COUNT
 	jr nc,.pass
-	ld hl,tb_busy
-	ld e,c
-	ld d,0
-	add hl,de
+	call tb_c
 	ld a,(hl)
 	bit 7,a
 	jr z,.tn

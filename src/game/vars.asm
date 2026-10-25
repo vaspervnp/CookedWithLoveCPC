@@ -33,7 +33,7 @@ sd_erase:	ds STAMP_MAX*4,0	; rectangles (x, y) to erase
 	if VARS_BLK==1
 sd_rec:		ds 2*SDR_SIZE,0	; per buffer: count, stamps
 	if SERVICE&&DEMO==0
-ck_rec:		ds HW_SIZE,0	; the hired cook (src/game/cook.asm)
+ck2_rec:	ds HW_SIZE+5,0	; the second hired cook (src/game/cook.asm)
 	endif
 	if SERVICE
 sv_menu:	db 0		; the menu at the pass is open
@@ -49,9 +49,8 @@ sv_stock:	ds 8,0		; portions of each dish (DISH_N) left today
 sv_cook:	ds 8,0		; portions ordered at the pass, cooking
 	endif
 	if SERVICE&&DEMO==0
-ck_carry:	ds 4,0		; as lib_carry: group + 1, dish, order, burnt
-ck_stn:		db 0
-ck_wait:	db 1
+ck_wait:	db 1		; the hired cooks (src/game/cook.asm)
+ck_cur:		dw 0
 	endif
 	endif
 	if VARS_BLK==3

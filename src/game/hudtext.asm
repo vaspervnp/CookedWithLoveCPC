@@ -32,11 +32,7 @@ hud_colors:
 	cp 4
 	jr nz,.l
 	ret
-.pen:	add a,l				; A = (HL + A)
-	ld l,a
-	ld a,h
-	adc a,0
-	ld h,a
+.pen:	call st_add			; A = (HL + A)
 	ld a,(hl)
 	ret
 
