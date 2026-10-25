@@ -17,6 +17,7 @@ MODE_EASY	EASY	ΕΥΚΟΛΟ	ovl
 MODE_MEDIUM	MEDIUM	ΜΕΣΑΙΟ	ovl
 MODE_OK	FIRE: OK	FIRE: ΟΚ	ovl
 MODE_HARD	HARD	ΔΥΣΚΟΛΟ	ovl
+MODE_CONT	CONTINUE	ΣΥΝΕΧΕΙΑ	ovl
 ORDER	ORDER	ΠΑΡΑΓΓΕΛΙΑ	ovl
 EXP_ROOM	ROOM	ΣΑΛΑ	ovl
 EXP_KITCHEN	KITCHEN	ΚΟΥΖΙΝΑ	ovl

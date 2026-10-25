@@ -205,6 +205,10 @@ fdc_read:
 	scf
 	ret
 
+; The file's sectors: read (the overlay points it at its Write Data while
+; it saves: src/ovl/save.asm).
+fdc_io:	jp fdc_read
+
 ; Load the file named at HL (11 characters, as in the directory: name
 ; padded with spaces, extension) to DE, AMSDOS header included. Carry set
 ; if not found or unreadable.
@@ -339,7 +343,7 @@ fdc_load:
 	ld (fr_last),a
 	jr .grow
 .read:	push hl
-	call fdc_read
+	call fdc_io
 	pop hl
 	jr nc,.run
 	jr .done

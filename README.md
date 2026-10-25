@@ -243,6 +243,12 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
   - Χωρίς firmware: δικός μας οδηγός για τον µPD765 με polling. Διαβάζει τον κατάλογο του AMSDOS (track 0, &C1–&C4), μαζεύει τα blocks όλων των extents του αρχείου, και διαβάζει κάθε σειρά συνεχόμενων sectors ενός track με μία εντολή Read Data.
   - Η μεταφορά δεν σηκώνει interrupts (ένα byte κάθε 32 µs), οπότε η οθόνη μαυρίζει για ~1 s (`crtc_plain`: κανονικό frame, όλα τα pens μαύρα). Μετά το `view_restart` ξαναστήνει την προβολή, όπως στο boot.
   - Για τεστ: `-DTEST_AREA=n` φορτώνει την περιοχή n−1 μετά το boot, `-DAREAS=0` απενεργοποιεί τη φόρτωση, `-DFDC_DEBUG=1` δείχνει το στάδιο στο border.
+- **Αποθήκευση προόδου** ([src/ovl/save.asm](src/ovl/save.asm), στο overlay):
+  - Το `SAVE.DAT` (1K, raw, το βάζει το Makefile) υπάρχει πάντα στη δισκέτα και το παιχνίδι γράφει μόνο τα sectors του, ποτέ τον κατάλογο. Η δισκέτα βγαίνει σε **EXTENDED CPC DSK** μορφή ([tools/edsk.py](tools/edsk.py), μετά το `iDSK`), ώστε οι emulators να κρατούν τις εγγραφές.
+  - Κάθε πρωί εκτός από το πρώτο ενός παιχνιδιού γράφεται: `CWL`, η έκδοση, ό,τι μένει από μέρα σε μέρα (`ov_svtab`: χρήματα, μέρα, επίπεδο, επεκτάσεις/προσλήψεις, συνταγές, αποθήκη) και ένα checksum. Η οθόνη σβήνει για ~2 s όπως σε φόρτωση. Δισκέτα με προστασία εγγραφής: κόκκινο border για 1 s και το παιχνίδι συνεχίζει.
+  - Η εγγραφή χρησιμοποιεί τον ίδιο οδηγό: το `fdc_load` βρίσκει τα sectors του αρχείου και για κάθε σειρά τους καλεί το `fdc_io`, που το overlay δείχνει στο δικό του Write Data (`ov_fdcw`) όσο γράφει (3 bytes στον κοινό κώδικα).
+  - Στον τίτλο διαβάζεται· αν είναι έγκυρο, η 4η γραμμή του πρώτου πρωινού έχει μετά τα επίπεδα το **CONTINUE** / **ΣΥΝΕΧΕΙΑ**. Επιλεγμένο, επαναφέρει την κατάσταση, ξανανοίγει τους χάρτες των επεκτάσεων, ξανακάνει τις αλλαγές των συνταγών (`rc_swap` κατά το `rc_log`) και ξεκινά το πρωί εκείνης της μέρας.
+  - Στα test builds (σύντομες μέρες, `TEST_FILL`) είναι κλειστό, για να μένουν οι χρόνοι τους. Τεστ: `tools/savetest.sh` (`-DSAVE_TEST=1` στο overlay, το CPCEC με `CPCEC_RW=1`: τοπικό patch για δισκέτα read-write).
 - Πριν από αυτό το `load_banks` φορτώνει τα `SPRn.DAT` και την πρώτη περιοχή (`KITCHEN.SPR`, system files στο δίσκο) κατευθείαν στις banks με το firmware (`CAS IN OPEN/DIRECT/CLOSE`, αφού ξανά-αρχικοποιήσει το AMSDOS με `KL INIT BACK`, γιατί ένα binary που ξεκινά με `RUN"` βλέπει τα vectors της κασέτας). Νέο αρχείο bank προστίθεται στον πίνακα `bank_files` του [src/main.asm](src/main.asm) (όνομα, RAM config, διεύθυνση φόρτωσης· το `B5.SPR` πάει στο `SPR_FIXED_B5_BASE` (`&6F00`) της bank 5, που το `mem_relocate` δεν αγγίζει).
 - **Πρόσθετα sprites** ([src/game/items.asm](src/game/items.asm), pixel art από το [tools/items.py](tools/items.py)): ζωγραφίζονται μαζί με μια φιγούρα ως ξεχωριστά sprites με δικό τους κλειδί βάθους, οπότε οι φιγούρες δεν χρειάζονται επιπλέον πόζες. Ο δίσκος του Bill (`bill_plates` 0–3, στο ύψος των χεριών, κρυμμένος όταν κοιτάει πάνω), η φούσκα του πελάτη (`CU_MOOD`: καρδιά, θυμός, αναμονή, φαγητό, πληρωμή) και του Bill (`bill_bubble`: μπλοκάκι όταν παίρνει παραγγελία), πάνω από όλα. Για τεστ: `-DTRAY_PLATES=n`, `-DTEST_BUBBLE=6`.
 
@@ -323,7 +329,8 @@ make DEBUG=1    # debug build
 
 1. `tools/palette.py` — `data/palette.txt` → `build/palette.asm` (hardware colours) και `assets/palette/cwl.gpl` (palette για Aseprite).
 2. `rasm src/main.asm -Isrc -Ibuild -DLANG_EN=1` (ή `-DLANG_GR=1`) → `build/cwl_en.bin` + symbols.
-3. `iDSK` → νέα δισκέτα με τον loader `CWL.BIN` (`&9000`), το παιχνίδι `GAME.BIN` (load/exec `&0100`, κρυφό) και τα υπόλοιπα αρχεία.
+3. `iDSK` → νέα δισκέτα με τον loader `CWL.BIN` (`&9000`), το παιχνίδι `GAME.BIN` (load/exec `&0100`, κρυφό), τα υπόλοιπα αρχεία και το `SAVE.DAT`.
+4. `tools/edsk.py` → η δισκέτα σε EXTENDED CPC DSK μορφή.
 
 Μετατροπή εικόνας:
 

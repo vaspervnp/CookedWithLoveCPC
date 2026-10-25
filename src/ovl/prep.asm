@@ -160,6 +160,7 @@ ov_first:
 	ld de,#C000-AREA_HDR		; (with it 32 whole sectors, to &FFFF)
 	call fdc_load
 	jr c,.try
+	call ov_svread			; (src/ovl/save.asm)
 	call wait_vsync
 	ld hl,#3000			; a standard frame of &C000
 	call crtc_set_ma
@@ -254,6 +255,8 @@ ov_morning:
 	ld (sv_money),hl
 	call ov_buy
 	endif
+	call ov_svwrite			; (src/ovl/save.asm)
+ov_morning2:
 	ld hl,sv_day
 	inc (hl)
 	ld a,SP_PREP
@@ -362,7 +365,18 @@ ov_mode:
 	call hud_colors
 	ld hl,txt_mode_hard
 	ld bc,((3+TXT_MODE_EASY_LEN+TXT_MODE_MEDIUM_LEN)<<8)+HUD_ROW3
+	call hud_text
+	ld a,(ov_saved)			; a save: CONTINUE (src/ovl/save.asm)
+	or a
+	ret z
+	ld a,3
+	call .ink
+	ld b,HUD_BG
+	call hud_colors
+	ld hl,txt_mode_cont
+	ld bc,((4+TXT_MODE_EASY_LEN+TXT_MODE_MEDIUM_LEN+TXT_MODE_HARD_LEN)<<8)+HUD_ROW3
 	jp hud_text
+	assert 4+TXT_MODE_EASY_LEN+TXT_MODE_MEDIUM_LEN+TXT_MODE_HARD_LEN+TXT_MODE_CONT_LEN<=39-TXT_MODE_OK_LEN
 .ink:	ld b,a				; A = mode -> A = yellow if chosen, grey
 	ld a,(sv_mode)
 	cp b
@@ -375,11 +389,14 @@ ov_keys:
 	ld a,(ov_sel)
 	or a
 	jr z,.prep
+	ld a,(ov_saved)			; the modes (and CONTINUE: 3)
+	add a,3
+	ld e,a
 	ld a,(sv_mode)
 	bit KEY_RIGHT,c
 	jr z,.l
 	inc a
-	cp 3
+	cp e
 	jr c,.md
 	xor a
 	jr .md
@@ -387,11 +404,15 @@ ov_keys:
 	jr z,.ok
 	dec a
 	jp p,.md
-	ld a,2
+	ld a,e
+	dec a
 .md:	ld (sv_mode),a
 	jp ov_mode
 .ok:	bit KEY_FIRE,c
 	ret z
+	ld a,(sv_mode)
+	cp 3
+	jp z,ov_continue
 	xor a
 	ld (ov_sel),a
 	call ov_prepline
@@ -614,6 +635,7 @@ ov_draw:
 	ld (sv_min),hl
 	jp sv_hud_time
 
+ov_svbuf:	ds 64,0		; the save (src/ovl/save.asm: SV_LEN)
 	assert $<=SAVE_AREA1,"the overlay's first half is too big"
 	print "overlay, first half: ",{hex}$
 	org OVL_HI			; (the other half: src/game/area.asm)
@@ -1271,6 +1293,7 @@ ov_summary:
 ov_pow:	dw 10,100,1000,10000,0
 
 	include "ovl/menu.asm"		; the recipes bought (src/game/menu.asm)
+	include "ovl/save.asm"		; the progress on the disc
 	endif
 	assert $<=OVL_HI+#800,"the overlay is too big"
 	print "overlay end: ",{hex}$

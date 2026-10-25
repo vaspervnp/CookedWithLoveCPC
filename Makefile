@@ -150,6 +150,9 @@ $(BUILD)/cwl_%.dsk: $(BUILD)/cwl_%.bin $(BUILD)/prep_%.bin $(BUILD)/title_%.scr 
 	cd $(BUILD) && $(IDSK) $(notdir $@) -i TITLE.SCR -t 1 -c C000 -s >/dev/null && rm -f TITLE.SCR
 	cd $(BUILD) && for f in spr_?.dat; do b=$${f#spr_}; b=$${b%.dat}; cp $$f SPR$$b.DAT; $(IDSK) $(notdir $@) -i SPR$$b.DAT -t 1 -c 4000 -s >/dev/null; rm -f SPR$$b.DAT; done
 	cd $(BUILD) && for f in spr_??*.dat; do a=$${f#spr_}; a=$${a%.dat}; n=$$(echo $$a | tr a-z A-Z | cut -c1-8).SPR; cp $$f $$n; $(IDSK) $(notdir $@) -i $$n -t 1 -c 4000 -s >/dev/null; rm -f $$n; done
+	head -c 1024 /dev/zero > $(BUILD)/SAVE.DAT		# the save (src/ovl/save.asm): raw, 1K
+	cd $(BUILD) && $(IDSK) $(notdir $@) -i SAVE.DAT -t 2 >/dev/null && rm -f SAVE.DAT
+	$(PYTHON) tools/edsk.py $@				# EXTENDED CPC DSK (the game writes to it)
 
 run-en: en
 	$(CPC) -a 'run"cwl' $(BUILD)/cwl_en.dsk
