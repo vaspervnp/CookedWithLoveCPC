@@ -11,6 +11,8 @@ Top-down restaurant simulator για Amstrad CPC 6128, σε **Mode 0** με hard
 
 Οι συνταγές προέρχονται από το κανάλι [Cooked with Love](https://www.youtube.com/@CookedwithLove) και το site [cookedwithlove.gr](https://www.cookedwithlove.gr/).
 
+Εγχειρίδια του παιχνιδιού: [ελληνικά](docs/manual_gr.md), [English](docs/manual_en.md).
+
 Ο σχεδιασμός και τα milestones βρίσκονται στο [TODO.md](TODO.md).
 
 ---

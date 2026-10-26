@@ -29,7 +29,7 @@ read_key_line:
 	out (c),c
 	ret
 
-; Out: A = KEY_* bits set for pressed directions (cursor keys or joystick 0).
+; Out: A = KEY_* bits set (cursor keys, COPY, SPACE or joystick 0).
 ; Destroys BC, DE.
 read_input:
 	if SOUND
@@ -37,7 +37,7 @@ read_input:
 	ld (psg_busy),a
 	endif
 	ld e,0
-	ld a,0				; cursor up (0), right (1), down (2), copy (5)
+	ld a,0				; cursor up (0), right (1), down (2)
 	call read_key_line
 	cpl
 	ld d,a
@@ -50,12 +50,15 @@ read_input:
 	bit 2,d
 	jr z,$+4
 	set KEY_DOWN,e
-	ld a,1				; cursor left (0)
+	ld a,1				; cursor left (0), COPY (1): fire
 	call read_key_line
 	cpl
 	bit 0,a
 	jr z,$+4
 	set KEY_LEFT,e
+	bit 1,a
+	jr z,$+4
+	set KEY_FIRE,e
 	ld a,5				; space (7)
 	call read_key_line
 	bit 7,a
