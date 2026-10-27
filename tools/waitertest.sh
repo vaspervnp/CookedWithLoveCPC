@@ -9,10 +9,10 @@ cd "$(dirname "$0")/.."
 . tools/scenario.sh
 OUT=build/cpcec/waiter
 mkdir -p build/cpcec
-make -s en EXTRA="-DTEST_FILL=1 -DTEST_XP=8 -DTEST_DISH=1 -DBILL_X0=56 -DBILL_Y0=366" >/dev/null
-cp build/cwl_en.sym $OUT.sym
+make -s $CWL_LANG EXTRA="-DTEST_FILL=1 -DTEST_XP=8 -DTEST_DISH=1 -DBILL_X0=56 -DBILL_Y0=366" >/dev/null
+cp build/cwl_$CWL_LANG.sym $OUT.sym
 scenario $OUT "76:1600-1608" "1550,1700,1850,2300,2750" 2750 300
-make -s en >/dev/null
+make -s $CWL_LANG >/dev/null
 python3 - "$OUT" <<'PY'
 import sys
 sys.path.insert(0, "tools")

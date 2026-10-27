@@ -10,11 +10,11 @@ cd "$(dirname "$0")/.."
 . tools/scenario.sh
 OUT=build/cpcec/recipe
 mkdir -p build/cpcec
-make -s en OVLEXTRA=-DTITLE_WAIT=50 EXTRA="-DDAY_MIN=3 -DTEST_MONEY=150" >/dev/null
-cp build/cwl_en.sym $OUT.sym
+make -s $CWL_LANG OVLEXTRA=-DTITLE_WAIT=50 EXTRA="-DDAY_MIN=3 -DTEST_MONEY=150" >/dev/null
+cp build/cwl_$CWL_LANG.sym $OUT.sym
 scenario $OUT "76:1250-1258,76:1300-1308,2:5200-5208,76:5600-5608,1:5700-5708,76:5800-5808,76:5900-5908,76:9500-9508" \
 	"5150,5300,5850,9250,9600" 9600 900
-make -s en >/dev/null
+make -s $CWL_LANG >/dev/null
 python3 - "$OUT" <<'PY'
 import sys
 sys.path.insert(0, "tools")

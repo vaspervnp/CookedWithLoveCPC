@@ -15,7 +15,7 @@ OPEN_FIRE	FIRE: OPEN	FIRE: ΑΝΟΙΓΜΑ	ovl
 MINUS	-	-	ovl
 MODE_EASY	EASY	ΕΥΚΟΛΟ	ovl
 MODE_MEDIUM	MEDIUM	ΜΕΣΑΙΟ	ovl
-MODE_OK	FIRE: OK	FIRE: ΟΚ	ovl
+MODE_OK	FIRE: OK	FIRE:ΟΚ	ovl
 MODE_HARD	HARD	ΔΥΣΚΟΛΟ	ovl
 MODE_CONT	CONTINUE	ΣΥΝΕΧΕΙΑ	ovl
 ORDER	ORDER	ΠΑΡΑΓΓΕΛΙΑ	ovl

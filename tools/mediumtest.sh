@@ -11,8 +11,8 @@ cd "$(dirname "$0")/.."
 . tools/scenario.sh
 OUT=build/cpcec/medium
 mkdir -p build/cpcec
-make -s en EXTRA="-DTEST_FILL=1 -DTEST_MODE=1 -DTEST_DISH=1 -DBILL_X0=56 -DBILL_Y0=366" >/dev/null
-cp build/cwl_en.sym $OUT.sym
+make -s $CWL_LANG EXTRA="-DTEST_FILL=1 -DTEST_MODE=1 -DTEST_DISH=1 -DBILL_X0=56 -DBILL_Y0=366" >/dev/null
+cp build/cwl_$CWL_LANG.sym $OUT.sym
 K=(
 	76:1600-1608 47:1700-1708			# the order, to Liberty
 	1:2000-2100 76:2150-2158			# to the stove: cook
@@ -22,7 +22,7 @@ K=(
 	8:4780-5600 1:5620-5668 0:5720-5900 76:5930-5938	# table 6: serve
 )
 scenario $OUT "$(IFS=,; echo "${K[*]}")" "${DUMPS:-1650,2200,2400,2950,3040,3520,4760,5980}" 5980 600
-make -s en >/dev/null
+make -s $CWL_LANG >/dev/null
 python3 - "$OUT" <<'PY'
 import sys
 sys.path.insert(0, "tools")

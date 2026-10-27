@@ -8,10 +8,10 @@ cd "$(dirname "$0")/.."
 . tools/scenario.sh
 OUT=build/cpcec/hatch
 mkdir -p build/cpcec
-make -s en EXTRA="-DTEST_FILL=1 -DTEST_MODE=2 -DBILL_X0=296 -DBILL_Y0=396" >/dev/null
-cp build/cwl_en.sym $OUT.sym
+make -s $CWL_LANG EXTRA="-DTEST_FILL=1 -DTEST_MODE=2 -DBILL_X0=296 -DBILL_Y0=396" >/dev/null
+cp build/cwl_$CWL_LANG.sym $OUT.sym
 scenario $OUT "76:1000-1008,0:1100-1108,1:1200-1208,1:1250-1258,0:1300-1308" "1150,1350" 1350 300
-make -s en >/dev/null
+make -s $CWL_LANG >/dev/null
 python3 - "$OUT" <<'PY'
 import sys
 sys.path.insert(0, "tools")

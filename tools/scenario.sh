@@ -4,6 +4,7 @@
 # of them, so a change to the boot only changes BOOT.
 BOOT=${BOOT:-210}
 export BOOT
+CWL_LANG=${CWL_LANG:-en}		# the disc: build/cwl_<lang>.dsk (the tests build it)
 
 # scenario <prefix> <keys: key:from-to,...> <dumps: f1,f2,...> <last> [timeout s]
 # (SHOTS="f1,f2": BMP screenshots too, <prefix>NNNNN.bmp: tools/screenshots.sh)
@@ -20,5 +21,5 @@ scenario() {
 		CPCEC_KEYS="$(IFS=,; echo "${o[*]}")" CPCEC_DUMPS="$(IFS=,; echo "${d[*]}")" \
 		CPCEC_SHOTS="$(IFS=,; echo "${s[*]}")" \
 		CPCEC_PREFIX="$out" CPCEC_EXIT=$((last + BOOT)) \
-		timeout "${5:-900}" "${CPCEC:-$HOME/tools/cpcec/cpcec}" -S -r0 -O -m2 -k1 -g0 build/cwl_en.dsk >/dev/null 2>&1 || true
+		timeout "${5:-900}" "${CPCEC:-$HOME/tools/cpcec/cpcec}" -S -r0 -O -m2 -k1 -g0 build/cwl_$CWL_LANG.dsk >/dev/null 2>&1 || true
 }

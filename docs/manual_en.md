@@ -2,7 +2,7 @@
 
 *A restaurant simulator for the Amstrad CPC 6128*
 
-![Title screen](img/title_en.png)
+![Title screen](img/title.png)
 
 You run a small Greek restaurant. The dishes on its menu come from the
 [Cooked with Love](https://www.youtube.com/@CookedwithLove) channel and
@@ -83,6 +83,8 @@ On the first morning the bottom row of the screen asks for the difficulty:
 - **MEDIUM**: you are Bill and Liberty, the cook.
 - **HARD**: you are Bill, Liberty and Blossom, who keeps the storage.
 - **CONTINUE**: appears when the disc holds a saved game, and carries it on.
+
+![CONTINUE after the modes](img/continue.png)
 
 Choose with **left/right** and press **Fire**. You start with **150** coins.
 
@@ -271,6 +273,9 @@ next offer). Only the ones you can afford are offered.
 
 ![The upper room open](img/expansion_room.png)
 ![The lower kitchen open](img/kitchen_expansion.png)
+
+![A hired cook brings a plate to the pass](img/staff_cook.png)
+![Two hired waiters](img/staff_waiters.png)
 
 Hired staff work on their own and walk the restaurant like everyone else.
 You do not control them. Their wages are paid with the rent every evening,

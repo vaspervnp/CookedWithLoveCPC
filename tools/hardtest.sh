@@ -14,8 +14,8 @@ cd "$(dirname "$0")/.."
 OUT=build/cpcec/hard
 mkdir -p build/cpcec
 XP=; [ -n "$STORE" ] && XP=-DTEST_XP=4
-make -s en OVLEXTRA=-DTITLE_WAIT=50 EXTRA="-DDAY_MIN=100 $XP" >/dev/null
-cp build/cwl_en.sym $OUT.sym
+make -s $CWL_LANG OVLEXTRA=-DTITLE_WAIT=50 EXTRA="-DDAY_MIN=100 $XP" >/dev/null
+cp build/cwl_$CWL_LANG.sym $OUT.sym
 K=(
 	1:1150-1158 1:1200-1208 76:1250-1258		# Medium, Hard, OK
 	0:1300-1308 0:1340-1348 0:1380-1388 1:1420-1428 0:1460-1468 0:1500-1508
@@ -33,7 +33,7 @@ K=(
 )
 
 scenario $OUT "$(IFS=,; echo "${K[*]}")" "9100,9700,12500,12600,12960,13000,14150" 14150 900
-make -s en >/dev/null
+make -s $CWL_LANG >/dev/null
 STORE=${STORE:-} python3 - "$OUT" <<'PY'
 import os, sys
 sys.path.insert(0, "tools")

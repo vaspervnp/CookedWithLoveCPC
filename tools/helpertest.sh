@@ -10,10 +10,10 @@ cd "$(dirname "$0")/.."
 . tools/scenario.sh
 OUT=build/cpcec/helper
 mkdir -p build/cpcec
-make -s en EXTRA="-DTEST_FILL=1 -DTEST_MODE=2 -DTEST_XP=32 -DTEST_DOOR=1" >/dev/null
-cp build/cwl_en.sym $OUT.sym
+make -s $CWL_LANG EXTRA="-DTEST_FILL=1 -DTEST_MODE=2 -DTEST_XP=32 -DTEST_DOOR=1" >/dev/null
+cp build/cwl_$CWL_LANG.sym $OUT.sym
 scenario $OUT "47:900-908,47:1000-1008" "${DUMPS:-1000,1300,1500,2100,2400}" ${LAST:-2400} 400
-make -s en >/dev/null
+make -s $CWL_LANG >/dev/null
 [ -n "$DUMPS" ] && exit 0
 python3 - "$OUT" <<'PY'
 import sys

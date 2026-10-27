@@ -376,7 +376,7 @@ ov_mode:
 	ld hl,txt_mode_cont
 	ld bc,((4+TXT_MODE_EASY_LEN+TXT_MODE_MEDIUM_LEN+TXT_MODE_HARD_LEN)<<8)+HUD_ROW3
 	jp hud_text
-	assert 4+TXT_MODE_EASY_LEN+TXT_MODE_MEDIUM_LEN+TXT_MODE_HARD_LEN+TXT_MODE_CONT_LEN<=39-TXT_MODE_OK_LEN
+	assert 4+TXT_MODE_EASY_LEN+TXT_MODE_MEDIUM_LEN+TXT_MODE_HARD_LEN+TXT_MODE_CONT_LEN<39-TXT_MODE_OK_LEN,"row 3: CONTINUE and FIRE: OK touch"
 .ink:	ld b,a				; A = mode -> A = yellow if chosen, grey
 	ld a,(sv_mode)
 	cp b
